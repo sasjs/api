@@ -1,0 +1,1561 @@
+/**
+ * GENERATED - do not edit.
+ *
+ * Derived from spec/swagger.yaml (sasjs/server's published OpenAPI document) by
+ * scripts/sync-routes.mjs. Run `npm run sync:routes` after replacing that file;
+ * `npm run check:routes` fails the build when the two disagree.
+ *
+ * The overlay in ./overlay.ts adds what a document cannot say: the body each
+ * response carries, which capability a route needs, and whether this package
+ * implements it.
+ */
+import type { GeneratedRoute } from '../types.js'
+
+export const GENERATED_ROUTES: GeneratedRoute[] = [
+  {
+    id: 'GET /',
+    method: 'GET',
+    path: '/',
+    tag: 'Web',
+    summary: 'Serve the web interface',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/admin/diagnostics',
+    method: 'GET',
+    path: '/SASjsApi/admin/diagnostics',
+    tag: 'Admin',
+    summary: 'Diagnostics: version, uptime, memory, disk usage',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/admin/logs',
+    method: 'GET',
+    path: '/SASjsApi/admin/logs',
+    tag: 'Admin',
+    summary: "List the server's log files",
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/admin/logs/{fileName}',
+    method: 'GET',
+    path: '/SASjsApi/admin/logs/{fileName}',
+    tag: 'Admin',
+    summary: 'Read the tail of a log file',
+    params: [
+      {
+        name: 'fileName',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'lines',
+        in: 'query',
+        required: false,
+        type: 'number'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/auth/logout',
+    method: 'POST',
+    path: '/SASjsApi/auth/logout',
+    tag: 'Auth',
+    summary: 'Revoke the current tokens',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/auth/refresh',
+    method: 'POST',
+    path: '/SASjsApi/auth/refresh',
+    tag: 'Auth',
+    summary: 'Refresh the access and refresh tokens',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/auth/token',
+    method: 'POST',
+    path: '/SASjsApi/auth/token',
+    tag: 'Auth',
+    summary: 'Exchange an authorization code for tokens',
+    params: [
+      {
+        name: 'clientId',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'code',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'PATCH /SASjsApi/auth/updatePassword',
+    method: 'PATCH',
+    path: '/SASjsApi/auth/updatePassword',
+    tag: 'Auth',
+    summary: "Change the current user's password",
+    params: [
+      {
+        name: 'currentPassword',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'newPassword',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/authConfig',
+    method: 'GET',
+    path: '/SASjsApi/authConfig',
+    tag: 'Auth Config',
+    summary: 'Get the configured authentication providers',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/authConfig/synchroniseWithLDAP',
+    method: 'POST',
+    path: '/SASjsApi/authConfig/synchroniseWithLDAP',
+    tag: 'Auth Config',
+    summary: 'Import users and groups from LDAP',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/client',
+    method: 'GET',
+    path: '/SASjsApi/client',
+    tag: 'Client',
+    summary: 'List all clients',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/client',
+    method: 'POST',
+    path: '/SASjsApi/client',
+    tag: 'Client',
+    summary: 'Create a client',
+    params: [
+      {
+        name: 'clientId',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'clientSecret',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'accessTokenExpiration',
+        in: 'body',
+        required: false,
+        type: 'number'
+      },
+      {
+        name: 'refreshTokenExpiration',
+        in: 'body',
+        required: false,
+        type: 'number'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/code/execute',
+    method: 'POST',
+    path: '/SASjsApi/code/execute',
+    tag: 'Code',
+    summary: 'Execute code and return its output',
+    params: [
+      {
+        name: 'code',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'runTime',
+        in: 'body',
+        required: true,
+        type: 'RunTimeType'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/code/format',
+    method: 'POST',
+    path: '/SASjsApi/code/format',
+    tag: 'Code',
+    summary: 'Format SAS code and return the formatted text',
+    params: [
+      {
+        name: 'code',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'filePath',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/code/lint',
+    method: 'POST',
+    path: '/SASjsApi/code/lint',
+    tag: 'Code',
+    summary: 'Lint SAS code and return the diagnostics',
+    params: [
+      {
+        name: 'code',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'filePath',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/code/trigger',
+    method: 'POST',
+    path: '/SASjsApi/code/trigger',
+    tag: 'Code',
+    summary: 'Trigger code and return a session ID',
+    params: [
+      {
+        name: 'code',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'runTime',
+        in: 'body',
+        required: true,
+        type: 'RunTimeType'
+      },
+      {
+        name: 'expiresAfterMins',
+        in: 'body',
+        required: false,
+        type: 'number'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/drive/deploy',
+    method: 'POST',
+    path: '/SASjsApi/drive/deploy',
+    tag: 'Drive',
+    summary: 'Deploy a file tree to SASjs Drive',
+    params: [
+      {
+        name: 'appLoc',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'streamWebFolder',
+        in: 'body',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'fileTree',
+        in: 'body',
+        required: true,
+        type: 'FileTree'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'Invalid Format'
+      },
+      {
+        status: 500,
+        description: 'Execution Error'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/drive/deploy/upload',
+    method: 'POST',
+    path: '/SASjsApi/drive/deploy/upload',
+    tag: 'Drive',
+    summary: 'Deploy an uploaded file to SASjs Drive',
+    params: [
+      {
+        name: 'file',
+        in: 'formData',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['multipart/form-data'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'Invalid Format'
+      },
+      {
+        status: 500,
+        description: 'Execution Error'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/drive/file',
+    method: 'DELETE',
+    path: '/SASjsApi/drive/file',
+    tag: 'Drive',
+    summary: 'Delete a file from SASjs Drive',
+    params: [
+      {
+        name: '_filePath',
+        in: 'query',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/drive/file',
+    method: 'GET',
+    path: '/SASjsApi/drive/file',
+    tag: 'Drive',
+    summary: 'Get a file from SASjs Drive',
+    params: [
+      {
+        name: '_filePath',
+        in: 'query',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'PATCH /SASjsApi/drive/file',
+    method: 'PATCH',
+    path: '/SASjsApi/drive/file',
+    tag: 'Drive',
+    summary: 'Replace a file in SASjs Drive',
+    params: [
+      {
+        name: '_filePath',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'file',
+        in: 'formData',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'filePath',
+        in: 'formData',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['multipart/form-data'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 403,
+        description: "File doesn't exist"
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/drive/file',
+    method: 'POST',
+    path: '/SASjsApi/drive/file',
+    tag: 'Drive',
+    summary: 'Create a file in SASjs Drive',
+    params: [
+      {
+        name: '_filePath',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'file',
+        in: 'formData',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'filePath',
+        in: 'formData',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['multipart/form-data'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 403,
+        description: 'File already exists'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/drive/filetree',
+    method: 'GET',
+    path: '/SASjsApi/drive/filetree',
+    tag: 'Drive',
+    summary: 'Get the SASjs Drive file tree, or one folder of it',
+    params: [
+      {
+        name: '_folderPath',
+        in: 'query',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/drive/folder',
+    method: 'DELETE',
+    path: '/SASjsApi/drive/folder',
+    tag: 'Drive',
+    summary: 'Delete a folder from SASjs Drive',
+    params: [
+      {
+        name: '_folderPath',
+        in: 'query',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/drive/folder',
+    method: 'GET',
+    path: '/SASjsApi/drive/folder',
+    tag: 'Drive',
+    summary: 'List a folder in SASjs Drive',
+    params: [
+      {
+        name: '_folderPath',
+        in: 'query',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/drive/folder',
+    method: 'POST',
+    path: '/SASjsApi/drive/folder',
+    tag: 'Drive',
+    summary: 'Create a folder in SASjs Drive',
+    params: [
+      {
+        name: 'folderPath',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 409,
+        description: 'Folder already exists'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/drive/rename',
+    method: 'POST',
+    path: '/SASjsApi/drive/rename',
+    tag: 'Drive',
+    summary: 'Rename or move a file or folder in SASjs Drive',
+    params: [
+      {
+        name: 'oldPath',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'newPath',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 409,
+        description: 'Folder already exists'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/group',
+    method: 'GET',
+    path: '/SASjsApi/group',
+    tag: 'Group',
+    summary: 'List all groups',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/group',
+    method: 'POST',
+    path: '/SASjsApi/group',
+    tag: 'Group',
+    summary: 'Create a group',
+    params: [
+      {
+        name: 'name',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'description',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'isActive',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/group/{groupUid}/{userUid}',
+    method: 'DELETE',
+    path: '/SASjsApi/group/{groupUid}/{userUid}',
+    tag: 'Group',
+    summary: 'Remove a user from a group',
+    params: [
+      {
+        name: 'groupUid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'userUid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/group/{groupUid}/{userUid}',
+    method: 'POST',
+    path: '/SASjsApi/group/{groupUid}/{userUid}',
+    tag: 'Group',
+    summary: 'Add a user to a group',
+    params: [
+      {
+        name: 'groupUid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'userUid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/group/{uid}',
+    method: 'DELETE',
+    path: '/SASjsApi/group/{uid}',
+    tag: 'Group',
+    summary: 'Delete a group',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/group/{uid}',
+    method: 'GET',
+    path: '/SASjsApi/group/{uid}',
+    tag: 'Group',
+    summary: 'Get a group by id',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/group/by/groupname/{name}',
+    method: 'GET',
+    path: '/SASjsApi/group/by/groupname/{name}',
+    tag: 'Group',
+    summary: 'Get a group by name',
+    params: [
+      {
+        name: 'name',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/info',
+    method: 'GET',
+    path: '/SASjsApi/info',
+    tag: 'Info',
+    summary: 'Get public server information',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/info/authorizedRoutes',
+    method: 'GET',
+    path: '/SASjsApi/info/authorizedRoutes',
+    tag: 'Info',
+    summary: 'List the routes that accept permissions',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/info/myAuthorizedRoutes',
+    method: 'GET',
+    path: '/SASjsApi/info/myAuthorizedRoutes',
+    tag: 'Info',
+    summary: 'List the routes this caller may use',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/permission',
+    method: 'GET',
+    path: '/SASjsApi/permission',
+    tag: 'Permission',
+    summary: 'List the permission rules for the current user',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/permission',
+    method: 'POST',
+    path: '/SASjsApi/permission',
+    tag: 'Permission',
+    summary: 'Create a permission rule',
+    params: [
+      {
+        name: 'path',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'type',
+        in: 'body',
+        required: true,
+        type: 'PermissionType'
+      },
+      {
+        name: 'setting',
+        in: 'body',
+        required: true,
+        type: 'PermissionSettingForRoute'
+      },
+      {
+        name: 'principalType',
+        in: 'body',
+        required: true,
+        type: 'PrincipalType'
+      },
+      {
+        name: 'principalId',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/permission/{uid}',
+    method: 'DELETE',
+    path: '/SASjsApi/permission/{uid}',
+    tag: 'Permission',
+    summary: 'Delete a permission rule',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'PATCH /SASjsApi/permission/{uid}',
+    method: 'PATCH',
+    path: '/SASjsApi/permission/{uid}',
+    tag: 'Permission',
+    summary: 'Update a permission rule',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'setting',
+        in: 'body',
+        required: true,
+        type: 'PermissionSettingForRoute'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/session',
+    method: 'GET',
+    path: '/SASjsApi/session',
+    tag: 'Session',
+    summary: 'Get the current session',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/session/{sessionId}',
+    method: 'GET',
+    path: '/SASjsApi/session/{sessionId}',
+    tag: 'Session',
+    summary: 'Get a triggered session',
+    params: [
+      {
+        name: 'sessionId',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/session/{sessionId}/log',
+    method: 'GET',
+    path: '/SASjsApi/session/{sessionId}/log',
+    tag: 'Session',
+    summary: 'Get the log of a triggered session',
+    params: [
+      {
+        name: 'sessionId',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/session/{sessionId}/output',
+    method: 'GET',
+    path: '/SASjsApi/session/{sessionId}/output',
+    tag: 'Session',
+    summary: 'Get the output of a triggered session',
+    params: [
+      {
+        name: 'sessionId',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/session/{sessionId}/state',
+    method: 'GET',
+    path: '/SASjsApi/session/{sessionId}/state',
+    tag: 'Session',
+    summary: 'Get the state of a session',
+    params: [
+      {
+        name: 'sessionId',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/stp/execute',
+    method: 'GET',
+    path: '/SASjsApi/stp/execute',
+    tag: 'STP',
+    summary: 'Execute a stored program',
+    params: [
+      {
+        name: '_program',
+        in: 'query',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: '_debug',
+        in: 'query',
+        required: false,
+        type: 'number'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/stp/execute',
+    method: 'POST',
+    path: '/SASjsApi/stp/execute',
+    tag: 'STP',
+    summary: 'Execute a stored program',
+    params: [
+      {
+        name: '_program',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: '_program',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/stp/trigger',
+    method: 'POST',
+    path: '/SASjsApi/stp/trigger',
+    tag: 'STP',
+    summary: 'Trigger a stored program and return a session ID',
+    params: [
+      {
+        name: '_program',
+        in: 'query',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: '_debug',
+        in: 'query',
+        required: false,
+        type: 'number'
+      },
+      {
+        name: 'expiresAfterMins',
+        in: 'query',
+        required: false,
+        type: 'number'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/user',
+    method: 'GET',
+    path: '/SASjsApi/user',
+    tag: 'User',
+    summary: 'List all users',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASjsApi/user',
+    method: 'POST',
+    path: '/SASjsApi/user',
+    tag: 'User',
+    summary: 'Create a user',
+    params: [
+      {
+        name: 'displayName',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'username',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'isAdmin',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'isActive',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'autoExec',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/user/{uid}',
+    method: 'DELETE',
+    path: '/SASjsApi/user/{uid}',
+    tag: 'User',
+    summary: 'Delete a user by id',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/user/{uid}',
+    method: 'GET',
+    path: '/SASjsApi/user/{uid}',
+    tag: 'User',
+    summary: 'Get a user by id',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'PATCH /SASjsApi/user/{uid}',
+    method: 'PATCH',
+    path: '/SASjsApi/user/{uid}',
+    tag: 'User',
+    summary: 'Update a user by id',
+    params: [
+      {
+        name: 'uid',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'displayName',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'username',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'isAdmin',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'isActive',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'autoExec',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'DELETE /SASjsApi/user/by/username/{username}',
+    method: 'DELETE',
+    path: '/SASjsApi/user/by/username/{username}',
+    tag: 'User',
+    summary: 'Delete a user by username',
+    params: [
+      {
+        name: 'username',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 204,
+        description: 'No content'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASjsApi/user/by/username/{username}',
+    method: 'GET',
+    path: '/SASjsApi/user/by/username/{username}',
+    tag: 'User',
+    summary: 'Get a user by username',
+    params: [
+      {
+        name: 'username',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'PATCH /SASjsApi/user/by/username/{username}',
+    method: 'PATCH',
+    path: '/SASjsApi/user/by/username/{username}',
+    tag: 'User',
+    summary: 'Update a user by username',
+    params: [
+      {
+        name: 'username',
+        in: 'path',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'displayName',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'username',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'isAdmin',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'isActive',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
+        name: 'autoExec',
+        in: 'body',
+        required: false,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASLogon/authorize',
+    method: 'POST',
+    path: '/SASLogon/authorize',
+    tag: 'Web',
+    summary: 'Issue an authorization code',
+    params: [
+      {
+        name: 'clientId',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'POST /SASLogon/login',
+    method: 'POST',
+    path: '/SASLogon/login',
+    tag: 'Web',
+    summary: 'Sign in with a username and password',
+    params: [
+      {
+        name: 'username',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'password',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  },
+  {
+    id: 'GET /SASLogon/logout',
+    method: 'GET',
+    path: '/SASLogon/logout',
+    tag: 'Web',
+    summary: 'Sign out',
+    params: [],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      }
+    ]
+  }
+]

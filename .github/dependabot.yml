@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # The workflows pin their actions by commit SHA, so the updater is what keeps
+  # them current - a pin with no updater is a repo running last year's actions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dev-dependencies:
+        patterns: ['*']

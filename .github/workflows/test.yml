@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: the workflow reads the tree and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Formatting
+        run: npm run lint
+
+      - name: Route table matches the published spec
+        run: npm run check:routes
+
+      - name: Typecheck
+        run: npx tsc -p tsconfig.json
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Both builds load
+        run: |
+          node -e "const a=require('./build/cjs/index.js'); if(a.ROUTES.length!==60) process.exit(1)"
+          node --input-type=module -e "import('./build/esm/index.js').then(a=>{if(a.ROUTES.length!==60) process.exit(1)})"

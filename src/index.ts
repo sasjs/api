@@ -1,0 +1,42 @@
+/**
+ * `@sasjs/api` - the SASjs Server API described once.
+ *
+ * The package has three parts, and each is usable on its own:
+ *
+ *   - the route table (`ROUTES`, `findRoute`), generated from sasjs/server's
+ *     published OpenAPI document and amended by a reviewed overlay;
+ *   - the services (`createDriveService`), which are the API's decisions over
+ *     storage a host supplies;
+ *   - the conformance corpus (`DRIVE_CORPUS`, `runCase`), which is what "the
+ *     same API" means when a test has to check it.
+ *
+ * It imports no runtime on purpose: the same build runs in an Express server and
+ * in a service worker, so anything node-shaped is a store a host passes in.
+ */
+export * from './types.js'
+export {
+  normaliseDrivePath,
+  hasBlockedExtension,
+  dirname,
+  basename,
+  isRoot
+} from './drive/paths.js'
+export { createDriveService } from './drive/service.js'
+export type {
+  DriveService,
+  DriveResult,
+  DriveListing,
+  DriveFile,
+  DriveTree
+} from './drive/service.js'
+export { MemoryDriveStore } from './drive/memory-store.js'
+export { ROUTES, routeById, findRoute } from './routes/index.js'
+export type { RouteMatch } from './routes/index.js'
+export { OVERLAY, TAG_CAPABILITIES } from './routes/overlay.js'
+export type { RouteOverlay } from './routes/overlay.js'
+export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
+export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
+export { DRIVE_CORPUS } from './corpus/drive.js'
+export type { CorpusCase } from './corpus/drive.js'
+export { runCase, servicesFor } from './corpus/runner.js'
+export type { CaseResult } from './corpus/runner.js'

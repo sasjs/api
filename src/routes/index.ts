@@ -1,0 +1,131 @@
+/**
+ * The route table, and the one matcher both hosts dispatch with.
+ *
+ * `GENERATED_ROUTES` is the OpenAPI document, `OVERLAY` is the part a document
+ * cannot carry, and this file is where they meet. Importing it validates the
+ * join as a side effect: an overlay entry naming an operation the document does
+ * not have is a stale entry, and it throws here rather than being silently
+ * ignored - the failure mode that lets a "documented" behaviour rot.
+ */
+import { GENERATED_ROUTES } from './generated.js'
+import { OVERLAY, TAG_CAPABILITIES } from './overlay.js'
+import type { Route, RouteResponse } from '../types.js'
+
+const merge = (generated: (typeof GENERATED_ROUTES)[number]): Route => {
+  const overlay = OVERLAY[generated.id] || {}
+  const documented = new Map(
+    generated.responses.map((r) => [r.status, r.description])
+  )
+  const overlayed = Object.keys(overlay.responses || {}).map(Number)
+
+  // Where the overlay states the responses, they replace the documented ones -
+  // the implementation is what a client sees, and a status the code can never
+  // send does not belong in the table. `correction` on the entry says what was
+  // changed and why; a route whose document and code agree keeps its documented
+  // descriptions, because the overlay only names statuses it cares about.
+  const statuses = overlayed.length
+    ? overlayed
+    : generated.responses.map((r) => r.status)
+  const responses: RouteResponse[] = [...new Set(statuses)]
+    .sort((a, b) => a - b)
+    .map((status) => {
+      const body = overlay.responses ? overlay.responses[status] : undefined
+      return {
+        status,
+        description: documented.get(status) || '',
+        ...(body === undefined ? {} : { body })
+      }
+    })
+
+  return {
+    ...generated,
+    responses,
+    capabilities: overlay.capabilities || TAG_CAPABILITIES[generated.tag] || [],
+    implemented: overlay.implemented === true
+  }
+}
+
+export const ROUTES: Route[] = GENERATED_ROUTES.map(merge)
+
+const known = new Set(ROUTES.map((route) => route.id))
+for (const id of Object.keys(OVERLAY))
+  if (!known.has(id))
+    throw new Error(
+      `src/routes/overlay.ts names an operation the OpenAPI document does not have: ${id}. Remove the entry or refresh spec/swagger.yaml.`
+    )
+
+const byId = new Map(ROUTES.map((route) => [route.id, route]))
+
+/** The route with this `METHOD /path` identity, if the document has one. */
+export const routeById = (id: string): Route | undefined => byId.get(id)
+
+export interface RouteMatch {
+  route: Route
+  /** Values captured from the path's `{placeholders}`. */
+  params: Record<string, string>
+}
+
+const escape = (segment: string) =>
+  segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Compiles a documented path into a matcher. The table is static, so this runs
+ * once at import; `findRoute` then tests exact paths first (most of the API is
+ * static) and only falls through to the templates for `{uid}`-style paths.
+ */
+const compiled = ROUTES.filter((route) => route.path.includes('{')).map(
+  (route) => {
+    const keys: string[] = []
+    const pattern = route.path
+      .split('/')
+      .map((segment) => {
+        if (segment.startsWith('{') && segment.endsWith('}')) {
+          keys.push(segment.slice(1, -1))
+          return '([^/]+)'
+        }
+        return escape(segment)
+      })
+      .join('/')
+    return { route, keys, regex: new RegExp('^' + pattern + '/?$') }
+  }
+)
+
+const exact = new Map<string, Route>()
+for (const route of ROUTES)
+  if (!route.path.includes('{'))
+    exact.set(route.method + ' ' + route.path, route)
+
+/**
+ * The route a request names, or undefined when the API has no such operation.
+ *
+ * A host that gets undefined answers 404 "not part of the API"; a host that gets
+ * a route it cannot serve answers 501 naming the capability. Keeping those two
+ * apart is the difference between a client's bug and a host's limit.
+ */
+export const findRoute = (
+  method: string,
+  path: string
+): RouteMatch | undefined => {
+  const verb = method.toUpperCase()
+  const clean = path.split('?')[0].replace(/\/+$/, '') || '/'
+
+  const hit = exact.get(verb + ' ' + clean)
+  if (hit) return { route: hit, params: {} }
+
+  for (const candidate of compiled) {
+    if (candidate.route.method !== verb) continue
+    const match = candidate.regex.exec(clean)
+    if (!match) continue
+    const params: Record<string, string> = {}
+    candidate.keys.forEach((key, index) => {
+      try {
+        params[key] = decodeURIComponent(match[index + 1])
+      } catch {
+        params[key] = match[index + 1]
+      }
+    })
+    return { route: candidate.route, params }
+  }
+
+  return undefined
+}

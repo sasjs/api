@@ -1,0 +1,50 @@
+{
+  "name": "@sasjs/api",
+  "version": "0.1.0",
+  "description": "The SASjs Server API, described once - a generated route table, the services behind it, and the conformance corpus both hosts run",
+  "license": "MIT",
+  "author": "SASjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sasjs/api.git"
+  },
+  "homepage": "https://github.com/sasjs/api#readme",
+  "main": "build/cjs/index.js",
+  "module": "build/esm/index.js",
+  "types": "build/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/esm/index.d.ts",
+      "import": "./build/esm/index.js",
+      "require": "./build/cjs/index.js"
+    }
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "rimraf build && tsc -p tsconfig.build.cjs.json && tsc -p tsconfig.build.esm.json && node scripts/postbuild.mjs",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "prettier --check \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
+    "lint:fix": "prettier --write \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
+    "sync:routes": "node scripts/sync-routes.mjs",
+    "check:routes": "node scripts/sync-routes.mjs --check"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2",
+    "yaml": "^2.6.1"
+  }
+}

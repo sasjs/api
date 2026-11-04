@@ -47,7 +47,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Both builds load
+      - name: All three builds load
         run: |
           node -e "const a=require('./build/cjs/index.js'); if(a.ROUTES.length!==60) process.exit(1)"
           node --input-type=module -e "import('./build/esm/index.js').then(a=>{if(a.ROUTES.length!==60) process.exit(1)})"
+          # the browser artefact is a classic-worker IIFE, so it is loaded the way
+          # a worker would: evaluated with `self` in scope, then read off `self`
+          node -e "
+          const vm=require('node:vm'), fs=require('node:fs');
+          const ctx={self:{}}; vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('build/browser.js','utf8'), ctx);
+          const api=ctx.self.SASjsApi;
+          if(!api || api.ROUTES.length!==60 || typeof api.createDriveService!=='function') process.exit(1);
+          "

@@ -35,7 +35,14 @@ const drive = createDriveService(nodeDriveStore) // your fs, behind the port
 const match = findRoute('POST', '/SASjsApi/drive/file')
 ```
 
-In the browser build the package is bundled into the worker (the ESM build is `build/esm`, `sideEffects: false`), and the store is the drive map the build already persists.
+In a service worker - the browser build's case - load the bundle the package ships and read it off `self`:
+
+```js
+importScripts('/host/sasjs-api.js') // build/browser.js, copied by your build
+const { createDriveService, findRoute } = self.SASjsApi
+```
+
+The bundle is deliberately a classic-worker IIFE: a service worker registered by a static site has `importScripts` and no module loader, and the consumer copies its assets verbatim rather than running a bundler of its own. Bundling belongs here, once.
 
 Both hosts answer with the same shapes:
 
@@ -48,7 +55,7 @@ Both hosts answer with the same shapes:
 
 - **No runtime imports.** `src` compiles with `"types": []` and `lib: ES2020`, so a `Buffer`, a `process` or a `document` reference fails `npm run build` rather than a worker at run time. Nothing node-shaped can creep into the browser path.
 - **No Node-only APIs in the published surface.** Storage is a port (`DriveStore`), and `MemoryDriveStore` ships so a host without a filesystem has an implementation to use.
-- **Two builds from one source.** `build/cjs` and `build/esm`, with `build/esm` marked `"type": "module"` by the build script so Node runs it as ESM.
+- **Three builds from one source.** `build/cjs` for node, `build/esm` for a bundler (with `build/esm` marked `"type": "module"` by the build script so Node runs it as ESM), and `build/browser.js` - a classic-worker IIFE that assigns `self.SASjsApi` - for a service worker that has only `importScripts`. CI loads all three.
 - **The table cannot rot silently.** `npm run check:routes` fails when `src/routes/generated.ts` and `spec/swagger.yaml` disagree, and the module throws at import when an overlay entry names an operation the document does not have.
 
 ## Status

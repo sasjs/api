@@ -6,7 +6,12 @@
  * for, each of which a host or a test needs:
  *
  *   - the body a response carries, because a client keys on `{"status":
- *     "success"}` and on the wording of a refusal, not on a status alone;
+ *     "success"}` and on the wording of a refusal, not on a status alone. A
+ *     refusal's body is the message as a plain string: the drive routes answer
+ *     `res.status(code).send(err.message)`, and sasjs/server's own suite asserts
+ *     `res.text`. A host renders that in its own transport - a text body on the
+ *     server, `text(...)` in the worker - and never wraps it in an envelope the
+ *     server does not send;
  *   - which capability the route needs, so a host can answer 501 with a reason
  *     instead of 404 with none;
  *   - whether this package implements it yet, so "not done" is visible.
@@ -54,25 +59,26 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'GET /SASjsApi/info/myAuthorizedRoutes': { capabilities: ['identity'] },
   'GET /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: '<the file contents>' },
+    // the body is the file itself, so only the status is stated
+    responses: { 200: undefined },
     correction:
       'documented as 204, because the controller writes the response itself rather than returning a body'
   },
   'POST /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: success, 409: { message: 'File already exists.' } },
+    responses: { 200: success, 409: 'File already exists.' },
     correction:
       'documented as 403 for a path that is taken; DriveController.saveFile throws 409'
   },
   'PATCH /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: success, 404: { message: `File doesn't exist.` } },
+    responses: { 200: success, 404: `File doesn't exist.` },
     correction:
       'documented as 403 for a path that is missing; DriveController.updateFile throws 404'
   },
   'DELETE /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: success, 404: { message: `File doesn't exist.` } }
+    responses: { 200: success, 404: `File doesn't exist.` }
   },
   'GET /SASjsApi/drive/folder': {
     implemented: true,
@@ -80,18 +86,18 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'POST /SASjsApi/drive/folder': {
     implemented: true,
-    responses: { 200: success, 409: { message: 'Folder already exists.' } }
+    responses: { 200: success, 409: 'Folder already exists.' }
   },
   'DELETE /SASjsApi/drive/folder': {
     implemented: true,
-    responses: { 200: success, 404: { message: `Folder doesn't exist.` } }
+    responses: { 200: success, 404: `Folder doesn't exist.` }
   },
   'POST /SASjsApi/drive/rename': {
     implemented: true,
     responses: {
       200: success,
-      409: { message: 'File with new name already exists.' },
-      404: { message: 'No file/folder found for provided path.' }
+      409: 'File with new name already exists.',
+      404: 'No file/folder found for provided path.'
     }
   },
   'GET /SASjsApi/drive/filetree': {

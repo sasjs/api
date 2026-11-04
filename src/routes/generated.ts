@@ -465,6 +465,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't delete file outside drive"
+      },
+      {
+        status: 404,
+        description: "File doesn't exist"
       }
     ]
   },
@@ -485,8 +493,16 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     requestBodies: [],
     responses: [
       {
-        status: 204,
-        description: 'No content'
+        status: 200,
+        description: 'The contents of the file'
+      },
+      {
+        status: 400,
+        description: "Can't get file outside drive"
+      },
+      {
+        status: 404,
+        description: "File doesn't exist"
       }
     ]
   },
@@ -523,7 +539,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Ok'
       },
       {
-        status: 403,
+        status: 400,
+        description: "Can't modify file outside drive"
+      },
+      {
+        status: 404,
         description: "File doesn't exist"
       }
     ]
@@ -561,7 +581,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Ok'
       },
       {
-        status: 403,
+        status: 400,
+        description: "Can't put file outside drive"
+      },
+      {
+        status: 409,
         description: 'File already exists'
       }
     ]
@@ -607,6 +631,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't delete folder outside drive"
+      },
+      {
+        status: 404,
+        description: "Folder doesn't exist"
       }
     ]
   },
@@ -629,6 +661,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't get folder outside drive"
+      },
+      {
+        status: 404,
+        description: "Folder doesn't exist"
       }
     ]
   },
@@ -651,6 +691,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't put folder outside drive"
       },
       {
         status: 409,
@@ -685,8 +729,16 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Ok'
       },
       {
+        status: 400,
+        description: "Can't rename outside drive"
+      },
+      {
+        status: 404,
+        description: 'No file/folder found for provided path'
+      },
+      {
         status: 409,
-        description: 'Folder already exists'
+        description: 'Something already exists at the new path'
       }
     ]
   },

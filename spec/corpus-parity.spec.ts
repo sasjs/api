@@ -1,0 +1,58 @@
+import { ROUTES, routeById } from '../src/routes/index.js'
+import { DRIVE_CORPUS } from '../src/corpus/drive.js'
+
+/**
+ * The document says what a host may answer; the corpus is what a host is shown
+ * to answer. The drift ratchet in routes.spec.ts compares the table with the
+ * document, which catches a status the overlay invents - but on its own it
+ * cannot catch a documented status nothing can send, because the document is
+ * where both sides of that comparison come from.
+ *
+ * This is the other direction, and it uses the corpus rather than another list:
+ * every status the document states for an implemented route must be exercised by
+ * a case, and every status a case expects must be stated by the document. A
+ * status added to the document with no case fails here; a case answering a
+ * status the document does not state fails here too.
+ */
+const corpusByRoute = () => {
+  const byRoute = new Map<string, Set<number>>()
+
+  for (const testCase of DRIVE_CORPUS) {
+    const seen = byRoute.get(testCase.route) || new Set<number>()
+    seen.add(testCase.expect.status)
+    byRoute.set(testCase.route, seen)
+  }
+
+  return byRoute
+}
+
+describe('the document and the corpus agree, in both directions', () => {
+  const cases = corpusByRoute()
+  const implemented = ROUTES.filter((route) => route.implemented)
+
+  it('has a case for every implemented route, so nothing is unchecked', () => {
+    const unchecked = implemented
+      .filter((route) => !cases.has(route.id))
+      .map((route) => route.id)
+
+    expect(unchecked).toEqual([])
+  })
+
+  it('states exactly the statuses its cases answer', () => {
+    const drift = implemented
+      .map((route) => {
+        const documented = (routeById(route.id)?.responses || [])
+          .map((response) => response.status)
+          .sort((a, b) => a - b)
+        const answered = [...(cases.get(route.id) || [])].sort((a, b) => a - b)
+
+        return { id: route.id, documented, answered }
+      })
+      .filter(
+        ({ documented, answered }) =>
+          JSON.stringify(documented) !== JSON.stringify(answered)
+      )
+
+    expect(drift).toEqual([])
+  })
+})

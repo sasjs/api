@@ -46,30 +46,61 @@ describe('route table', () => {
     }).not.toThrow()
   })
 
-  describe('where the document and the implementation disagree', () => {
-    it('states 409 for a create over a file that exists, not the documented 403', () => {
+  describe('responses come from the document', () => {
+    it('states exactly the statuses the document states, for every implemented route', () => {
+      // structural today - `merge` takes the statuses from the document and throws
+      // on an overlay entry naming one it does not state - and here so that
+      // reintroducing a union shows up as a failure rather than as a status a host
+      // advertises and nothing can observe. The behavioural half of the guard is
+      // corpus-parity.spec.ts, which compares the document with what the cases
+      // answer.
+      // both sides sorted: the table orders statuses numerically and the
+      // document keeps its own order, so comparing them as given would report
+      // drift whenever the document lists 404 before 400
+      const ascending = (statuses?: number[]) =>
+        [...(statuses || [])].sort((a, b) => a - b)
+
+      const drifted = ROUTES.filter((route) => route.implemented)
+        .map((route) => ({
+          id: route.id,
+          table: ascending(route.responses.map((response) => response.status)),
+          documented: ascending(
+            GENERATED_ROUTES.find(
+              (entry) => entry.id === route.id
+            )?.responses.map((response) => response.status)
+          )
+        }))
+        .filter(
+          ({ table, documented }) =>
+            JSON.stringify(table) !== JSON.stringify(documented)
+        )
+
+      expect(drifted).toEqual([])
+    })
+
+    it('annotates a refusal with the message a client reads', () => {
       const route = routeById('POST /SASjsApi/drive/file')
 
-      expect(route?.responses.map((r) => r.status)).toEqual([200, 409])
       // the string, not an envelope: the drive routes send the message as text
       expect(route?.responses.find((r) => r.status === 409)?.body).toEqual(
         'File already exists.'
       )
-      expect(OVERLAY['POST /SASjsApi/drive/file'].correction).toMatch(/403/)
     })
 
-    it('states 404 for a replace of a file that is missing, not the documented 403', () => {
-      const route = routeById('PATCH /SASjsApi/drive/file')
+    it('documents what the drive routes actually send', () => {
+      // these three were wrong in the published document until sasjs/server#537;
+      // the package reads them from the spec, so a regression there is a failure
+      // here rather than a line in an overlay
+      const statuses = (id: string) =>
+        routeById(id)?.responses.map((response) => response.status)
 
-      expect(route?.responses.map((r) => r.status)).toEqual([200, 404])
-      expect(OVERLAY['PATCH /SASjsApi/drive/file'].correction).toMatch(/404/)
-    })
-
-    it('states 200 for a file read, not the documented 204', () => {
-      const route = routeById('GET /SASjsApi/drive/file')
-
-      expect(route?.responses.map((r) => r.status)).toEqual([200])
-      expect(OVERLAY['GET /SASjsApi/drive/file'].correction).toMatch(/204/)
+      // the 400 is the validation refusal the implementation has always sent
+      // (a path outside the drive, a blocked extension, a missing payload); the
+      // document gained it in sasjs/server#538 rather than the table losing it
+      expect(statuses('POST /SASjsApi/drive/file')).toEqual([200, 400, 409])
+      expect(statuses('PATCH /SASjsApi/drive/file')).toEqual([200, 400, 404])
+      expect(statuses('GET /SASjsApi/drive/file')).toEqual([200, 400, 404])
+      expect(statuses('GET /SASjsApi/drive/folder')).toEqual([200, 400, 404])
     })
   })
 })

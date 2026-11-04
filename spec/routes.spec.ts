@@ -51,9 +51,10 @@ describe('route table', () => {
       const route = routeById('POST /SASjsApi/drive/file')
 
       expect(route?.responses.map((r) => r.status)).toEqual([200, 409])
-      expect(route?.responses.find((r) => r.status === 409)?.body).toEqual({
-        message: 'File already exists.'
-      })
+      // the string, not an envelope: the drive routes send the message as text
+      expect(route?.responses.find((r) => r.status === 409)?.body).toEqual(
+        'File already exists.'
+      )
       expect(OVERLAY['POST /SASjsApi/drive/file'].correction).toMatch(/403/)
     })
 

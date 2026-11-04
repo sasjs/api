@@ -11,12 +11,10 @@
  * next to their own services, and the file is small.
  */
 import { build } from 'esbuild'
-import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 await build({
   entryPoints: [join(root, 'src', 'index.ts')],
@@ -29,7 +27,10 @@ await build({
   charset: 'utf8',
   legalComments: 'none',
   banner: {
-    js: `/* @sasjs/api ${version} - the SASjs Server API, for a service worker. https://github.com/sasjs/api */`
+    // deliberately no version: package.json carries a placeholder until
+    // semantic-release bumps it, and the build runs before that step, so a
+    // version here would be a number the artefact never shipped as
+    js: `/* @sasjs/api - the SASjs Server API, for a service worker. https://github.com/sasjs/api */`
   },
   footer: {
     // `globalName` declares a var; a worker's global scope is `self`, and a host

@@ -1,0 +1,56 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+# read-only by default; the release job asks for the three writes it needs, so a
+# later change that stops needing one cannot keep it by accident
+permissions: read-all
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # npm trusted publishing (OIDC) - no NPM_TOKEN secret
+      contents: write # semantic-release pushes the tag and creates the release
+      issues: write # semantic-release comments when a release fails
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # semantic-release needs the history and the tags
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # trusted publishing needs npm >= 11.5.1, and node 22 ships npm 10.x.
+      # Pinned rather than @latest so the toolchain that publishes is the one
+      # this commit was reviewed with.
+      - name: Update npm
+        run: npm install -g npm@12.2.0
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # the release runs the same gates as the test workflow rather than a
+      # subset: a package that fails its own checks must not reach npm because
+      # the commit happened to land on main
+      - name: Formatting
+        run: npm run lint
+
+      - name: Route table matches the published spec
+        run: npm run check:routes
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Semantic Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

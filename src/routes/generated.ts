@@ -1665,8 +1665,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 500,
-        description:
-          'The identity provider failed while verifying the credentials'
+        description: 'An unexpected error occurred while signing in'
       }
     ]
   },

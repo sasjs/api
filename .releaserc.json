@@ -4,6 +4,12 @@
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     "@semantic-release/npm",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "SASJS_API_VERSION=${nextRelease.version} node scripts/build-browser.mjs"
+      }
+    ],
     "@semantic-release/github"
   ]
 }

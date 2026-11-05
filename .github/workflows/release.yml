@@ -17,6 +17,14 @@ on:
 # later change that stops needing one cannot keep it by accident
 permissions: read-all
 
+# One release at a time. A push to main and a bootstrap dispatch, or two quick
+# pushes, would otherwise both reach npm publish and the tag push, and one of them
+# fails on a version or a tag that already exists. Not cancelled in progress: a
+# release that has started is the wrong thing to interrupt.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -47,17 +55,28 @@ jobs:
       # the release runs the same gates as the test workflow rather than a
       # subset: a package that fails its own checks must not reach npm because
       # the commit happened to land on main
+      - name: Advisories
+        run: npm audit --audit-level=high
+
       - name: Formatting
         run: npm run lint
 
       - name: Route table matches the published spec
         run: npm run check:routes
 
+      - name: Typecheck
+        run: npx tsc -p tsconfig.json
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
+        env:
+          # unset on the semantic-release path: the manifest still holds the
+          # placeholder there, and the exec plugin restamps the bundle with the
+          # version it is about to publish. A missing version beats a wrong one.
+          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
 
       # A `fix:` or `feat:` landing before the bootstrap would publish 1.0.0
       # without anyone deciding on it. Fail loudly instead: the bootstrap below
@@ -74,6 +93,9 @@ jobs:
         if: ${{ inputs.bootstrap_version }}
         env:
           VERSION: ${{ inputs.bootstrap_version }}
+          # the version this build is, named in the browser bundle's banner;
+          # semantic-release stamps its own through @semantic-release/exec
+          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
         run: |
           if npm view "@sasjs/api@$VERSION" version >/dev/null 2>&1; then
             echo "::error::@sasjs/api@$VERSION is already on npm - nothing to bootstrap."

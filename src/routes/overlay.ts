@@ -28,6 +28,15 @@ export interface RouteOverlay {
   capabilities?: Capability[]
   implemented?: boolean
   /**
+   * Statuses the document states that this package cannot send because they are
+   * the host's to send: an account lockout is the host's login limiter, a
+   * provider failure is its identity provider, a session-store failure is its
+   * session middleware. They stay in the document - a client still receives
+   * them - and are excluded from the corpus parity check, whose other side is
+   * what the package answers. The host's own suite pins them.
+   */
+  hostResponses?: number[]
+  /**
    * The body the operation sends with a status, where a client keys on it. The
    * statuses come from the document; this only annotates them.
    */
@@ -52,6 +61,14 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
 }
 
 const success = { status: 'success' }
+
+const user = {
+  uid: '',
+  username: '',
+  displayName: '',
+  isAdmin: false,
+  needsToUpdatePassword: false
+}
 
 export const OVERLAY: Record<string, RouteOverlay> = {
   // the route inventory reports what the CALLER may use, so it needs an identity
@@ -104,6 +121,38 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'POST /SASjsApi/drive/deploy/upload': {
     implemented: false
+  },
+  // The lockout and the provider failure are answered before the package is
+  // consulted (routes/web/web.ts in sasjs/server).
+  'POST /SASLogon/login': {
+    implemented: true,
+    hostResponses: [429, 500],
+    responses: { 200: { loggedIn: true, user } }
+  },
+
+  // The sign-in flow. The statuses are the document's; these entries state the
+  // body a client keys on, and that this package answers the operation.
+  'POST /SASjsApi/auth/token': {
+    implemented: true,
+    responses: { 200: { accessToken: '', refreshToken: '' } }
+  },
+  'POST /SASjsApi/auth/refresh': {
+    implemented: true,
+    responses: { 200: { accessToken: '', refreshToken: '' } }
+  },
+  'POST /SASjsApi/auth/logout': { implemented: true },
+  'POST /SASLogon/authorize': {
+    implemented: true,
+    responses: { 200: { code: '' } }
+  },
+  'GET /SASLogon/logout': {
+    implemented: true,
+    hostResponses: [500],
+    responses: { 200: 'OK!' }
+  },
+  'GET /SASjsApi/session': {
+    implemented: true,
+    responses: { 200: user }
   }
 }
 

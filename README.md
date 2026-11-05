@@ -9,7 +9,7 @@ The plan that this package implements is tracked in `sasjs/cli#1550`.
 
 ## What is in it
 
-**The route table** (`ROUTES`, `findRoute`) is every operation in the API - 43 paths, 60 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
+**The route table** (`ROUTES`, `findRoute`) is every operation in the API - 31 paths, 60 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
 The statuses come from that document and nowhere else: the overlay cannot add one, and an overlay entry naming a status the document does not state fails the build rather than describing a wish.
 The document cannot say everything a host needs, so the reviewed overlay adds the body each response carries, the capability a route needs, and whether this package implements it.
 Where the document is wrong, it is corrected in `sasjs/server` and re-vendored here - never worked around in the overlay.
@@ -18,10 +18,10 @@ Where the document is wrong, it is corrected in `sasjs/server` and re-vendored h
 
 `spec/swagger.yaml` is generated from the controllers in `sasjs/server`. In a checkout of that repository run `npm run swagger` (tsoa), copy `api/public/swagger.yaml` over `spec/swagger.yaml` keeping the header at the top of the file, then run `npm run sync:routes` here. `npm run check:routes` fails if `src/routes/generated.ts` no longer matches the document.
 
-**The services** (`createDriveService`) are the API's decisions over storage the host supplies: the statuses, the messages, the order of the checks, and the path rules (including `resolveWithinDrive`'s containment).
+**The services** (`createDriveService`, `createIdentityService`) are the API's decisions over storage the host supplies: the statuses, the messages, the order of the checks, and the path rules (including `resolveWithinDrive`'s containment).
 They are `async`, take a `DriveStore`, and import nothing - so the same code runs under Express and inside a service worker.
 
-**The corpus** (`DRIVE_CORPUS`, `runCase`) is what "the same API" means when a test has to check it: each case is a request, the answer a client expects, and the files it starts from.
+**The corpus** (`DRIVE_CORPUS`, `IDENTITY_CORPUS`, `runCase`) is what "the same API" means when a test has to check it: each case is a request, the answer a client expects, and the files it starts from.
 The same cases are meant to run against a live server and against the browser build, so a difference fails a test rather than waiting for a reviewer to notice.
 
 ## Using it
@@ -32,15 +32,25 @@ npm install @sasjs/api
 
 Requires Node `^22.14.0 || >=24.10.0` - the floor the release toolchain needs, and what CI runs.
 
-A host supplies a store and, later, an identity.
-In node:
+A host supplies a store and, for the sign-in routes, an identity. `memory-store.ts` ships both memory implementations, so a host with no filesystem and no database has something to start from:
 
 ```ts
-import { createDriveService, ROUTES, findRoute } from '@sasjs/api'
+import {
+  createDriveService,
+  createIdentityService,
+  MemoryIdentityStore,
+  ROUTES,
+  findRoute
+} from '@sasjs/api'
 
 const drive = createDriveService(nodeDriveStore) // your fs, behind the port
+const identity = createIdentityService(nodeIdentityStore) // your users, tokens
 const match = findRoute('POST', '/SASjsApi/drive/file')
 ```
+
+An `IdentityStore` is users, clients, token pairs and auth codes, plus the cryptography that names a subject in a token: a server signs JWTs it later verifies against the same secret, a browser build mints opaque strings it can look up. Splitting those two halves would let a host pair one host's minting with another's verification, so they are one port.
+
+`IDENTITY_FORMAT`, `parseIdentity` and `DEFAULT_IDENTITY` describe the fixture a browser build ships - one administrator, one restricted user, two groups, a handful of permission rules and a client - so a mock works with no configuration and states plainly that it is fake.
 
 In a service worker - the browser build's case - load the bundle the package ships and read it off `self`:
 
@@ -67,9 +77,15 @@ Both hosts answer with the same shapes:
 
 ## Status
 
-Implemented: the nine drive handlers (file read/write/replace/delete, folder read/create/delete, rename, file tree), exercised by 27 corpus cases.
-Not implemented yet, in the order the plan sets: identity (`auth`, `user`, `group`, `permission`, and the `SASLogon` sign-in flow), the session record, program execution (`stp`, `code`), `drive/deploy` and its size cap, and the admin routes.
+Implemented, exercised by 56 corpus cases:
+
+- the nine drive handlers - file read/write/replace/delete, folder read/create/delete, rename, file tree;
+- the seven sign-in handlers - `auth/token`, `auth/refresh`, `auth/logout`, `SASLogon/login`, `SASLogon/authorize`, `SASLogon/logout`, and the session read.
+
+Not implemented yet, in the order the plan sets: the rest of identity (`user`, `group`, `permission`, `auth/updatePassword`, `info/authorizedRoutes`), the session record behind `log`/`output`, program execution (`stp`, `code`), `drive/deploy` and its size cap, and the admin routes.
 `src/routes/overlay.ts` is the list: an operation with `implemented: true` has a handler, and everything else answers `501` with its own name.
+
+A status the document states but only a host can send - an account lockout (`429`), a provider failure (`500`), a session-store failure - is marked `hostResponses` in the overlay. It stays in the document, because a client still receives it, and is excluded from the parity check, whose other side is what this package answers; the host's own suite pins it.
 
 ## Development
 

@@ -36,7 +36,36 @@ export { OVERLAY, TAG_CAPABILITIES } from './routes/overlay.js'
 export type { RouteOverlay } from './routes/overlay.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
 export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
+export { createIdentityService } from './identity/service.js'
+export type {
+  IdentityService,
+  LoginResult,
+  SessionResult
+} from './identity/service.js'
+export { MemoryIdentityStore } from './identity/memory-store.js'
+export {
+  DEFAULT_IDENTITY,
+  IDENTITY_FORMAT,
+  parseIdentity
+} from './identity/fixture.js'
+export type {
+  IdentityFixture,
+  IdentityFixtureClient,
+  IdentityFixtureCode,
+  IdentityFixtureGroup,
+  IdentityFixturePermission,
+  IdentityFixtureToken,
+  IdentityFixtureUser
+} from './identity/fixture.js'
+export type {
+  IdentityClient,
+  IdentityStore,
+  IdentityUser,
+  Subject,
+  TokenPair
+} from './identity/types.js'
 export { DRIVE_CORPUS } from './corpus/drive.js'
+export { IDENTITY_CORPUS } from './corpus/identity.js'
 export type { CorpusCase } from './corpus/drive.js'
 export { runCase, servicesFor } from './corpus/runner.js'
 export type { CaseResult } from './corpus/runner.js'

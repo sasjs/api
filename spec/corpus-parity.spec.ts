@@ -1,5 +1,6 @@
 import { ROUTES, routeById } from '../src/routes/index.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
+import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 
 /**
  * The document says what a host may answer; the corpus is what a host is shown
@@ -17,7 +18,7 @@ import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 const corpusByRoute = () => {
   const byRoute = new Map<string, Set<number>>()
 
-  for (const testCase of DRIVE_CORPUS) {
+  for (const testCase of [...DRIVE_CORPUS, ...IDENTITY_CORPUS]) {
     const seen = byRoute.get(testCase.route) || new Set<number>()
     seen.add(testCase.expect.status)
     byRoute.set(testCase.route, seen)
@@ -38,11 +39,15 @@ describe('the document and the corpus agree, in both directions', () => {
     expect(unchecked).toEqual([])
   })
 
-  it('states exactly the statuses its cases answer', () => {
+  it("states exactly the statuses its cases answer, apart from the host's own", () => {
+    // a status the overlay marks host-only is answered before the package is
+    // consulted - a lockout, a provider failure, a session-store failure - and
+    // is pinned by that host's suite rather than by this corpus
     const drift = implemented
       .map((route) => {
         const documented = (routeById(route.id)?.responses || [])
           .map((response) => response.status)
+          .filter((status) => !route.hostResponses.includes(status))
           .sort((a, b) => a - b)
         const answered = [...(cases.get(route.id) || [])].sort((a, b) => a - b)
 

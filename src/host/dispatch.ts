@@ -14,6 +14,8 @@
 import type { Route } from '../types.js'
 import { routeById } from '../routes/index.js'
 import type { DriveService } from '../drive/service.js'
+import type { IdentityService } from '../identity/service.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 
 export interface ApiRequest {
@@ -21,6 +23,14 @@ export interface ApiRequest {
   body?: Record<string, unknown>
   /** The multipart payload: the API names it `file` on every route that takes one. */
   file?: { name: string; contents: string | Uint8Array }
+  /**
+   * The bearer token the request carried, for the routes that name their caller
+   * in a header rather than a body. A host that already resolved the caller - a
+   * session cookie - passes `subject` instead.
+   */
+  token?: string
+  /** The caller, when the host resolved one before dispatching. */
+  subject?: Subject
 }
 
 export interface ApiResponse {
@@ -33,6 +43,12 @@ export interface ApiResponse {
 
 export interface Services {
   drive: DriveService
+  /**
+   * Users, clients and tokens. A host without one answers 501 for the identity
+   * routes, which is the same answer as an operation this package does not
+   * implement - the difference is the message, and it names the capability.
+   */
+  identity?: IdentityService
 }
 
 /**
@@ -80,8 +96,66 @@ export const dispatch = async (
   if (!route) throw new ApiError(404, `No such operation: ${routeId}`)
   validate(route, request)
 
-  const { drive } = services
+  const { drive, identity } = services
   const query = request.query || {}
+  const body = request.body || {}
+
+  /** The caller, from the request's own subject or the token it carried. */
+  const caller = async (): Promise<Subject | undefined> => {
+    if (request.subject) return request.subject
+    return identity?.authenticate(request.token)
+  }
+
+  if (
+    routeId.startsWith('POST /SASjsApi/auth/') ||
+    routeId.startsWith('POST /SASLogon/') ||
+    routeId === 'GET /SASLogon/logout' ||
+    routeId === 'GET /SASjsApi/session'
+  ) {
+    if (!identity)
+      throw new ApiError(
+        501,
+        `This host has no identity service, so it cannot answer ${routeId}.`
+      )
+
+    switch (routeId) {
+      case 'POST /SASjsApi/auth/token':
+        return {
+          status: 200,
+          body: await identity.token({
+            clientId: String(body.clientId ?? ''),
+            code: String(body.code ?? '')
+          })
+        }
+      case 'POST /SASjsApi/auth/refresh':
+        return { status: 200, body: await identity.refresh(request.token) }
+      case 'POST /SASjsApi/auth/logout':
+        await identity.logout(await caller())
+        return { status: 204 }
+      case 'POST /SASLogon/login':
+        return {
+          status: 200,
+          body: await identity.login({
+            username: String(body.username ?? ''),
+            password: String(body.password ?? '')
+          })
+        }
+      case 'POST /SASLogon/authorize':
+        return {
+          status: 200,
+          body: {
+            code: await identity.authorize(
+              await caller(),
+              String(body.clientId ?? '')
+            )
+          }
+        }
+      case 'GET /SASLogon/logout':
+        return { status: 200, contents: await identity.logoutSession() }
+      case 'GET /SASjsApi/session':
+        return { status: 200, body: await identity.session(await caller()) }
+    }
+  }
 
   switch (routeId) {
     case 'GET /SASjsApi/drive/file': {
@@ -146,5 +220,12 @@ export const HANDLED_ROUTES: string[] = [
   'POST /SASjsApi/drive/folder',
   'DELETE /SASjsApi/drive/folder',
   'POST /SASjsApi/drive/rename',
-  'GET /SASjsApi/drive/filetree'
+  'GET /SASjsApi/drive/filetree',
+  'POST /SASjsApi/auth/token',
+  'POST /SASjsApi/auth/refresh',
+  'POST /SASjsApi/auth/logout',
+  'POST /SASLogon/login',
+  'POST /SASLogon/authorize',
+  'GET /SASLogon/logout',
+  'GET /SASjsApi/session'
 ]

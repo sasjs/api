@@ -31,11 +31,23 @@ describe('route table', () => {
     expect(claimed).toEqual([...HANDLED_ROUTES].sort())
   })
 
-  it('carries the implementation status of the drive, and nothing else yet', () => {
+  it('implements the drive and the sign-in flow, and nothing else yet', () => {
     const implemented = ROUTES.filter((route) => route.implemented).map(
       (route) => route.tag
     )
-    expect(new Set(implemented)).toEqual(new Set(['Drive']))
+    expect(new Set(implemented)).toEqual(
+      new Set(['Drive', 'Auth', 'Web', 'Session'])
+    )
+  })
+
+  it('marks a host-only status only where the document states it', () => {
+    // the annotation says who answers a status; it cannot add one
+    for (const route of ROUTES)
+      for (const status of route.hostResponses)
+        expect({
+          route: route.id,
+          stated: route.responses.some((response) => response.status === status)
+        }).toEqual({ route: route.id, stated: true })
   })
 
   it('does not hold an overlay entry the document has no operation for', () => {

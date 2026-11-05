@@ -30,6 +30,8 @@ The same cases are meant to run against a live server and against the browser bu
 npm install @sasjs/api
 ```
 
+Requires Node `^22.14.0 || >=24.10.0` - the floor the release toolchain needs, and what CI runs.
+
 A host supplies a store and, later, an identity.
 In node:
 

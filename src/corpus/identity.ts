@@ -33,6 +33,14 @@ export const SIGNED_IN: IdentityFixture = {
   ]
 }
 
+/** The same identity, with the restricted user switched off. */
+export const DEACTIVATED: IdentityFixture = {
+  ...SIGNED_IN,
+  users: SIGNED_IN.users.map((user) =>
+    user.username === 'user2' ? { ...user, isActive: false } : user
+  )
+}
+
 /** The user the seeded session belongs to, without the host's own identifier. */
 const user2 = {
   username: 'user2',
@@ -66,6 +74,14 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     description: 'refuses a sign-in with no username as 400, naming the field',
     request: { body: { password: 'admin123' } },
     expect: { status: 400, error: '"username" is required' }
+  },
+  {
+    id: 'login-deactivated',
+    route: 'POST /SASLogon/login',
+    description: 'refuses a deactivated account, naming it',
+    identity: DEACTIVATED,
+    request: { body: { username: 'user2', password: 'user123' } },
+    expect: { status: 401, error: 'This account is not active.' }
   },
   {
     id: 'login-wrong-password',
@@ -208,6 +224,14 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     identity: SIGNED_IN,
     request: { token: 'seed-access' },
     expect: { status: 200, partial: user2 }
+  },
+  {
+    id: 'session-deactivated',
+    route: 'GET /SASjsApi/session',
+    description: 'stops resolving a token whose account has been deactivated',
+    identity: DEACTIVATED,
+    request: { token: 'seed-access' },
+    expect: { status: 401, error: 'Unauthorized' }
   },
   {
     id: 'session-without-token',

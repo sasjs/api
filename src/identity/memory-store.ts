@@ -113,11 +113,14 @@ export class MemoryIdentityStore implements IdentityStore {
 
   async issue(subject: Subject, client: IdentityClient): Promise<TokenPair> {
     this.counter += 1
-    // The lifetimes are the client's, and the counter keeps two pairs issued in
-    // the same millisecond distinct.
+    // The lifetimes are the client's, and the random half keeps two pairs issued
+    // in the same millisecond distinct and unguessable: these tokens are not a
+    // boundary (nothing here verifies a signature), but a predictable string
+    // would invite someone to treat one as if it were.
+    const noise = () => Math.random().toString(36).slice(2, 10)
     const pair: TokenPair = {
-      accessToken: `access-${this.counter}-${client.accessTokenExpiration}`,
-      refreshToken: `refresh-${this.counter}-${client.refreshTokenExpiration}`
+      accessToken: `access-${this.counter}-${noise()}-${client.accessTokenExpiration}`,
+      refreshToken: `refresh-${this.counter}-${noise()}-${client.refreshTokenExpiration}`
     }
     this.access.set(pair.accessToken, subject)
     this.refresh.set(pair.refreshToken, subject)

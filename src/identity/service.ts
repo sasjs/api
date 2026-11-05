@@ -65,7 +65,17 @@ export const createIdentityService = (
   store: IdentityStore
 ): IdentityService => ({
   async authenticate(token) {
-    return token === undefined ? undefined : store.readAccess(token)
+    if (token === undefined) return undefined
+
+    const subject = await store.readAccess(token)
+    if (!subject) return undefined
+
+    // A token names a user who may since have been deactivated. sasjs/server
+    // checks `isActive` on every request, so a token that outlived the account
+    // must stop resolving here too - otherwise the browser host honours a
+    // caller the server would refuse.
+    const user = await store.userById(subject.userId)
+    return user && user.isActive ? subject : undefined
   },
 
   async login({ username, password }) {
@@ -76,6 +86,9 @@ export const createIdentityService = (
     if (!user) throw new ApiError(401, 'Username is not found.')
     if (!(await store.passwordMatches(user, password)))
       throw new ApiError(401, 'Invalid Password.')
+    // Checked after the password, so the answer is not a way to learn that an
+    // account exists but is switched off without knowing its password.
+    if (!user.isActive) throw new ApiError(401, 'This account is not active.')
 
     return {
       loggedIn: true,

@@ -50,7 +50,9 @@ const match = findRoute('POST', '/SASjsApi/drive/file')
 
 An `IdentityStore` is users, clients, token pairs and auth codes, plus the cryptography that names a subject in a token: a server signs JWTs it later verifies against the same secret, a browser build mints opaque strings it can look up. Splitting those two halves would let a host pair one host's minting with another's verification, so they are one port.
 
-`IDENTITY_FORMAT`, `parseIdentity` and `DEFAULT_IDENTITY` describe the fixture a browser build ships - one administrator, one restricted user, two groups, a handful of permission rules and a client - so a mock works with no configuration and states plainly that it is fake.
+`MemoryIdentityStore` is a host's identity with no database behind it: it is what a mock build uses, and it is not an identity service. It holds the demo passwords in clear and issues opaque tokens that nothing signs, so every page that shows it says so - a site holding anything real belongs behind a server, not a fixture.
+
+`IDENTITY_FORMAT`, `parseIdentity` and `DEFAULT_IDENTITY` describe the fixture a browser build ships - one administrator, one restricted user, two groups, a handful of permission rules and a client - so a mock works with no configuration. `parseIdentity` refuses a fixture it cannot read, by name: another format, a missing collection, no administrator, or a seeded token with only half a pair.
 
 In a service worker - the browser build's case - load the bundle the package ships and read it off `self`:
 
@@ -98,6 +100,8 @@ npm run lint
 ```
 
 Refreshing the API surface: regenerate `api/public/swagger.yaml` in `sasjs/server` (`npm run swagger`), copy it to `spec/swagger.yaml`, and run `npm run sync:routes`. Review the diff - a new operation needs an overlay entry before a host can say whether it implements it.
+
+Re-vendoring is a two-repository change and the server half merges first: the document is only true once the controllers it is generated from answer what it states, so a copy taken from an unmerged server branch describes a server that does not exist yet. The current body is the output of `npm run swagger` on sasjs/server#541, which is where the sign-in statuses were added; regenerating before that lands would drop them.
 
 ## Licence
 

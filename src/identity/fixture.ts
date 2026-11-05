@@ -184,6 +184,12 @@ export const parseIdentity = (raw: unknown): IdentityFixture => {
     if (!Array.isArray(fixture[key]))
       throw new Error(`The identity fixture has no \`${key}\` array.`)
 
+  for (const token of fixture.tokens || [])
+    if (!token.accessToken || !token.refreshToken)
+      throw new Error(
+        `The identity fixture declares a half pair for ${token.username}/${token.clientId}: a seeded token needs both an accessToken and a refreshToken, because a token only authenticates while the subject's pair holds it.`
+      )
+
   if (!fixture.users.some((user) => user.isAdmin))
     throw new Error(
       'The identity fixture declares no administrator: a demo with nobody able to administer it cannot exercise the admin routes.'

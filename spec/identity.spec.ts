@@ -115,6 +115,39 @@ describe('identity service', () => {
   })
 })
 
+describe('deactivated accounts', () => {
+  it('refuses the sign-in, and stops resolving a token it issued earlier', async () => {
+    const identity = service()
+
+    const issued = await identity.token({
+      clientId: 'web_app',
+      code: await identity.authorize(
+        { userId: 'user-restricted', clientId: 'web_app' },
+        'web_app'
+      )
+    })
+
+    // the fixture is live at this point
+    expect(await identity.authenticate(issued.accessToken)).toBeDefined()
+
+    const deactivated = createIdentityService(
+      new MemoryIdentityStore({
+        ...SIGNED_IN,
+        users: SIGNED_IN.users.map((user) =>
+          user.username === 'user2' ? { ...user, isActive: false } : user
+        )
+      })
+    )
+
+    expect(
+      await failure(() =>
+        deactivated.login({ username: 'user2', password: 'user123' })
+      )
+    ).toEqual({ status: 401, message: 'This account is not active.' })
+    expect(await deactivated.authenticate('seed-access')).toBeUndefined()
+  })
+})
+
 describe('identity fixture', () => {
   it('reads the default fixture', () => {
     expect(parseIdentity(DEFAULT_IDENTITY)).toBe(DEFAULT_IDENTITY)
@@ -136,6 +169,15 @@ describe('identity fixture', () => {
         }))
       })
     ).toThrow(/no administrator/)
+  })
+
+  it('refuses a half pair, saying why a token needs both halves', () => {
+    expect(() =>
+      parseIdentity({
+        ...DEFAULT_IDENTITY,
+        tokens: [{ username: 'user2', clientId: 'web_app', accessToken: 'a' }]
+      })
+    ).toThrow(/half pair for user2\/web_app/)
   })
 
   it('refuses a fixture missing a collection, naming it', () => {

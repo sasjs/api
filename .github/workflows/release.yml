@@ -1,0 +1,115 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  # The one-time bootstrap. semantic-release opens at 1.0.0 on a repository with
+  # no tags, which is not the version this package should start at - so the first
+  # version is published here, once, and tagged, and every release after it is
+  # derived from the commit messages as usual.
+  workflow_dispatch:
+    inputs:
+      bootstrap_version:
+        description: 'Publish this version once and tag it (e.g. 0.1.0). Leave empty to run semantic-release.'
+        required: false
+
+# read-only by default; the release job asks for the three writes it needs, so a
+# later change that stops needing one cannot keep it by accident
+permissions: read-all
+
+# One release at a time. A push to main and a bootstrap dispatch, or two quick
+# pushes, would otherwise both reach npm publish and the tag push, and one of them
+# fails on a version or a tag that already exists. Not cancelled in progress: a
+# release that has started is the wrong thing to interrupt.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # npm trusted publishing (OIDC) - no NPM_TOKEN secret
+      contents: write # the tag, the release, and the bootstrap's tag push
+      issues: write # semantic-release comments when a release fails
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # semantic-release needs the history and the tags
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # trusted publishing needs npm >= 11.5.1, and node 22 ships npm 10.x.
+      # Pinned rather than @latest so the toolchain that publishes is the one
+      # this commit was reviewed with.
+      - name: Update npm
+        run: npm install -g npm@12.2.0
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # the release runs the same gates as the test workflow rather than a
+      # subset: a package that fails its own checks must not reach npm because
+      # the commit happened to land on main
+      - name: Advisories
+        run: npm audit --audit-level=high
+
+      - name: Formatting
+        run: npm run lint
+
+      - name: Route table matches the published spec
+        run: npm run check:routes
+
+      - name: Typecheck
+        run: npx tsc -p tsconfig.json
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # unset on the semantic-release path: the manifest still holds the
+          # placeholder there, and the exec plugin restamps the bundle with the
+          # version it is about to publish. A missing version beats a wrong one.
+          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
+
+      # A `fix:` or `feat:` landing before the bootstrap would publish 1.0.0
+      # without anyone deciding on it. Fail loudly instead: the bootstrap below
+      # is one dispatch away, and the alternative is a version nobody chose.
+      - name: Refuse a release before the first tag exists
+        if: ${{ !inputs.bootstrap_version }}
+        run: |
+          if ! git tag -l 'v*' | grep -q .; then
+            echo "::error::No release tag exists yet. Run this workflow with bootstrap_version=0.1.0 first, or semantic-release will open at 1.0.0."
+            exit 1
+          fi
+
+      - name: Publish the first version
+        if: ${{ inputs.bootstrap_version }}
+        env:
+          VERSION: ${{ inputs.bootstrap_version }}
+          # the version this build is, named in the browser bundle's banner;
+          # semantic-release stamps its own through @semantic-release/exec
+          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
+        run: |
+          if npm view "@sasjs/api@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::@sasjs/api@$VERSION is already on npm - nothing to bootstrap."
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version --force
+          npm run build
+          npm publish --access public
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          echo "published and tagged v$VERSION"
+
+      - name: Semantic Release
+        if: ${{ !inputs.bootstrap_version }}
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

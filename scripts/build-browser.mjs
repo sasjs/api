@@ -16,7 +16,28 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+
+/**
+ * The version the banner names, or an empty string when there is not one yet.
+ *
+ * package.json carries `0.0.0-semantically-released` until semantic-release
+ * writes a real version, and a local build runs before that step - so a number
+ * taken from the placeholder would be one the artefact never shipped as. The
+ * release path is the case that matters: npm runs `prepare` during publish,
+ * after semantic-release has written the version, so the published bundle names
+ * it. `SASJS_API_VERSION` lets a release job stamp one explicitly.
+ */
+const bannerVersion = () => {
+  const given = (process.env.SASJS_API_VERSION || '').trim()
+  if (given) return given
+
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  return String(manifest.version).includes('semantically-released')
+    ? ''
+    : manifest.version
+}
+
+const version = bannerVersion()
 
 await build({
   entryPoints: [join(root, 'src', 'index.ts')],
@@ -29,7 +50,7 @@ await build({
   charset: 'utf8',
   legalComments: 'none',
   banner: {
-    js: `/* @sasjs/api ${version} - the SASjs Server API, for a service worker. https://github.com/sasjs/api */`
+    js: `/* @sasjs/api${version ? ' ' + version : ''} - the SASjs Server API, for a service worker. https://github.com/sasjs/api */`
   },
   footer: {
     // `globalName` declares a var; a worker's global scope is `self`, and a host

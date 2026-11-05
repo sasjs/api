@@ -1,0 +1,10 @@
+# Hooks for the pre-commit framework - https://pre-commit.com
+#
+# Install once with `pre-commit install`. This repository publishes to npm from
+# CI, so the secret scan a contributor runs here should be the one CI's history
+# carries: gitleaks is pinned to an exact release tag.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

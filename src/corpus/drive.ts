@@ -274,6 +274,27 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     expect: { status: 404, error: 'No file/folder found for provided path.' }
   },
   {
+    id: 'rename-file-to-blocked-extension',
+    route: 'POST /SASjsApi/drive/rename',
+    description:
+      'refuses a rename that would produce a name the file routes refuse',
+    seed: { '/data/report.csv': 'a,b' },
+    request: {
+      body: { oldPath: '/data/report.csv', newPath: '/data/report.sh' }
+    },
+    expect: { status: 400, error: 'Invalid file extension' }
+  },
+  {
+    id: 'rename-folder-to-dotted-name',
+    route: 'POST /SASjsApi/drive/rename',
+    description: 'renames a folder whose new name carries a blocked suffix',
+    seed: { '/data/reports/a.csv': 'a' },
+    request: {
+      body: { oldPath: '/data/reports', newPath: '/data/reports.sh' }
+    },
+    expect: { status: 200, body: { status: 'success' } }
+  },
+  {
     id: 'rename-folder-into-itself',
     route: 'POST /SASjsApi/drive/rename',
     description:

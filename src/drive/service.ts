@@ -17,6 +17,7 @@ import {
   basename,
   checkFilePath,
   dirname,
+  hasBlockedExtension,
   isRoot,
   normaliseDrivePath
 } from './paths.js'
@@ -192,6 +193,14 @@ export const createDriveService = (store: DriveStore): DriveService => {
               ? 'Folder with new name already exists.'
               : 'File with new name already exists.'
           )
+        // the extension rule is the drive's file-path rule, so a rename may not
+        // be the way around it: without this a file could be renamed into a name
+        // that GET, PATCH and DELETE then refuse, leaving an entry the API that
+        // created it can no longer read or remove. A folder is not subject to it
+        // (nothing puts a folder through the file-path schema), so only a file
+        // move is checked.
+        if (!stat.directory && hasBlockedExtension(to))
+          throw new ApiError(400, 'Invalid file extension')
         await store.move(from, to)
         return { status: 'success' }
       }

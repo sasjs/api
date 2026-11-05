@@ -32,15 +32,16 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
-      # Nothing fails on a vulnerable dependency today. The tree as it stands
-      # carries 42 advisories, all of them in devDependencies (7 low, 35
-      # moderate, none high or critical) and none reachable from the published
-      # package; gating at low would be red on the day it lands, which blocks
-      # every change rather than gating one. So the gate is high, over the whole
-      # tree - stricter than production-only, and it fails the moment a high or
-      # critical appears anywhere, including in the release toolchain. Issue #8
-      # carries the count and the remediation; when it closes, this becomes
-      # `--audit-level=low` and nothing else changes.
+      # No high or critical advisory, in any dependency, published or not.
+      #
+      # The tree carries 36 moderates that cannot be cleared from here: every one
+      # is inside the npm tree that @semantic-release/npm bundles, where glob
+      # 13.0.6 and minimatch 10.2.5 are affected (fixed in 14.0.2 and 11.0.1) and
+      # `overrides` cannot reach a bundled dependency. Issue #8 records that with
+      # the evidence; it unblocks when npm ships fixed bundled versions. Until
+      # then the gate stays at high - which is stricter than production-only and
+      # catches the case that would matter, a high or critical appearing anywhere,
+      # including in the release toolchain.
       - name: No high or critical advisory
         run: npm audit --audit-level=high
 

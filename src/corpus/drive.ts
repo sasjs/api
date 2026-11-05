@@ -130,6 +130,16 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     expect: { status: 404, error: `File doesn't exist.` }
   },
   {
+    id: 'replace-file-outside-drive',
+    route: 'PATCH /SASjsApi/drive/file',
+    description: 'refuses a replace of a path that climbs out of the drive',
+    request: {
+      query: { _filePath: '/../escape.csv' },
+      file: { name: 'x', contents: 'x' }
+    },
+    expect: { status: 400, error: "Can't modify file outside drive." }
+  },
+  {
     id: 'read-file',
     route: 'GET /SASjsApi/drive/file',
     description: 'answers with the file contents',
@@ -143,6 +153,13 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     description: 'refuses a read of a file that is not there',
     request: { query: { _filePath: '/data/missing.csv' } },
     expect: { status: 404, error: `File doesn't exist.` }
+  },
+  {
+    id: 'read-file-outside-drive',
+    route: 'GET /SASjsApi/drive/file',
+    description: 'refuses a read of a path that climbs out of the drive',
+    request: { query: { _filePath: '/../escape.csv' } },
+    expect: { status: 400, error: "Can't get file outside drive." }
   },
   {
     id: 'delete-file',
@@ -160,6 +177,13 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     expect: { status: 404, error: `File doesn't exist.` }
   },
   {
+    id: 'delete-file-outside-drive',
+    route: 'DELETE /SASjsApi/drive/file',
+    description: 'refuses a delete of a path that climbs out of the drive',
+    request: { query: { _filePath: '/../escape.csv' } },
+    expect: { status: 400, error: "Can't delete file outside drive." }
+  },
+  {
     id: 'list-folder',
     route: 'GET /SASjsApi/drive/folder',
     description: 'lists the files and folders of a folder',
@@ -173,6 +197,13 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     description: 'refuses a listing of a folder that is not there',
     request: { query: { _folderPath: '/nope' } },
     expect: { status: 404, error: `Folder doesn't exist.` }
+  },
+  {
+    id: 'list-folder-outside-drive',
+    route: 'GET /SASjsApi/drive/folder',
+    description: 'refuses a listing of a path that climbs out of the drive',
+    request: { query: { _folderPath: '/../escape' } },
+    expect: { status: 400, error: "Can't get folder outside drive." }
   },
   {
     id: 'delete-folder-without-path',

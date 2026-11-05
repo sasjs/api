@@ -16,21 +16,22 @@
  *     instead of 404 with none;
  *   - whether this package implements it yet, so "not done" is visible.
  *
- * `correction` is the fourth: where sasjs/server's own document and its
- * implementation disagree, the entry records which one this package follows.
- * Those are real, not hypothetical - the drive's create and replace routes are
- * documented 403 and throw 409/404 - and they are why the table is generated
- * but the statuses are pinned by the corpus rather than trusted from the spec.
+ * The statuses come from the document, and an overlay body is attached to the
+ * status it belongs to: naming a status the document does not state is a build
+ * failure, not a way to describe a divergence. A divergence between the document
+ * and the code is a bug in one of them, corrected at source in `sasjs/server` and
+ * re-vendored here.
  */
 import type { Capability, HttpMethod } from '../types.js'
 
 export interface RouteOverlay {
   capabilities?: Capability[]
   implemented?: boolean
-  /** The body the operation sends with a status, where a client keys on it. */
+  /**
+   * The body the operation sends with a status, where a client keys on it. The
+   * statuses come from the document; this only annotates them.
+   */
   responses?: Record<number, unknown>
-  /** Where the published document and the implementation disagree. */
-  correction?: string
 }
 
 /** The default capability for each tag, overridden per route where it differs. */
@@ -57,24 +58,15 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   // even though the rest of the Info tag needs nothing
   'GET /SASjsApi/info/authorizedRoutes': { capabilities: ['identity'] },
   'GET /SASjsApi/info/myAuthorizedRoutes': { capabilities: ['identity'] },
-  'GET /SASjsApi/drive/file': {
-    implemented: true,
-    // the body is the file itself, so only the status is stated
-    responses: { 200: undefined },
-    correction:
-      'documented as 204, because the controller writes the response itself rather than returning a body'
-  },
+  // the body is the file itself, so there is nothing to annotate
+  'GET /SASjsApi/drive/file': { implemented: true },
   'POST /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: success, 409: 'File already exists.' },
-    correction:
-      'documented as 403 for a path that is taken; DriveController.saveFile throws 409'
+    responses: { 200: success, 409: 'File already exists.' }
   },
   'PATCH /SASjsApi/drive/file': {
     implemented: true,
-    responses: { 200: success, 404: `File doesn't exist.` },
-    correction:
-      'documented as 403 for a path that is missing; DriveController.updateFile throws 404'
+    responses: { 200: success, 404: `File doesn't exist.` }
   },
   'DELETE /SASjsApi/drive/file': {
     implemented: true,

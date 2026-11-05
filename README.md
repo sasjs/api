@@ -10,8 +10,13 @@ The plan that this package implements is tracked in `sasjs/cli#1550`.
 ## What is in it
 
 **The route table** (`ROUTES`, `findRoute`) is every operation in the API - 43 paths, 60 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
-The document cannot say everything a host needs, so a reviewed overlay adds the body each response carries, the capability a route needs, and whether this package implements it.
-Where `sasjs/server`'s document and its implementation disagree, the overlay records the disagreement and follows the implementation, because the implementation is what a client sees.
+The statuses come from that document and nowhere else: the overlay cannot add one, and an overlay entry naming a status the document does not state fails the build rather than describing a wish.
+The document cannot say everything a host needs, so the reviewed overlay adds the body each response carries, the capability a route needs, and whether this package implements it.
+Where the document is wrong, it is corrected in `sasjs/server` and re-vendored here - never worked around in the overlay.
+
+### Regenerating the vendored document
+
+`spec/swagger.yaml` is generated from the controllers in `sasjs/server`. In a checkout of that repository run `npm run swagger` (tsoa), copy `api/public/swagger.yaml` over `spec/swagger.yaml` keeping the header at the top of the file, then run `npm run sync:routes` here. `npm run check:routes` fails if `src/routes/generated.ts` no longer matches the document.
 
 **The services** (`createDriveService`) are the API's decisions over storage the host supplies: the statuses, the messages, the order of the checks, and the path rules (including `resolveWithinDrive`'s containment).
 They are `async`, take a `DriveStore`, and import nothing - so the same code runs under Express and inside a service worker.

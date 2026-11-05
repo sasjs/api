@@ -16,17 +16,22 @@ const merge = (generated: (typeof GENERATED_ROUTES)[number]): Route => {
   const documented = new Map(
     generated.responses.map((r) => [r.status, r.description])
   )
-  const overlayed = Object.keys(overlay.responses || {}).map(Number)
 
-  // Where the overlay states the responses, they replace the documented ones -
-  // the implementation is what a client sees, and a status the code can never
-  // send does not belong in the table. `correction` on the entry says what was
-  // changed and why; a route whose document and code agree keeps its documented
-  // descriptions, because the overlay only names statuses it cares about.
-  const statuses = overlayed.length
-    ? overlayed
-    : generated.responses.map((r) => r.status)
-  const responses: RouteResponse[] = [...new Set(statuses)]
+  // The document states the statuses and the overlay only annotates the ones a
+  // client keys a body on. Naming a status the document does not state is a
+  // build failure: the alternative - listing it anyway - advertises a status
+  // nothing can observe without the parity test failing, which is a documented
+  // wish rather than a contract. A host that genuinely answers a status the
+  // document omits needs the document corrected in sasjs/server.
+  for (const status of Object.keys(overlay.responses || {}).map(Number)) {
+    if (!documented.has(status)) {
+      throw new Error(
+        `src/routes/overlay.ts annotates status ${status} for ${generated.id}, which the OpenAPI document does not state. Correct the document in sasjs/server and re-vendor spec/swagger.yaml, or drop the annotation.`
+      )
+    }
+  }
+
+  const responses: RouteResponse[] = [...documented.keys()]
     .sort((a, b) => a - b)
     .map((status) => {
       const body = overlay.responses ? overlay.responses[status] : undefined

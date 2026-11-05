@@ -90,7 +90,9 @@ export const DEFAULT_IDENTITY: IdentityFixture = {
       uid: 'user-admin',
       username: 'admin',
       displayName: 'Demo Admin',
-      password: 'admin',
+      // long enough to pass the API's own password rule (six characters), so a
+      // demo can sign in against a real server as well as a mock
+      password: 'admin123',
       isAdmin: true,
       isActive: true,
       needsToUpdatePassword: false
@@ -99,7 +101,7 @@ export const DEFAULT_IDENTITY: IdentityFixture = {
       uid: 'user-restricted',
       username: 'user2',
       displayName: 'Demo User',
-      password: 'user2',
+      password: 'user123',
       isAdmin: false,
       isActive: true,
       needsToUpdatePassword: false

@@ -90,7 +90,9 @@ export const createIdentityService = (
   },
 
   async authorize(subject, clientId) {
-    if (!subject) throw new ApiError(401, 'Invalid userId.')
+    // The same answer the server's middleware gives a caller with no token: the
+    // two hosts must not describe the same refusal differently.
+    if (!subject) throw unauthorized()
     if (!(await store.client(clientId)))
       throw new ApiError(403, 'Invalid clientId.')
 

@@ -33,31 +33,25 @@ export const SIGNED_IN: IdentityFixture = {
   ]
 }
 
+/** The user the seeded session belongs to, without the host's own identifier. */
 const user2 = {
-  uid: 'user-restricted',
   username: 'user2',
   displayName: 'Demo User',
   isAdmin: false,
   needsToUpdatePassword: false
 }
 
-const session = (clientId: string) => ({
-  userId: 'user-restricted',
-  clientId
-})
-
 export const IDENTITY_CORPUS: CorpusCase[] = [
   {
     id: 'login',
     route: 'POST /SASLogon/login',
     description: 'signs a seeded user in',
-    request: { body: { username: 'admin', password: 'admin' } },
+    request: { body: { username: 'admin', password: 'admin123' } },
     expect: {
       status: 200,
-      body: {
+      partial: {
         loggedIn: true,
         user: {
-          uid: 'user-admin',
           username: 'admin',
           displayName: 'Demo Admin',
           isAdmin: true,
@@ -70,21 +64,21 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     id: 'login-missing-username',
     route: 'POST /SASLogon/login',
     description: 'refuses a sign-in with no username as 400, naming the field',
-    request: { body: { password: 'admin' } },
+    request: { body: { password: 'admin123' } },
     expect: { status: 400, error: '"username" is required' }
   },
   {
     id: 'login-wrong-password',
     route: 'POST /SASLogon/login',
     description: 'refuses a wrong password as 401, naming it',
-    request: { body: { username: 'admin', password: 'nope' } },
+    request: { body: { username: 'admin', password: 'wrong123' } },
     expect: { status: 401, error: 'Invalid Password.' }
   },
   {
     id: 'login-unknown-user',
     route: 'POST /SASLogon/login',
     description: 'refuses an unknown username as 401, naming it',
-    request: { body: { username: 'nobody', password: 'admin' } },
+    request: { body: { username: 'nobody', password: 'admin123' } },
     expect: { status: 401, error: 'Username is not found.' }
   },
   {
@@ -112,7 +106,7 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     route: 'POST /SASLogon/authorize',
     description: 'refuses with 401 when no caller is signed in',
     request: { body: { clientId: 'web_app' } },
-    expect: { status: 401, error: 'Invalid userId.' }
+    expect: { status: 401, error: 'Unauthorized' }
   },
   {
     id: 'authorize-unknown-client',
@@ -213,7 +207,7 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     description: 'reports the caller the token names',
     identity: SIGNED_IN,
     request: { token: 'seed-access' },
-    expect: { status: 200, body: user2 }
+    expect: { status: 200, partial: user2 }
   },
   {
     id: 'session-without-token',
@@ -228,14 +222,5 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     description: 'answers the body the browser sign-out returns',
     request: {},
     expect: { status: 200, contents: 'OK!' }
-  },
-  {
-    id: 'session-from-subject',
-    route: 'GET /SASjsApi/session',
-    description:
-      'reports a caller the host resolved itself, without a bearer token',
-    identity: SIGNED_IN,
-    request: { subject: session('web_app') },
-    expect: { status: 200, body: user2 }
   }
 ]

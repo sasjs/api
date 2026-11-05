@@ -32,6 +32,12 @@ export interface CorpusCase {
     /** The refusal's message, where the case expects one. */
     error?: string
     /**
+     * The properties a body must carry, where the host mints the rest - a user's
+     * `uid` is the host's identifier, so a case pinning one would be pinning a
+     * fixture value into the contract.
+     */
+    partial?: Record<string, unknown>
+    /**
      * The properties a body must carry, where the values are the host's - a
      * minted token is not a value a case can state.
      */

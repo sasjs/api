@@ -38,6 +38,9 @@ describe.each(CORPORA)('%s', (_name, corpus) => {
       if (testCase.expect.contents !== undefined)
         expect(actual.contents).toEqual(testCase.expect.contents)
 
+      if (testCase.expect.partial !== undefined)
+        expect(actual.body).toMatchObject(testCase.expect.partial)
+
       if (testCase.expect.keys !== undefined)
         expect(Object.keys(actual.body as object).sort()).toEqual(
           testCase.expect.keys.slice().sort()

@@ -77,7 +77,7 @@ Both hosts answer with the same shapes:
 
 ## Status
 
-Implemented, exercised by 56 corpus cases:
+Implemented, exercised by 55 corpus cases:
 
 - the nine drive handlers - file read/write/replace/delete, folder read/create/delete, rename, file tree;
 - the seven sign-in handlers - `auth/token`, `auth/refresh`, `auth/logout`, `SASLogon/login`, `SASLogon/authorize`, `SASLogon/logout`, and the session read.

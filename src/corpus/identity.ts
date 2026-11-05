@@ -29,7 +29,14 @@ export const SIGNED_IN: IdentityFixture = {
   ],
   codes: [
     { code: 'seed-code', username: 'user2', clientId: 'web_app' },
-    { code: 'seed-orphan-code', username: 'user2', clientId: 'removed_client' }
+    { code: 'seed-orphan-code', username: 'user2', clientId: 'removed_client' },
+    // the same shape with a pair already issued: the exchange must still refuse,
+    // rather than handing back tokens that belong to a client that is gone
+    {
+      code: 'seed-orphan-pair-code',
+      username: 'admin',
+      clientId: 'removed_client'
+    }
   ]
 }
 
@@ -173,6 +180,25 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     expect: { status: 401, error: 'Invalid clientId.' }
   },
   {
+    id: 'exchange-code-client-gone-with-pair',
+    route: 'POST /SASjsApi/auth/token',
+    description:
+      'refuses an exchange whose client is gone even when a pair was issued before it was deleted',
+    identity: SIGNED_IN,
+    request: {
+      body: { clientId: 'removed_client', code: 'seed-orphan-pair-code' }
+    },
+    expect: { status: 401, error: 'Invalid clientId.' }
+  },
+  {
+    id: 'exchange-code-deactivated',
+    route: 'POST /SASjsApi/auth/token',
+    description: 'refuses an exchange for an account that has been deactivated',
+    identity: DEACTIVATED,
+    request: { body: { clientId: 'web_app', code: 'seed-code' } },
+    expect: { status: 401, error: 'Unauthorized' }
+  },
+  {
     id: 'refresh',
     route: 'POST /SASjsApi/auth/refresh',
     description: 'mints a new pair from a refresh token',
@@ -201,6 +227,15 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     identity: SIGNED_IN,
     request: { token: 'seed-refresh-orphan' },
     expect: { status: 401, error: 'Invalid clientId.' }
+  },
+  {
+    id: 'refresh-deactivated',
+    route: 'POST /SASjsApi/auth/refresh',
+    description:
+      'refuses a refresh for an account that has been deactivated, as the server does on every request',
+    identity: DEACTIVATED,
+    request: { token: 'seed-refresh' },
+    expect: { status: 401, error: 'Unauthorized' }
   },
   {
     id: 'logout',

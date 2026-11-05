@@ -61,6 +61,24 @@ export interface IdentityService {
 
 const unauthorized = () => new ApiError(401, 'Unauthorized')
 
+/**
+ * The subject, provided the account behind it may still hold a token.
+ *
+ * `authenticate` reads a token on every request and refuses a deactivated
+ * account; an exchange or a refresh that skipped the same check would mint a
+ * fresh pair for exactly that account, so the check sits beside every path that
+ * reaches `store.issue`.
+ */
+const liveSubject = async (
+  store: IdentityStore,
+  subject: Subject
+): Promise<Subject> => {
+  const user = await store.userById(subject.userId)
+  if (!user || !user.isActive) throw unauthorized()
+
+  return subject
+}
+
 export const createIdentityService = (
   store: IdentityStore
 ): IdentityService => ({
@@ -119,20 +137,27 @@ export const createIdentityService = (
     const subject = await store.readCode(code)
     if (!subject || subject.clientId !== clientId)
       throw new ApiError(401, 'Invalid Auth Code')
+
+    // The client is read before the code is spent and before an existing pair is
+    // handed back: both the pair and the tokens it would buy belong to the
+    // client, so a client deleted since the code was issued refuses the
+    // exchange - and refuses it without consuming the code.
+    const client = await store.client(clientId)
+    if (!client) throw new ApiError(401, 'Invalid clientId.')
+
+    const named = await liveSubject(store, subject)
+
     if (!(await store.claimCode(code)))
       throw new ApiError(401, 'Invalid Auth Code')
 
     // Re-exchanging a code for the same user and client while a valid pair
     // exists returns that pair: another tab holding the old tokens must not be
     // signed out by a second exchange.
-    const existing = await store.pairFor(subject)
+    const existing = await store.pairFor(named)
     if (existing) return existing
 
-    const client = await store.client(clientId)
-    if (!client) throw new ApiError(401, 'Invalid clientId.')
-
-    const pair = await store.issue(subject, client)
-    await store.savePair(subject, pair)
+    const pair = await store.issue(named, client)
+    await store.savePair(named, pair)
     return pair
   },
 
@@ -144,8 +169,10 @@ export const createIdentityService = (
     const client = await store.client(subject.clientId)
     if (!client) throw new ApiError(401, 'Invalid clientId.')
 
-    const pair = await store.issue(subject, client)
-    await store.savePair(subject, pair)
+    const named = await liveSubject(store, subject)
+
+    const pair = await store.issue(named, client)
+    await store.savePair(named, pair)
     return pair
   },
 

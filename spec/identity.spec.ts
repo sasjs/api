@@ -76,6 +76,91 @@ describe('identity service', () => {
     expect(two).toEqual(one)
   })
 
+  it('does not spend a code whose client has been deleted', async () => {
+    const store = new MemoryIdentityStore({ ...SIGNED_IN })
+    const identity = createIdentityService(store)
+    const spent = jest.spyOn(store, 'claimCode')
+
+    expect(
+      await failure(() =>
+        identity.token({ clientId: 'removed_client', code: 'seed-orphan-code' })
+      )
+    ).toEqual({ status: 401, message: 'Invalid clientId.' })
+
+    // refused on the client, before the code is reached: a caller that fixes
+    // its clientId can still exchange the code it holds
+    expect(spent).not.toHaveBeenCalled()
+  })
+
+  it('mints opaque strings that a reader cannot reproduce', async () => {
+    const store = new MemoryIdentityStore({ ...SIGNED_IN })
+    const client = (await store.client('sasjs'))!
+    const subject = { userId: 'user-restricted', clientId: 'sasjs' }
+
+    const one = await store.issue(subject, client)
+    const two = await store.issue(subject, client)
+
+    // a counter or a Math.random() suffix would make both a sequence and a
+    // guess: the strings come from the platform's cryptographic source
+    expect(one.accessToken).toMatch(/^access-[0-9a-f]{32}$/)
+    expect(one.refreshToken).toMatch(/^refresh-[0-9a-f]{32}$/)
+    expect(two.accessToken).not.toEqual(one.accessToken)
+  })
+
+  it('stops authenticating a token once its client lifetime has passed', async () => {
+    const store = new MemoryIdentityStore({ ...SIGNED_IN })
+    const identity = createIdentityService(store)
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+
+    try {
+      // the `sasjs` client's access token lives an hour, its refresh token a day
+      const issued = await identity.token({
+        clientId: 'sasjs',
+        code: await identity.authorize(
+          { userId: 'user-restricted', clientId: 'sasjs' },
+          'sasjs'
+        )
+      })
+
+      clock.mockReturnValue(1_000_000 + 3600 * 1000 - 1)
+      expect(await identity.authenticate(issued.accessToken)).toEqual({
+        userId: 'user-restricted',
+        clientId: 'sasjs'
+      })
+
+      clock.mockReturnValue(1_000_000 + 3600 * 1000 + 1)
+      expect(await identity.authenticate(issued.accessToken)).toBeUndefined()
+
+      // its refresh token outlives it, which is what makes a refresh useful
+      clock.mockReturnValue(1_000_000 + 86400 * 1000 + 1)
+      expect(
+        await failure(() => identity.refresh(issued.refreshToken))
+      ).toEqual({ status: 401, message: 'Unauthorized' })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('refuses a code once its thirty seconds have passed', async () => {
+    const store = new MemoryIdentityStore({ ...SIGNED_IN })
+    const identity = createIdentityService(store)
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(2_000_000)
+
+    try {
+      const code = await identity.authorize(
+        { userId: 'user-restricted', clientId: 'web_app' },
+        'web_app'
+      )
+
+      clock.mockReturnValue(2_000_000 + 30 * 1000 + 1)
+      expect(
+        await failure(() => identity.token({ clientId: 'web_app', code }))
+      ).toEqual({ status: 401, message: 'Invalid Auth Code' })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('rotates the pair on refresh', async () => {
     const identity = service()
     const subject = { userId: 'user-restricted', clientId: 'web_app' }

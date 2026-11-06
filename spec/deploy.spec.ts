@@ -20,6 +20,15 @@ import { ApiError, isApiError } from '../src/types.js'
 
 const limits = { entries: 5, totalBytes: 100, fileBytes: 40 }
 
+/** `levels` nested folders, with one small file inside the innermost. */
+const nest = (levels: number): DeployMember[] => {
+  let members: DeployMember[] = [file('leaf.bin', 1)]
+
+  for (let level = 0; level < levels; level++) members = [folder('d', members)]
+
+  return members
+}
+
 /** A file member whose base64 body decodes to exactly `size` bytes. */
 const file = (name: string, size: number): DeployMember => ({
   name,
@@ -87,6 +96,38 @@ describe('the deploy cap', () => {
     ).toBe(
       'A file in the tree exceeds the deploy limit: a.bin is 60 MB (maximum 20 MB per file).'
     )
+  })
+
+  it('states the overage, so a tree just past the cap does not read as the cap', () => {
+    // one byte over a 1 MB limit: rounding to nearest would print
+    // "1 MB (maximum 1 MB)", a refusal that states no overage at all
+    const oneMegabyte = 1024 * 1024
+
+    expect(
+      checkDeployTree([file('a.bin', oneMegabyte + 1)], {
+        entries: 10,
+        totalBytes: oneMegabyte,
+        fileBytes: oneMegabyte
+      })?.message
+    ).toBe('The file tree exceeds the deploy limit: 1.1 MB (maximum 1 MB).')
+  })
+
+  it('refuses a tree nested past the depth the walk will enter', () => {
+    // 32 nested folders put the leaf at level 33
+    expect(checkDeployTree(nest(31), DEPLOY_LIMITS)).toBeNull()
+
+    expect(checkDeployTree(nest(32), DEPLOY_LIMITS)).toEqual({
+      code: 413,
+      status: 'failure',
+      message: 'The file tree is nested too deeply: 33 levels (maximum 32).'
+    })
+  })
+
+  it('does not recurse into a tree deep enough to exhaust the stack', () => {
+    // 100,000 nested folders would overflow the stack if the walk entered them;
+    // it stops at MAX_DEPTH and refuses, which is what the route documents
+    expect(() => checkDeployTree(nest(100000), DEPLOY_LIMITS)).not.toThrow()
+    expect(checkDeployTree(nest(100000), DEPLOY_LIMITS)?.code).toBe(413)
   })
 
   it('refuses a single file over the per-file limit, naming it', () => {

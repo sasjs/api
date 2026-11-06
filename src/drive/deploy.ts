@@ -116,10 +116,23 @@ export interface DeployMeasurements {
   largest: { path: string; bytes: number }
 }
 
-/** What a walk accumulates: the measurements, and the first unsafe name. */
+/** What a walk accumulates: the measurements, and the first thing refused. */
 interface DeployWalk extends DeployMeasurements {
   nameRefusal?: DeployRefusal
+  /** The depth the tree reached when it went past `MAX_DEPTH`, if it did. */
+  tooDeep?: number
 }
+
+/**
+ * How deep a tree may nest.
+ *
+ * A deployment is an app: `services/`, `web/`, a folder per service. A few dozen
+ * levels is generous, and the number matters because the walk recurses once per
+ * level - without a ceiling, a tree nested deeply enough exhausts the stack and
+ * throws a `RangeError`, which is neither the `400` nor the `413` this route
+ * documents, on input the cap exists to bound.
+ */
+export const MAX_DEPTH = 32
 
 const BASE64_ALPHABET =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -180,15 +193,32 @@ const memberName = (member: DeployMember): string =>
 const memberBytes = (member: DeployServiceMember | DeployFileMember): number =>
   member.type === 'file' ? base64Length(member.code) : utf8Length(member.code)
 
+const MEGABYTE = 1024 * 1024
+
 /**
- * Sizes as the messages state them: one decimal in binary megabytes, and bytes
- * below a megabyte - a limit small enough to be measured in bytes should not
- * read as "0 MB", which is what a stricter host would otherwise report.
+ * A MEASURED size, rounded UP to one decimal in binary megabytes.
+ *
+ * Up, not to nearest: a tree one byte over a 100 MB cap must not read as "100 MB
+ * (maximum 100 MB)", which is a refusal that states no overage at all. Rounding
+ * up is the direction that never understates what is being refused.
+ *
+ * Bytes below a megabyte are printed as bytes, because a limit small enough to
+ * be measured in bytes should not read as "0 MB" - which is what a host passing
+ * a tighter set would otherwise report.
  */
 const describeSize = (bytes: number) =>
-  bytes < 1024 * 1024
+  bytes < MEGABYTE
     ? `${bytes} bytes`
-    : `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+    : `${Math.ceil((bytes / MEGABYTE) * 10) / 10} MB`
+
+/**
+ * A LIMIT, printed as it is stated: `DEPLOY_LIMITS` holds exact megabytes, so
+ * rounding cannot make it disagree with itself.
+ */
+const describeLimit = (bytes: number) =>
+  bytes < MEGABYTE
+    ? `${bytes} bytes`
+    : `${Math.round((bytes / MEGABYTE) * 10) / 10} MB`
 
 /** A walk's starting point. */
 const emptyWalk = (): DeployWalk => ({
@@ -216,8 +246,17 @@ const isSafeSegment = (name: string): boolean =>
  * a caller that only wants the numbers gets the size of the whole tree, and the
  * validator decides whether the name matters. Returning early would report a
  * truncated tree as if it were the real one.
+ *
+ * The one thing that stops the walk is depth: past `MAX_DEPTH` it does not
+ * descend, because descending is the work that would exhaust the stack. The
+ * level it reached is recorded so the refusal can state it.
  */
-const walk = (members: DeployMember[], parentPath: string, acc: DeployWalk) => {
+const walk = (
+  members: DeployMember[],
+  parentPath: string,
+  acc: DeployWalk,
+  depth = 1
+) => {
   for (const member of members) {
     const name = memberName(member)
     const memberPath = parentPath ? `${parentPath}/${name}` : name
@@ -232,7 +271,13 @@ const walk = (members: DeployMember[], parentPath: string, acc: DeployWalk) => {
     acc.entries++
 
     if (member.type === 'folder') {
-      walk(member.members, memberPath, acc)
+      if (depth + 1 > MAX_DEPTH) {
+        if (!acc.tooDeep) acc.tooDeep = depth + 1
+
+        continue
+      }
+
+      walk(member.members, memberPath, acc, depth + 1)
 
       continue
     }
@@ -285,6 +330,13 @@ export const checkDeployTree = (
 
   if (measured.nameRefusal) return measured.nameRefusal
 
+  if (measured.tooDeep)
+    return {
+      code: 413,
+      status: 'failure',
+      message: `The file tree is nested too deeply: ${measured.tooDeep} levels (maximum ${MAX_DEPTH}).`
+    }
+
   if (measured.entries > limits.entries)
     return {
       code: 413,
@@ -296,14 +348,14 @@ export const checkDeployTree = (
     return {
       code: 413,
       status: 'failure',
-      message: `The file tree exceeds the deploy limit: ${describeSize(measured.totalBytes)} (maximum ${describeSize(limits.totalBytes)}).`
+      message: `The file tree exceeds the deploy limit: ${describeSize(measured.totalBytes)} (maximum ${describeLimit(limits.totalBytes)}).`
     }
 
   if (measured.largest.bytes > limits.fileBytes)
     return {
       code: 413,
       status: 'failure',
-      message: `A file in the tree exceeds the deploy limit: ${measured.largest.path} is ${describeSize(measured.largest.bytes)} (maximum ${describeSize(limits.fileBytes)} per file).`
+      message: `A file in the tree exceeds the deploy limit: ${measured.largest.path} is ${describeSize(measured.largest.bytes)} (maximum ${describeLimit(limits.fileBytes)} per file).`
     }
 
   return null

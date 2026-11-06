@@ -67,7 +67,7 @@ The bundle is deliberately a classic-worker IIFE: a service worker registered by
 Both hosts answer with the same shapes:
 
 - a successful write is `{ status: 'success' }`;
-- a refusal is an `ApiError` carrying `status` and `message`, which a host renders as its own transport requires (`res.status(code).send(...)` on the server, a `Response` in the worker);
+- a refusal is an `ApiError` carrying `status`, `message` and, where the route answers an envelope rather than text, the `body` to send instead of the bare message - which a host renders as its own transport requires (`res.status(code).send(...)` on the server, a `Response` in the worker);
 - an operation this package has no handler for is `501`, naming the operation and the reason it is not implemented here - not a `404` that looks like a typo in the caller;
 - an operation the API does not have is `404`.
 
@@ -94,6 +94,7 @@ Three of the sign-in flow's defences are the host's, because the package has no 
 - **Re-resolve the caller on every request.** A host with its own session passes the subject in (`session`, `authorize`), so the service re-reads the account behind it and refuses a deactivated one; a host that caches the subject it resolved at sign-in defeats that check. `logout` is the exception and does not refuse: dropping a credential is not access, and refusing would leave the pair in the store.
 - **Lock the account out after repeated failures.** `POST /SASLogon/login` answers `401 Username is not found.` for an unknown username and `401 Invalid Password.` for a wrong one, because that is what the server's own form tells a user - which also means the route cannot tell a caller to stop guessing on its own. The defence is the host's limiter, answering `429` with `Retry-After` in seconds; without it the route is a way to enumerate usernames and account state.
 - **Answer a session-store or identity-provider failure with `500`.** Those are the host's own dependencies, and the overlay marks the statuses as `hostResponses`.
+- **Admit `DEPLOY_PAYLOAD_BYTES` on the deploy route, and only there.** The deploy cap is stated in decoded bytes and its tree travels as JSON in which file contents are base64, so a tree at the cap reaches the parser at up to ~134 MB; a smaller body limit refuses first, with its own shape, and the cap is never consulted. Every other route keeps the smaller limit, because a body is buffered before authentication.
 
 ## Development
 

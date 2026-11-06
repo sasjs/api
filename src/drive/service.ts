@@ -13,6 +13,7 @@
  */
 import type { DriveStore, TreeNode } from '../types.js'
 import { ApiError } from '../types.js'
+import { deployTree } from './deploy.js'
 import {
   basename,
   checkFilePath,
@@ -51,6 +52,14 @@ export interface DriveService {
   rmdir(folderPath: string): Promise<DriveResult>
   rename(oldPath: string, newPath: string): Promise<DriveResult>
   tree(folderPath?: string): Promise<DriveTree>
+  /**
+   * Writes a whole tree under `appLoc`, or refuses without writing.
+   *
+   * `tree` is `unknown` on purpose: the wire payload is the caller's JSON, and
+   * the shape is one of the things this decides - a mistyped tree earns the
+   * routes' `400` rather than a crash in a host that trusted it.
+   */
+  deploy(appLoc: string, tree: unknown): Promise<DriveResult>
 }
 
 /** A path a file operation may act on, or the refusal the operation answers. */
@@ -218,6 +227,12 @@ export const createDriveService = (store: DriveStore): DriveService => {
       const stat = await store.stat(path)
       if (!stat.directory) throw new ApiError(400, 'Not a Folder.')
       return { status: 'success', tree: await treeOf(path) }
+    },
+
+    async deploy(appLoc, tree) {
+      await deployTree(store, appLoc, tree)
+
+      return { status: 'success' }
     }
   }
 }

@@ -24,6 +24,12 @@ export interface CorpusCase {
   seed?: Record<string, string | Uint8Array>
   /** The identity the case starts from; the default fixture when omitted. */
   identity?: IdentityFixture
+  /**
+   * The drive refuses every write, so a case can pin the refusal a route answers
+   * when storing fails - `POST /drive/deploy` documents a `500`, and a mock drive
+   * that always accepts writes could never produce one.
+   */
+  unwritable?: boolean
   request: ApiRequest
   expect: {
     status: number
@@ -53,6 +59,14 @@ const success = { status: 'success' }
  * host that does not have one. An explicit byte array is both.
  */
 const bytes = (...values: number[]) => Uint8Array.from(values)
+
+/** A flat tree of `count` empty file members, for the cap's entry dimension. */
+const manyMembers = (count: number) =>
+  Array.from({ length: count }, (_, at) => ({
+    name: `f${at}.txt`,
+    type: 'file',
+    code: ''
+  }))
 
 export const DRIVE_CORPUS: CorpusCase[] = [
   {
@@ -346,6 +360,125 @@ export const DRIVE_CORPUS: CorpusCase[] = [
           ]
         }
       }
+    }
+  },
+  {
+    id: 'deploy-tree',
+    route: 'POST /SASjsApi/drive/deploy',
+    description: 'writes a whole tree under the appLoc it names',
+    request: {
+      body: {
+        appLoc: '/Public/apps/demo',
+        fileTree: {
+          members: [
+            {
+              name: 'services',
+              type: 'folder',
+              members: [{ name: 'run', type: 'service', code: '%put hi;' }]
+            },
+            { name: 'index.html', type: 'file', code: 'PGgxPkhlbGxvPC9oMT4=' }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 200,
+      body: {
+        status: 'success',
+        message: 'Files deployed successfully to @sasjs/server.'
+      }
+    }
+  },
+  {
+    id: 'deploy-refused-by-entry-count',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a tree over the entry cap, naming the figure and the cap',
+    request: {
+      body: {
+        appLoc: '/Public/apps/many',
+        fileTree: { members: manyMembers(10001) }
+      }
+    },
+    expect: {
+      status: 413,
+      body: {
+        status: 'failure',
+        message:
+          'The file tree exceeds the deploy limit: 10001 entries (maximum 10000).'
+      },
+      error:
+        'The file tree exceeds the deploy limit: 10001 entries (maximum 10000).'
+    }
+  },
+  {
+    id: 'deploy-refused-by-name',
+    route: 'POST /SASjsApi/drive/deploy',
+    description: 'refuses a member name that would escape the deployment root',
+    request: {
+      body: {
+        appLoc: '/Public/apps/hostile',
+        fileTree: {
+          members: [{ name: '../escape', type: 'service', code: '%put hi;' }]
+        }
+      }
+    },
+    expect: {
+      status: 400,
+      body: {
+        status: 'failure',
+        message:
+          "Invalid member name: '../escape.sas'. Member names must be single path segments (no '/', '\\', '..')."
+      },
+      error:
+        "Invalid member name: '../escape.sas'. Member names must be single path segments (no '/', '\\', '..')."
+    }
+  },
+  {
+    id: 'deploy-refused-by-shape',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a fileTree that is not a tree, in the routes own envelope',
+    request: { body: { appLoc: '/Public/apps/bad', fileTree: { members: 1 } } },
+    expect: {
+      status: 400,
+      body: {
+        status: 'failure',
+        message: 'Provided not supported data format.'
+      },
+      error: 'Provided not supported data format.'
+    }
+  },
+  {
+    id: 'deploy-refused-by-store',
+    route: 'POST /SASjsApi/drive/deploy',
+    description: 'answers the routes 500 when the drive refuses the write',
+    unwritable: true,
+    request: {
+      body: {
+        appLoc: '/Public/apps/demo',
+        fileTree: {
+          members: [{ name: 'run', type: 'service', code: '%put hi;' }]
+        }
+      }
+    },
+    expect: {
+      status: 500,
+      body: { status: 'failure', message: 'Deployment failed!' },
+      error: 'Deployment failed!'
+    }
+  },
+  {
+    id: 'deploy-refused-outside-drive',
+    route: 'POST /SASjsApi/drive/deploy',
+    description: 'refuses an appLoc that resolves outside the drive',
+    request: {
+      body: { appLoc: '/../outside', fileTree: { members: [] } }
+    },
+    expect: {
+      status: 400,
+      body: { status: 'failure', message: 'appLoc cannot be outside drive.' },
+      error: 'appLoc cannot be outside drive.'
     }
   },
   {

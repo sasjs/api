@@ -32,11 +32,31 @@ export interface CaseResult {
  * mid-flow can declare the tokens and codes it begins with.
  */
 export const servicesFor = (testCase: CorpusCase): Services => ({
-  drive: createDriveService(new MemoryDriveStore(testCase.seed || {})),
+  drive: createDriveService(
+    testCase.unwritable
+      ? new RefusingDriveStore(testCase.seed || {})
+      : new MemoryDriveStore(testCase.seed || {})
+  ),
   identity: createIdentityService(
     new MemoryIdentityStore(testCase.identity || DEFAULT_IDENTITY)
   )
 })
+
+/**
+ * A drive that reads but refuses every write.
+ *
+ * Only the corpus uses it: `POST /drive/deploy` answers `500` when storing
+ * fails, and a case for that answer needs a store that fails.
+ */
+class RefusingDriveStore extends MemoryDriveStore {
+  override async write(): Promise<void> {
+    throw new Error('the store refused the write')
+  }
+
+  override async mkdirp(): Promise<void> {
+    throw new Error('the store refused the write')
+  }
+}
 
 /**
  * Runs a corpus case against the drive the case seeds itself, or against
@@ -57,7 +77,8 @@ export const runCase = async (
   } catch (error) {
     // only a refusal the API decided on becomes a status; anything else is a
     // broken host, and reporting it as a 500 would hide it from the suite
-    if (isApiError(error)) return { status: error.status, error: error.message }
+    if (isApiError(error))
+      return { status: error.status, body: error.body, error: error.message }
     throw error
   }
 }

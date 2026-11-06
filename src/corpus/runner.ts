@@ -13,6 +13,7 @@ import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
 import { createIdentityService } from '../identity/service.js'
+import { createRecordService } from '../identity/records.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -38,6 +39,9 @@ export const servicesFor = (testCase: CorpusCase): Services => ({
       : new MemoryDriveStore(testCase.seed || {})
   ),
   identity: createIdentityService(
+    new MemoryIdentityStore(testCase.identity || DEFAULT_IDENTITY)
+  ),
+  records: createRecordService(
     new MemoryIdentityStore(testCase.identity || DEFAULT_IDENTITY)
   )
 })

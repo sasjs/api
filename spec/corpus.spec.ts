@@ -8,12 +8,14 @@
  */
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
+import { RECORD_CORPUS } from '../src/corpus/records.js'
 import { runCase } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 
 const CORPORA: Array<[string, CorpusCase[]]> = [
   ['drive corpus', DRIVE_CORPUS],
-  ['identity corpus', IDENTITY_CORPUS]
+  ['identity corpus', IDENTITY_CORPUS],
+  ['record corpus', RECORD_CORPUS]
 ]
 
 describe.each(CORPORA)('%s', (_name, corpus) => {

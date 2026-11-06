@@ -1,6 +1,7 @@
 import { ROUTES, routeById } from '../src/routes/index.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
+import { RECORD_CORPUS } from '../src/corpus/records.js'
 
 /**
  * The document says what a host may answer; the corpus is what a host is shown
@@ -18,7 +19,11 @@ import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 const corpusByRoute = () => {
   const byRoute = new Map<string, Set<number>>()
 
-  for (const testCase of [...DRIVE_CORPUS, ...IDENTITY_CORPUS]) {
+  for (const testCase of [
+    ...DRIVE_CORPUS,
+    ...IDENTITY_CORPUS,
+    ...RECORD_CORPUS
+  ]) {
     const seen = byRoute.get(testCase.route) || new Set<number>()
     seen.add(testCase.expect.status)
     byRoute.set(testCase.route, seen)

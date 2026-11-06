@@ -87,8 +87,8 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
  * operation waits on, and thirty copies of the same sentence would say the same
  * thing thirty times.
  */
-const IDENTITY_RECORDS =
-  'The identity service answers the sign-in flow. User, group, permission rule, client and provider records need read and write methods on the same store, which this package does not have yet.'
+const DIRECTORY =
+  'Synchronising with an external auth provider needs a directory port, which this package does not have: a host decides which directory it holds accounts in, and answers this itself.'
 
 const EDITOR =
   'Linting and formatting come from @sasjs/lint, which this package does not depend on. They land with the code routes so an editor has one wiring.'
@@ -166,20 +166,22 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'POST /SASjsApi/auth/logout': { implemented: true },
   'PATCH /SASjsApi/auth/updatePassword': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
+    implemented: true,
+    // As with the permission list: the document's 404 is a caller whose record
+    // has gone, which a host's store can see and this package cannot.
+    hostResponses: [404]
   },
 
   // Auth Config - the providers a host was started with, and an LDAP import
   'GET /SASjsApi/authConfig': { implemented: false, reason: HOST_CONFIG },
   'POST /SASjsApi/authConfig/synchroniseWithLDAP': {
     implemented: false,
-    reason: IDENTITY_RECORDS
+    reason: DIRECTORY
   },
 
   // Client - the OAuth clients the identity store already holds for sign-in
-  'GET /SASjsApi/client': { implemented: false, reason: IDENTITY_RECORDS },
-  'POST /SASjsApi/client': { implemented: false, reason: IDENTITY_RECORDS },
+  'GET /SASjsApi/client': { implemented: true },
+  'POST /SASjsApi/client': { implemented: true },
 
   // Code - the editor's three calls, and the runtime one
   'POST /SASjsApi/code/execute': { implemented: false, reason: RUNTIME },
@@ -256,25 +258,13 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
 
   // Group - members and the groups themselves
-  'GET /SASjsApi/group': { implemented: false, reason: IDENTITY_RECORDS },
-  'GET /SASjsApi/group/{uid}': { implemented: false, reason: IDENTITY_RECORDS },
-  'GET /SASjsApi/group/by/groupname/{name}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'POST /SASjsApi/group': { implemented: false, reason: IDENTITY_RECORDS },
-  'POST /SASjsApi/group/{groupUid}/{userUid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'DELETE /SASjsApi/group/{groupUid}/{userUid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'DELETE /SASjsApi/group/{uid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
+  'GET /SASjsApi/group': { implemented: true },
+  'GET /SASjsApi/group/{uid}': { implemented: true },
+  'GET /SASjsApi/group/by/groupname/{name}': { implemented: true },
+  'POST /SASjsApi/group': { implemented: true },
+  'POST /SASjsApi/group/{groupUid}/{userUid}': { implemented: true },
+  'DELETE /SASjsApi/group/{groupUid}/{userUid}': { implemented: true },
+  'DELETE /SASjsApi/group/{uid}': { implemented: true },
 
   // Info - what the host is, and what this caller may use
   'GET /SASjsApi/info': { implemented: false, reason: HOST_CONFIG },
@@ -292,16 +282,17 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
 
   // Permission - the rules the inventory above is derived from
-  'GET /SASjsApi/permission': { implemented: false, reason: IDENTITY_RECORDS },
-  'POST /SASjsApi/permission': { implemented: false, reason: IDENTITY_RECORDS },
-  'PATCH /SASjsApi/permission/{uid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
+  'GET /SASjsApi/permission': {
+    implemented: true,
+    // The document states 404 for a caller whose record has gone - a token that
+    // outlived its account. Here a token stops resolving when the account does,
+    // so this package answers 401 before it gets that far; the host's own store
+    // is what can still see the difference.
+    hostResponses: [404]
   },
-  'DELETE /SASjsApi/permission/{uid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
+  'POST /SASjsApi/permission': { implemented: true },
+  'PATCH /SASjsApi/permission/{uid}': { implemented: true },
+  'DELETE /SASjsApi/permission/{uid}': { implemented: true },
 
   // Session - the caller's own session, then the record behind a triggered one
   'GET /SASjsApi/session': {
@@ -331,29 +322,14 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'POST /SASjsApi/stp/trigger': { implemented: false, reason: RUNTIME },
 
   // User - the accounts the identity store already holds for sign-in
-  'GET /SASjsApi/user': { implemented: false, reason: IDENTITY_RECORDS },
-  'GET /SASjsApi/user/{uid}': { implemented: false, reason: IDENTITY_RECORDS },
-  'GET /SASjsApi/user/by/username/{username}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'POST /SASjsApi/user': { implemented: false, reason: IDENTITY_RECORDS },
-  'PATCH /SASjsApi/user/{uid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'PATCH /SASjsApi/user/by/username/{username}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'DELETE /SASjsApi/user/{uid}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  },
-  'DELETE /SASjsApi/user/by/username/{username}': {
-    implemented: false,
-    reason: IDENTITY_RECORDS
-  }
+  'GET /SASjsApi/user': { implemented: true },
+  'GET /SASjsApi/user/{uid}': { implemented: true },
+  'GET /SASjsApi/user/by/username/{username}': { implemented: true },
+  'POST /SASjsApi/user': { implemented: true },
+  'PATCH /SASjsApi/user/{uid}': { implemented: true },
+  'PATCH /SASjsApi/user/by/username/{username}': { implemented: true },
+  'DELETE /SASjsApi/user/{uid}': { implemented: true },
+  'DELETE /SASjsApi/user/by/username/{username}': { implemented: true }
 }
 
 /** Every method the table may state, in the order a diff reads best. */

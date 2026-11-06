@@ -47,8 +47,8 @@ export interface TokenPair {
  * verification, which is never what anyone means.
  */
 export interface IdentityStore {
-  userByName(username: string): Promise<IdentityUser | undefined>
-  userById(uid: string): Promise<IdentityUser | undefined>
+  userByName(username: string): Promise<IdentityUserRecord | undefined>
+  userById(uid: string): Promise<IdentityUserRecord | undefined>
   /**
    * Whether the password matches. The host owns the check: a bcrypt hash, a
    * directory bind, or a fixture's declared demo password.
@@ -80,4 +80,130 @@ export interface IdentityStore {
    * which is what makes an exchange single-use even when two requests race.
    */
   claimCode(code: string): Promise<boolean>
+
+  // ---------------------------------------------------------------- records
+  //
+  // The sign-in flow reads a user and a client; the administration routes read
+  // and write collections. These are the writes and the reads that have no
+  // answer in the flow above, kept on the same store so a host has one place to
+  // put users, groups, rules and clients.
+
+  /** Every user, in the order the host holds them. */
+  users(): Promise<IdentityUserRecord[]>
+  /** Creates a user. The caller has already refused a duplicate username. */
+  createUser(input: NewUser): Promise<IdentityUserRecord>
+  /** Applies a change to the user named by `uid`; undefined when there is none. */
+  updateUser(
+    uid: string,
+    change: UserChange
+  ): Promise<IdentityUserRecord | undefined>
+  deleteUser(uid: string): Promise<void>
+  /** Sets the password the host checks against, in the host's own encoding. */
+  setPassword(uid: string, password: string): Promise<void>
+
+  groups(): Promise<IdentityGroupRecord[]>
+  groupById(uid: string): Promise<IdentityGroupRecord | undefined>
+  groupByName(name: string): Promise<IdentityGroupRecord | undefined>
+  createGroup(input: NewGroup): Promise<IdentityGroupRecord>
+  deleteGroup(uid: string): Promise<void>
+  /** Membership, answering the updated group; undefined when there is none. */
+  addToGroup(
+    groupUid: string,
+    userUid: string
+  ): Promise<IdentityGroupRecord | undefined>
+  removeFromGroup(
+    groupUid: string,
+    userUid: string
+  ): Promise<IdentityGroupRecord | undefined>
+
+  permissions(): Promise<IdentityPermissionRecord[]>
+  permissionById(uid: string): Promise<IdentityPermissionRecord | undefined>
+  createPermission(input: NewPermission): Promise<IdentityPermissionRecord>
+  setPermissionSetting(
+    uid: string,
+    setting: string
+  ): Promise<IdentityPermissionRecord | undefined>
+  deletePermission(uid: string): Promise<void>
+
+  clients(): Promise<IdentityClientRecord[]>
+  createClient(input: IdentityClientRecord): Promise<IdentityClientRecord>
+}
+
+/**
+ * A user as the administration routes report one: the fields the sign-in flow
+ * reads, plus what those routes expose.
+ *
+ * `autoExec` and `authProvider` are optional because a host that does not hold
+ * them (the browser build's fixture, a directory-backed server) answers without
+ * them, and `groups` is empty rather than absent so a client always gets a list.
+ */
+export interface IdentityUserRecord extends IdentityUser {
+  autoExec?: string
+  /** Set when the account is managed by an external auth provider. */
+  authProvider?: string
+  /** The uids of the groups the user belongs to. */
+  groups: string[]
+}
+
+export interface IdentityGroupRecord {
+  uid: string
+  name: string
+  description: string
+  isActive: boolean
+  /** The uids of the members. */
+  users: string[]
+  /** Set when the group is managed by an external auth provider. */
+  authProvider?: string
+}
+
+export interface IdentityPermissionRecord {
+  uid: string
+  /** The route the rule is about, e.g. `/SASjsApi/code/execute`. */
+  path: string
+  /** `Route` is the only kind the API defines. */
+  type: string
+  /** `Grant` or `Deny`. */
+  setting: string
+  /** The uid the rule is assigned to, when it is a user's. */
+  user?: string
+  /** The uid the rule is assigned to, when it is a group's. */
+  group?: string
+}
+
+/** A client as the administration routes report one: the flow's fields plus the secret. */
+export interface IdentityClientRecord extends IdentityClient {
+  clientSecret: string
+}
+
+/** What creating a user takes. The password reaches `setPassword`, not this. */
+export interface NewUser {
+  username: string
+  displayName: string
+  isAdmin: boolean
+  isActive: boolean
+  autoExec?: string
+  authProvider?: string
+}
+
+/** The fields an update may carry; omitted fields are left alone. */
+export interface UserChange {
+  username?: string
+  displayName?: string
+  isAdmin?: boolean
+  isActive?: boolean
+  autoExec?: string
+}
+
+export interface NewGroup {
+  name: string
+  description: string
+  isActive: boolean
+}
+
+export interface NewPermission {
+  path: string
+  type: string
+  setting: string
+  user?: string
+  group?: string
 }

@@ -50,6 +50,33 @@ describe('dispatch', () => {
     expect(message).toContain('@sasjs/lint')
   })
 
+  it('answers 501 for a record route when the host supplies no record service', async () => {
+    // the services are optional: a host that has a drive but no identity records
+    // answers these routes the same way it answers one this package never wrote,
+    // and the message says which dependency is missing rather than "no handler"
+    expect(
+      await failure(() => dispatch(services(), 'GET /SASjsApi/user'))
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/user.'
+    })
+  })
+
+  it('answers 501 for a sign-in route when the host supplies no identity service', async () => {
+    expect(
+      await failure(() =>
+        dispatch(services(), 'POST /SASLogon/login', {
+          body: { username: 'admin', password: 'admin123' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no identity service, so it cannot answer POST /SASLogon/login.'
+    })
+  })
+
   it('answers 404 for an operation the API does not have', async () => {
     expect(
       await failure(() => dispatch(services(), 'GET /SASjsApi/nope'))

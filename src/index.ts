@@ -54,6 +54,15 @@ export type { RouteOverlay } from './routes/overlay.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
 export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
 export { createIdentityService } from './identity/service.js'
+export { createRecordService, sanitiseDisplayName } from './identity/records.js'
+export type {
+  GroupDetailsResponse,
+  GroupResponse,
+  PermissionResponse,
+  RecordService,
+  UserDetailsResponse,
+  UserResponse
+} from './identity/records.js'
 export type {
   IdentityService,
   LoginResult,
@@ -76,13 +85,26 @@ export type {
 } from './identity/fixture.js'
 export type {
   IdentityClient,
+  IdentityClientRecord,
+  IdentityGroupRecord,
+  IdentityPermissionRecord,
   IdentityStore,
   IdentityUser,
+  IdentityUserRecord,
+  NewGroup,
+  NewPermission,
+  NewUser,
   Subject,
-  TokenPair
+  TokenPair,
+  UserChange
 } from './identity/types.js'
 export { DRIVE_CORPUS } from './corpus/drive.js'
 export { IDENTITY_CORPUS } from './corpus/identity.js'
+export {
+  RECORD_CORPUS,
+  ADMIN_SIGNED_IN,
+  PROVIDER_MANAGED
+} from './corpus/records.js'
 export type { CorpusCase } from './corpus/drive.js'
 export { runCase, servicesFor } from './corpus/runner.js'
 export type { CaseResult } from './corpus/runner.js'

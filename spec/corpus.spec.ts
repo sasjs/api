@@ -7,10 +7,17 @@
  * are worth stopping on.
  */
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
+import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { runCase } from '../src/corpus/runner.js'
+import type { CorpusCase } from '../src/corpus/drive.js'
 
-describe('drive corpus', () => {
-  for (const testCase of DRIVE_CORPUS) {
+const CORPORA: Array<[string, CorpusCase[]]> = [
+  ['drive corpus', DRIVE_CORPUS],
+  ['identity corpus', IDENTITY_CORPUS]
+]
+
+describe.each(CORPORA)('%s', (_name, corpus) => {
+  for (const testCase of corpus) {
     it(`${testCase.id}: ${testCase.description}`, async () => {
       const actual = await runCase(testCase)
 
@@ -30,12 +37,24 @@ describe('drive corpus', () => {
 
       if (testCase.expect.contents !== undefined)
         expect(actual.contents).toEqual(testCase.expect.contents)
+
+      if (testCase.expect.partial !== undefined)
+        expect(actual.body).toMatchObject(testCase.expect.partial)
+
+      if (testCase.expect.keys !== undefined)
+        expect(Object.keys(actual.body as object).sort()).toEqual(
+          testCase.expect.keys.slice().sort()
+        )
     })
   }
+})
 
+describe('corpus coverage', () => {
   it('has a case for every operation this package implements', async () => {
     // an operation with no case is an operation nobody proved anything about
-    const covered = new Set(DRIVE_CORPUS.map((testCase) => testCase.route))
+    const covered = new Set(
+      CORPORA.flatMap(([, corpus]) => corpus.map((testCase) => testCase.route))
+    )
     const { ROUTES } = await import('../src/routes/index.js')
 
     const implemented = ROUTES.filter((route) => route.implemented).map(

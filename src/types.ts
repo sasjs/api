@@ -85,6 +85,13 @@ export interface GeneratedRoute {
 
 export interface Route extends GeneratedRoute {
   responses: RouteResponse[]
+  /**
+   * Statuses the document states that only a HOST can send - a login lockout is
+   * the host's limiter, a provider failure is its identity provider. The corpus
+   * does not answer them, so the parity check compares the document without
+   * them; the host's own suite pins them.
+   */
+  hostResponses: number[]
   capabilities: Capability[]
   /**
    * Whether this package carries a handler for the operation. A host may still

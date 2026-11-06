@@ -42,9 +42,18 @@ const merge = (generated: (typeof GENERATED_ROUTES)[number]): Route => {
       }
     })
 
+  // A host-only status has to be one the document states: the annotation marks
+  // where a status is answered, it does not add one.
+  for (const status of overlay.hostResponses || [])
+    if (!documented.has(status))
+      throw new Error(
+        `src/routes/overlay.ts marks status ${status} of ${generated.id} as host-only, and the OpenAPI document does not state it. Correct the document in sasjs/server and re-vendor spec/swagger.yaml, or drop the annotation.`
+      )
+
   return {
     ...generated,
     responses,
+    hostResponses: overlay.hostResponses || [],
     capabilities: overlay.capabilities || TAG_CAPABILITIES[generated.tag] || [],
     implemented: overlay.implemented === true
   }

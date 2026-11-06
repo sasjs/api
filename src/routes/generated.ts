@@ -97,6 +97,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 204,
         description: 'No content'
+      },
+      {
+        status: 401,
+        description: 'No valid access token was supplied'
       }
     ]
   },
@@ -112,6 +116,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description:
+          'The refresh token is missing, invalid or expired, or the client id is unknown'
       }
     ]
   },
@@ -140,6 +149,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'The request body is missing `clientId` or `code`'
+      },
+      {
+        status: 401,
+        description:
+          'The authorization code is invalid, expired, already used, or was issued for another client, or the client id is unknown'
       }
     ]
   },
@@ -168,6 +186,28 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 204,
         description: 'No content'
+      },
+      {
+        status: 400,
+        description:
+          'The request body is missing `currentPassword` or `newPassword`'
+      },
+      {
+        status: 401,
+        description: 'No valid access token was supplied'
+      },
+      {
+        status: 403,
+        description: 'The current password is incorrect'
+      },
+      {
+        status: 404,
+        description: 'The authenticated user no longer exists'
+      },
+      {
+        status: 405,
+        description:
+          'The account authenticates through an external provider, which holds its password'
       }
     ]
   },
@@ -1081,6 +1121,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'No valid access token or session was supplied'
       }
     ]
   },
@@ -1564,6 +1608,19 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'The request body is missing `clientId`, or the CSRF token is missing or invalid'
+      },
+      {
+        status: 401,
+        description: 'No signed-in session'
+      },
+      {
+        status: 403,
+        description: 'The client id is unknown'
       }
     ]
   },
@@ -1592,6 +1649,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'The request body is missing `username` or `password`'
+      },
+      {
+        status: 401,
+        description:
+          'The credentials are not valid, or password sign-in is disabled for local accounts'
+      },
+      {
+        status: 429,
+        description: 'Too many failed attempts for this account'
+      },
+      {
+        status: 500,
+        description: 'An unexpected error occurred while signing in'
       }
     ]
   },
@@ -1607,6 +1681,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 500,
+        description: 'The session store failed to replace the session'
       }
     ]
   }

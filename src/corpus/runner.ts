@@ -12,6 +12,9 @@ import { dispatch } from '../host/dispatch.js'
 import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
+import { createIdentityService } from '../identity/service.js'
+import { MemoryIdentityStore } from '../identity/memory-store.js'
+import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
 
 export interface CaseResult {
@@ -22,9 +25,17 @@ export interface CaseResult {
   error?: string
 }
 
-/** Services over a fresh store, seeded with the case's files. */
+/**
+ * Services over fresh stores, seeded with the case's files and identity.
+ *
+ * The identity store is built for every case, drive or not, so a case that starts
+ * mid-flow can declare the tokens and codes it begins with.
+ */
 export const servicesFor = (testCase: CorpusCase): Services => ({
-  drive: createDriveService(new MemoryDriveStore(testCase.seed || {}))
+  drive: createDriveService(new MemoryDriveStore(testCase.seed || {})),
+  identity: createIdentityService(
+    new MemoryIdentityStore(testCase.identity || DEFAULT_IDENTITY)
+  )
 })
 
 /**

@@ -17,6 +17,7 @@ import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
+import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
 export interface ApiRequest {
   query?: Record<string, string | undefined>
@@ -202,6 +203,14 @@ export const dispatch = async (
         )
       }
 
+    case 'POST /SASjsApi/drive/deploy': {
+      // `streamWebFolder` is the host's: publishing an app stream is not a drive
+      // operation, and a host that has no app stream ignores it.
+      await drive.deploy(String(body.appLoc ?? ''), body.fileTree)
+
+      return { status: 200, body: DEPLOY_SUCCESS }
+    }
+
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
 
@@ -230,6 +239,7 @@ export const HANDLED_ROUTES: string[] = [
   'DELETE /SASjsApi/drive/folder',
   'POST /SASjsApi/drive/rename',
   'GET /SASjsApi/drive/filetree',
+  'POST /SASjsApi/drive/deploy',
   'POST /SASjsApi/auth/token',
   'POST /SASjsApi/auth/refresh',
   'POST /SASjsApi/auth/logout',

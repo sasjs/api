@@ -487,6 +487,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Invalid Format'
       },
       {
+        status: 413,
+        description: 'File tree exceeds the deploy limit'
+      },
+      {
         status: 500,
         description: 'Execution Error'
       }
@@ -515,6 +519,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: 'Invalid Format'
+      },
+      {
+        status: 413,
+        description: 'File tree exceeds the deploy limit'
       },
       {
         status: 500,

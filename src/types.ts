@@ -19,7 +19,16 @@ export class ApiError extends Error {
 
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    /**
+     * The body the route renders instead of the bare message.
+     *
+     * Most drive routes send the message as text (`res.status(code).send(err)`),
+     * and that stays the default: a body here is for the routes that answer an
+     * envelope, which today is the two deploy routes and their
+     * `{status: 'failure', message}`.
+     */
+    readonly body?: unknown
   ) {
     super(message)
     this.name = 'ApiError'

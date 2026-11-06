@@ -22,6 +22,23 @@ export {
   isRoot
 } from './drive/paths.js'
 export { createDriveService } from './drive/service.js'
+export {
+  DEPLOY_LIMITS,
+  DEPLOY_PAYLOAD_BYTES,
+  DEPLOY_SUCCESS,
+  checkDeployTree,
+  decodeBase64,
+  deployTree,
+  isDeployTree,
+  measureDeployTree
+} from './drive/deploy.js'
+export type {
+  DeployLimits,
+  DeployMeasurements,
+  DeployMember,
+  DeployRefusal,
+  DeployTree
+} from './drive/deploy.js'
 export type {
   DriveService,
   DriveResult,

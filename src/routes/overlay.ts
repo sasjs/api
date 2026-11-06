@@ -32,6 +32,7 @@
  * re-vendored here.
  */
 import type { Capability, HttpMethod } from '../types.js'
+import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
 /** The annotations both states of an entry can carry. */
 interface OverlayFields {
@@ -110,8 +111,8 @@ const HOST_OWNED =
 const WEB_BUNDLE =
   'The host serves its own web bundle; there is no API decision here for this package to answer.'
 
-const DEPLOY_CAP =
-  "Writing a whole tree in one request can exhaust the host's storage, so the deploy routes land with the size cap that bounds it."
+const ARCHIVE =
+  "Expanding the uploaded archive is the host's transport work - multer and a zip library on the server, `DecompressionStream` in a worker - and the host hands this package the tree it produces, which is the same tree `POST /SASjsApi/drive/deploy` takes."
 
 const UNPUBLISH =
   'Unpublishing inverts the deploy route, so the two land together.'
@@ -225,10 +226,27 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     implemented: true,
     responses: { 200: { status: 'success', tree: {} } }
   },
-  'POST /SASjsApi/drive/deploy': { implemented: false, reason: DEPLOY_CAP },
+  // The deploy routes answer an ENVELOPE, unlike the file routes above: their
+  // `400` is `{status:'failure', message}` rather than the message as text, and
+  // `413` is the cap refusing the tree before anything is written.
+  // `"appLoc" is required` and `"fileTree" is required` are the other `400` this
+  // route sends - a missing body property, worded by the table's own
+  // validation - so the body annotated here is the substantial one.
+  'POST /SASjsApi/drive/deploy': {
+    implemented: true,
+    responses: {
+      200: DEPLOY_SUCCESS,
+      400: {
+        status: 'failure',
+        message: 'Provided not supported data format.'
+      },
+      413: 'The file tree exceeds the deploy limit.',
+      500: { status: 'failure', message: 'Deployment failed!' }
+    }
+  },
   'POST /SASjsApi/drive/deploy/upload': {
     implemented: false,
-    reason: DEPLOY_CAP
+    reason: ARCHIVE
   },
   // `404` is a pair - the registry name and the appLoc it was published from -
   // that matches no entry, and the drive's content is deliberately left alone.

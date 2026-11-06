@@ -64,6 +64,20 @@ describe('route table', () => {
     expect(route?.capabilities).toEqual(['storage'])
   })
 
+  it('states a decision for every operation in the document', () => {
+    // Silence reads like "about to be done". The table refuses an operation with
+    // no overlay entry at import, and this pins that as intended behaviour
+    // rather than as a missing route.
+    expect(
+      GENERATED_ROUTES.filter((route) => !OVERLAY[route.id]).map((r) => r.id)
+    ).toEqual([])
+
+    for (const route of ROUTES) {
+      if (route.implemented) expect(route.reason).toBeUndefined()
+      else expect(route.reason).toBeTruthy()
+    }
+  })
+
   it('marks a host-only status only where the document states it', () => {
     // the annotation says who answers a status; it cannot add one
     for (const route of ROUTES)

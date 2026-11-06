@@ -103,6 +103,13 @@ export interface Route extends GeneratedRoute {
    * not an absence nobody can see.
    */
   implemented: boolean
+  /**
+   * Why this package does not implement the operation, and what it waits on.
+   * Present exactly when `implemented` is false: the overlay's entries are a
+   * decision either way, and `src/routes/index.ts` refuses to build a table with
+   * an operation nobody has decided about. A 501 carries it to the caller.
+   */
+  reason?: string
 }
 
 /**

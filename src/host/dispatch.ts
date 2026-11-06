@@ -205,8 +205,17 @@ export const dispatch = async (
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
 
-    default:
-      throw new ApiError(501, `This package has no handler for ${routeId}.`)
+    default: {
+      // The reason the table carries travels with the refusal: a host developer
+      // reading a 501 wants to know what the operation waits on, not only that
+      // it is missing.
+      const reason = routeById(routeId)?.reason
+
+      throw new ApiError(
+        501,
+        `This package has no handler for ${routeId}.${reason ? ` ${reason}` : ''}`
+      )
+    }
   }
 }
 

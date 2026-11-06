@@ -215,8 +215,25 @@ export class MemoryIdentityStore implements IdentityStore {
     return pair && pair[kind] === token ? subject : undefined
   }
 
+  /**
+   * The subject's saved pair, while both of its tokens are still live.
+   *
+   * An exchange hands a saved pair back rather than rotating a second tab's
+   * tokens. That is only an answer if the pair can still be used: a saved pair
+   * whose access token has aged out would sign the caller in and then refuse
+   * every request it makes, so an aged-out pair is reported as absent and the
+   * exchange mints a fresh one. `live()` reads the issue-time expiry, which a
+   * seeded token does not carry - a seeded pair therefore never ages out here.
+   */
   async pairFor(subject: Subject): Promise<TokenPair | undefined> {
-    return this.pairs.get(keyOf(subject))
+    const pair = this.pairs.get(keyOf(subject))
+    if (!pair) return undefined
+
+    const now = Date.now()
+    const access = this.access.get(pair.accessToken)
+    const refresh = this.refresh.get(pair.refreshToken)
+
+    return live(access, now) && live(refresh, now) ? pair : undefined
   }
 
   async savePair(subject: Subject, pair: TokenPair): Promise<void> {

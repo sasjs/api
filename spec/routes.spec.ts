@@ -43,7 +43,7 @@ describe('route table', () => {
   it('marks a host-only status only where the document states it', () => {
     // the annotation says who answers a status; it cannot add one
     for (const route of ROUTES)
-      for (const status of route.hostResponses)
+      for (const status of route.hostResponses || [])
         expect({
           route: route.id,
           stated: route.responses.some((response) => response.status === status)

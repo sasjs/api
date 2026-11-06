@@ -47,7 +47,7 @@ describe('the document and the corpus agree, in both directions', () => {
       .map((route) => {
         const documented = (routeById(route.id)?.responses || [])
           .map((response) => response.status)
-          .filter((status) => !route.hostResponses.includes(status))
+          .filter((status) => !(route.hostResponses || []).includes(status))
           .sort((a, b) => a - b)
         const answered = [...(cases.get(route.id) || [])].sort((a, b) => a - b)
 

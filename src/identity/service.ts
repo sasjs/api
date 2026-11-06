@@ -127,7 +127,13 @@ export const createIdentityService = (
     if (!(await store.client(clientId)))
       throw new ApiError(403, 'Invalid clientId.')
 
-    return store.issueCode({ userId: subject.userId, clientId })
+    // A host resolves the caller once, at sign-in; the account may since have
+    // been deactivated. sasjs/server re-reads the user on every request and
+    // refuses an inactive one, so a session that outlived the account must not
+    // go on buying codes here.
+    const named = await liveSubject(store, subject)
+
+    return store.issueCode({ userId: named.userId, clientId })
   },
 
   async token({ clientId, code }) {
@@ -179,6 +185,10 @@ export const createIdentityService = (
   async logout(subject) {
     if (!subject) throw unauthorized()
 
+    // Deliberately no liveness check: the caller is asking for its credential to
+    // be dropped, and refusing would leave a pair in the store that nothing can
+    // use. Every path that READS the account refuses an inactive one, so a
+    // deactivated caller's sign-out is housekeeping rather than access.
     await store.deletePair(subject)
   },
 
@@ -189,8 +199,10 @@ export const createIdentityService = (
   async session(subject) {
     if (!subject) throw unauthorized()
 
+    // As with `authorize`: the account behind a host's session is re-read here,
+    // because the session outlives the account.
     const user = await store.userById(subject.userId)
-    if (!user) throw unauthorized()
+    if (!user || !user.isActive) throw unauthorized()
 
     return asSession(user)
   }

@@ -89,6 +89,14 @@ Not implemented yet, in the order the plan sets: the rest of identity (`user`, `
 
 A status the document states but only a host can send - an account lockout (`429`), a provider failure (`500`), a session-store failure - is marked `hostResponses` in the overlay. It stays in the document, because a client still receives it, and is excluded from the parity check, whose other side is what this package answers; the host's own suite pins it.
 
+## What a host must do
+
+Three of the sign-in flow's defences are the host's, because the package has no request to read and no clock to trust:
+
+- **Re-resolve the caller on every request.** A host with its own session passes the subject in (`session`, `authorize`), so the service re-reads the account behind it and refuses a deactivated one; a host that caches the subject it resolved at sign-in defeats that check. `logout` is the exception and does not refuse: dropping a credential is not access, and refusing would leave the pair in the store.
+- **Lock the account out after repeated failures.** `POST /SASLogon/login` answers `401 Username is not found.` for an unknown username and `401 Invalid Password.` for a wrong one, because that is what the server's own form tells a user - which also means the route cannot tell a caller to stop guessing on its own. The defence is the host's limiter, answering `429` with `Retry-After` in seconds; without it the route is a way to enumerate usernames and account state.
+- **Answer a session-store or identity-provider failure with `500`.** Those are the host's own dependencies, and the overlay marks the statuses as `hostResponses`.
+
 ## Development
 
 ```bash

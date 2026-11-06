@@ -9,9 +9,10 @@ The plan that this package implements is tracked in `sasjs/cli#1550`.
 
 ## What is in it
 
-**The route table** (`ROUTES`, `findRoute`) is every operation in the API - 31 paths, 61 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
+**The route table** (`ROUTES`, `findRoute`) is every operation in the API, derived from `spec/swagger.yaml` by `npm run sync:routes`.
 The statuses come from that document and nowhere else: the overlay cannot add one, and an overlay entry naming a status the document does not state fails the build rather than describing a wish.
-The document cannot say everything a host needs, so the reviewed overlay adds the body each response carries, the capability a route needs, and whether this package implements it.
+The document cannot say everything a host needs, so the reviewed overlay adds the body each response carries, the capability a route needs, and the decision for the operation: `implemented: true`, or `implemented: false` with the reason it is not.
+Every operation has an entry - the table refuses one that does not, so "nobody has looked at this yet" cannot hide as silence - and a host asked for an unimplemented route answers `501` carrying that reason.
 Where the document is wrong, it is corrected in `sasjs/server` and re-vendored here - never worked around in the overlay.
 
 ### Regenerating the vendored document
@@ -67,7 +68,7 @@ Both hosts answer with the same shapes:
 
 - a successful write is `{ status: 'success' }`;
 - a refusal is an `ApiError` carrying `status` and `message`, which a host renders as its own transport requires (`res.status(code).send(...)` on the server, a `Response` in the worker);
-- an operation this package has no handler for is `501`, naming the operation - not a `404` that looks like a typo in the caller;
+- an operation this package has no handler for is `501`, naming the operation and the reason it is not implemented here - not a `404` that looks like a typo in the caller;
 - an operation the API does not have is `404`.
 
 ## Guarantees the build enforces
@@ -75,17 +76,14 @@ Both hosts answer with the same shapes:
 - **No runtime imports.** `src` compiles with `"types": []` and `lib: ES2020`, so a `Buffer`, a `process` or a `document` reference fails `npm run build` rather than a worker at run time. Nothing node-shaped can creep into the browser path.
 - **No Node-only APIs in the published surface.** Storage is a port (`DriveStore`), and `MemoryDriveStore` ships so a host without a filesystem has an implementation to use.
 - **Three builds from one source.** `build/cjs` for node, `build/esm` for a bundler (with `build/esm` marked `"type": "module"` by the build script so Node runs it as ESM), and `build/browser.js` - a classic-worker IIFE that assigns `self.SASjsApi` - for a service worker that has only `importScripts`. CI loads all three.
-- **The table cannot rot silently.** `npm run check:routes` fails when `src/routes/generated.ts` and `spec/swagger.yaml` disagree, and the module throws at import when an overlay entry names an operation the document does not have.
+- **The table cannot rot silently.** `npm run check:routes` fails when `src/routes/generated.ts` and `spec/swagger.yaml` disagree, and the module throws at import when an overlay entry names an operation the document does not have, or when an operation has no entry at all.
 
 ## Status
 
-Implemented, exercised by 55 corpus cases:
+`src/routes/overlay.ts` is the status, and the table refuses an operation that is not in it: each entry is `implemented: true` - the package answers the route - or `implemented: false` with the dependency it waits on.
+`ROUTES.filter((route) => !route.implemented)` is therefore the list of what is left, each row naming the port, host decision or plan it is waiting for; a host asked for one answers `501` with that reason.
 
-- the nine drive handlers - file read/write/replace/delete, folder read/create/delete, rename, file tree;
-- the seven sign-in handlers - `auth/token`, `auth/refresh`, `auth/logout`, `SASLogon/login`, `SASLogon/authorize`, `SASLogon/logout`, and the session read.
-
-Not implemented yet, in the order the plan sets: the rest of identity (`user`, `group`, `permission`, `auth/updatePassword`, `info/authorizedRoutes`), the session record behind `log`/`output`, program execution (`stp`, `code`), `drive/deploy` and its size cap, and the admin routes.
-`src/routes/overlay.ts` is the list: an operation with `implemented: true` has a handler, and everything else answers `501` with its own name.
+Every implemented operation is exercised by the corpus, and a handler without a case fails `spec/corpus-parity.spec.ts` - so "implemented" and "proven against the contract" are the same list rather than two that drift.
 
 A status the document states but only a host can send - an account lockout (`429`), a provider failure (`500`), a session-store failure - is marked `hostResponses` in the overlay. It stays in the document, because a client still receives it, and is excluded from the parity check, whose other side is what this package answers; the host's own suite pins it.
 
@@ -107,9 +105,9 @@ npm run check:routes  # the generated table matches spec/swagger.yaml
 npm run lint
 ```
 
-Refreshing the API surface: regenerate `api/public/swagger.yaml` in `sasjs/server` (`npm run swagger`), copy it to `spec/swagger.yaml`, and run `npm run sync:routes`. Review the diff - a new operation needs an overlay entry before a host can say whether it implements it.
+Refreshing the API surface: regenerate `api/public/swagger.yaml` in `sasjs/server` (`npm run swagger`), copy it to `spec/swagger.yaml`, and run `npm run sync:routes`. Review the diff: a new operation needs an overlay entry, and the table refuses to build without one.
 
-Re-vendoring is a two-repository change and the server half merges first: the document is only true once the controllers it is generated from answer what it states, so a copy taken from an unmerged server branch describes a server that does not exist yet. The current body is the output of `npm run swagger` on sasjs/server#541, which is where the sign-in statuses were added; regenerating before that lands would drop them.
+Re-vendoring is a two-repository change and the server half merges first: the document is only true once the controllers it is generated from answer what it states, so a copy taken from an unmerged server branch describes a server that does not exist yet. Take the copy from a released tag of `sasjs/server` rather than from its `main`, and the document and the code a host runs cannot disagree.
 
 ## Licence
 

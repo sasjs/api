@@ -23,13 +23,31 @@ const failure = async (run: () => Promise<unknown>) => {
 }
 
 describe('dispatch', () => {
-  it('answers 501 for an operation this package has no handler for, naming it', async () => {
+  it('answers 501 for an operation this package has no handler for, naming it and what it waits on', async () => {
+    // The reason comes from src/routes/overlay.ts, so the refusal says what the
+    // operation depends on rather than only that it is missing.
     expect(
       await failure(() => dispatch(services(), 'GET /SASjsApi/info'))
     ).toEqual({
       status: 501,
-      message: 'This package has no handler for GET /SASjsApi/info.'
+      message:
+        "This package has no handler for GET /SASjsApi/info. The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
     })
+  })
+
+  it('names a reason for every operation it refuses', async () => {
+    // covered in spec/routes.spec.ts against the table; this is the transport
+    // half - the reason reaches the caller rather than staying in the source. A
+    // body is supplied so the required-parameter check does not answer first.
+    const message = (
+      (await failure(() =>
+        dispatch(services(), 'POST /SASjsApi/code/lint', {
+          body: { code: 'data _null_; run;' }
+        })
+      )) as { message: string }
+    ).message
+
+    expect(message).toContain('@sasjs/lint')
   })
 
   it('answers 404 for an operation the API does not have', async () => {

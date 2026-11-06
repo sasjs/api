@@ -12,7 +12,16 @@ import { OVERLAY, TAG_CAPABILITIES } from './overlay.js'
 import type { Route, RouteResponse } from '../types.js'
 
 const merge = (generated: (typeof GENERATED_ROUTES)[number]): Route => {
-  const overlay = OVERLAY[generated.id] || {}
+  const overlay = OVERLAY[generated.id]
+
+  // Every operation states its decision. A route with no entry is a route
+  // nobody has looked at, which reads exactly like a route that is about to be
+  // done - so it fails the build instead, and the message says what to add.
+  if (!overlay)
+    throw new Error(
+      `src/routes/overlay.ts has no entry for ${generated.id}. Every operation states whether this package implements it and, when it does not, the reason it does not: add \`{ implemented: false, reason: '...' }\` until a handler exists.`
+    )
+
   const documented = new Map(
     generated.responses.map((r) => [r.status, r.description])
   )
@@ -55,7 +64,8 @@ const merge = (generated: (typeof GENERATED_ROUTES)[number]): Route => {
     responses,
     hostResponses: overlay.hostResponses || [],
     capabilities: overlay.capabilities || TAG_CAPABILITIES[generated.tag] || [],
-    implemented: overlay.implemented === true
+    implemented: overlay.implemented,
+    ...(overlay.implemented ? {} : { reason: overlay.reason })
   }
 }
 

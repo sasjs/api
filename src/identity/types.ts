@@ -192,6 +192,11 @@ export interface UserChange {
   isAdmin?: boolean
   isActive?: boolean
   autoExec?: string
+  /**
+   * Cleared by a password change: `sasjs/server` refuses every other API call
+   * while this is set, so a host must be able to clear it through the port.
+   */
+  needsToUpdatePassword?: boolean
 }
 
 export interface NewGroup {

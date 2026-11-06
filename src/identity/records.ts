@@ -604,8 +604,10 @@ export const createRecordService = (store: IdentityStore): RecordService => {
 
     async createClient(caller, body) {
       await requireAdmin(store, caller)
+      // the server answers `res.status(403).send(err.toString())`, so the body a
+      // client receives carries the Error prefix
       if (await store.client(body.clientId))
-        throw new ApiError(403, 'Client ID already exists.')
+        throw new ApiError(403, 'Error: Client ID already exists.')
 
       return store.createClient({
         clientId: body.clientId,
@@ -616,8 +618,10 @@ export const createRecordService = (store: IdentityStore): RecordService => {
     },
 
     async updatePassword(caller, body) {
+      // requireCaller answers 401 for a caller that is absent or deactivated, so
+      // the document's 404 (a caller whose record has gone) cannot be reached
+      // here - the overlay records that as a host-only status.
       const reader = await requireCaller(store, caller)
-      if (!reader) throw new ApiError(404, 'User not found!')
 
       if (reader.authProvider)
         throw new ApiError(
@@ -629,11 +633,10 @@ export const createRecordService = (store: IdentityStore): RecordService => {
         throw new ApiError(403, 'Invalid current password!')
 
       await store.setPassword(reader.uid, body.newPassword)
-      await store.updateUser(reader.uid, {})
-      // the flag is what makes the web interface ask; the server clears it in
-      // the same write
-      const stored = await store.userById(reader.uid)
-      if (stored) stored.needsToUpdatePassword = false
+      // the flag is what makes the web interface ask, and the server clears it in
+      // the same write: it has to go through the store, or a host keeps refusing
+      // every call the caller makes after the change
+      await store.updateUser(reader.uid, { needsToUpdatePassword: false })
     }
   }
 }

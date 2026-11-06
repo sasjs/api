@@ -292,6 +292,13 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'POST /SASjsApi/permission': { implemented: true },
   'PATCH /SASjsApi/permission/{uid}': { implemented: true },
+  // The three deletes answer 204 here and 200 on the wire: the server's route
+  // handlers send `res.status(200).send('Account Deleted!')` and
+  // `'Permission Deleted!'`, while tsoa emitted 204 for a void handler, so the
+  // document understates the status. Correcting it is a decorator in
+  // sasjs/server (`@SuccessResponse('200', ...)`), and this package follows the
+  // document until that release lands - a local 200 would fail the schema check
+  // that keeps this table honest.
   'DELETE /SASjsApi/permission/{uid}': { implemented: true },
 
   // Session - the caller's own session, then the record behind a triggered one
@@ -322,12 +329,24 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'POST /SASjsApi/stp/trigger': { implemented: false, reason: RUNTIME },
 
   // User - the accounts the identity store already holds for sign-in
+  // Reading accounts is open to any authenticated caller, which is what
+  // sasjs/server's routes do (`authenticateAccessToken` only): the document once
+  // said `Admin account required` here, and sasjs/server#551 corrected it to
+  // `Unauthorized` because that is the refusal a caller actually receives. The
+  // breadth is the server's behaviour, copied deliberately - the auto-exec code
+  // is the one field withheld from anyone but an administrator or the account
+  // itself.
   'GET /SASjsApi/user': { implemented: true },
   'GET /SASjsApi/user/{uid}': { implemented: true },
   'GET /SASjsApi/user/by/username/{username}': { implemented: true },
   'POST /SASjsApi/user': { implemented: true },
   'PATCH /SASjsApi/user/{uid}': { implemented: true },
   'PATCH /SASjsApi/user/by/username/{username}': { implemented: true },
+  // The document also marks `password` optional on these deletes, while the
+  // server's schema requires it for anyone who is not an administrator, and for
+  // an account deleting itself. A host should treat a passwordless delete from a
+  // non-admin as the refusal it is; this package answers 401 `Invalid password.`
+  // where the server's schema answers 400 `"password" is required`.
   'DELETE /SASjsApi/user/{uid}': { implemented: true },
   'DELETE /SASjsApi/user/by/username/{username}': { implemented: true }
 }

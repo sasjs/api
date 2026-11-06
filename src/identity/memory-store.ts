@@ -367,6 +367,8 @@ export class MemoryIdentityStore implements IdentityStore {
     if (change.displayName !== undefined) user.displayName = change.displayName
     if (change.isAdmin !== undefined) user.isAdmin = change.isAdmin
     if (change.isActive !== undefined) user.isActive = change.isActive
+    if (change.needsToUpdatePassword !== undefined)
+      user.needsToUpdatePassword = change.needsToUpdatePassword
 
     if (change.autoExec !== undefined) user.autoExec = change.autoExec
     return this.recordOf(user)

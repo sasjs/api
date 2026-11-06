@@ -1140,6 +1140,25 @@ export const RECORD_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'create-client-defaults',
+    route: 'POST /SASjsApi/client',
+    description: 'applies the schema defaults when the lifetimes are omitted',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      body: { clientId: 'default_app', clientSecret: 'default_secret' }
+    },
+    expect: {
+      status: 200,
+      body: {
+        clientId: 'default_app',
+        clientSecret: 'default_secret',
+        accessTokenExpiration: 86400,
+        refreshTokenExpiration: 2592000
+      }
+    }
+  },
+  {
     id: 'create-client-not-admin',
     route: 'POST /SASjsApi/client',
     description: 'refuses a registration by a non-administrator',
@@ -1170,7 +1189,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
         refreshTokenExpiration: 86400
       }
     },
-    expect: { status: 403, error: 'Client ID already exists.' }
+    expect: { status: 403, error: 'Error: Client ID already exists.' }
   },
 
   // -------------------------------------------------------------- passwords

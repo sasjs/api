@@ -20,6 +20,9 @@ import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
+/** The defaults sasjs/server's Client schema applies to an omitted lifetime. */
+const SECONDS_IN_A_DAY = 86400
+
 export interface ApiRequest {
   query?: Record<string, string | undefined>
   body?: Record<string, unknown>
@@ -104,9 +107,25 @@ export const dispatch = async (
 ): Promise<ApiResponse> => {
   const route = routeById(routeId)
   if (!route) throw new ApiError(404, `No such operation: ${routeId}`)
-  validate(route, request)
 
   const { drive, identity, records } = services
+
+  // The server authenticates before its payload schema runs, so an anonymous
+  // request with an incomplete body is a 401 there rather than a 400. The order
+  // is only observable on the route groups that gate on a caller: the sign-in
+  // flow has no caller by definition, and the drive has no identity at all.
+  const identityScoped =
+    ['User', 'Group', 'Permission', 'Client'].includes(route.tag) ||
+    routeId === 'PATCH /SASjsApi/auth/updatePassword'
+
+  if (identityScoped && identity) {
+    const subject =
+      request.subject ?? (await identity.authenticate(request.token))
+    if (!subject) throw new ApiError(401, 'Unauthorized')
+  }
+
+  validate(route, request)
+
   const query = request.query || {}
   const body = request.body || {}
   const params = request.params || {}
@@ -387,11 +406,20 @@ export const dispatch = async (
     case 'POST /SASjsApi/client':
       return {
         status: 200,
+        // An omitted lifetime is the schema's default, not NaN: the server's
+        // Client model declares 86400 and 2592000, and a NaN lifetime would make
+        // every token the client buys expire on arrival.
         body: await required().createClient(await caller(), {
           clientId: String(body.clientId ?? ''),
           clientSecret: String(body.clientSecret ?? ''),
-          accessTokenExpiration: Number(body.accessTokenExpiration),
-          refreshTokenExpiration: Number(body.refreshTokenExpiration)
+          accessTokenExpiration:
+            body.accessTokenExpiration === undefined
+              ? SECONDS_IN_A_DAY
+              : Number(body.accessTokenExpiration),
+          refreshTokenExpiration:
+            body.refreshTokenExpiration === undefined
+              ? SECONDS_IN_A_DAY * 30
+              : Number(body.refreshTokenExpiration)
         })
       }
 

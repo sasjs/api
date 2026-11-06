@@ -418,3 +418,27 @@ describe('the record service, where the store disagrees', () => {
     })
   })
 })
+
+describe('a password change', () => {
+  it('clears the flag through the store, so a host stops asking', async () => {
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    const records = createRecordService(store)
+
+    await records.updatePassword(
+      { userId: 'user-restricted', clientId: 'web_app' },
+      { currentPassword: 'user123', newPassword: 'changed123' }
+    )
+
+    // sasjs/server refuses every other call while this stands, so it has to reach
+    // the store rather than a record the read happened to return
+    expect(
+      (await store.userById('user-restricted'))?.needsToUpdatePassword
+    ).toBe(false)
+    expect(
+      await store.passwordMatches(
+        (await store.userById('user-restricted'))!,
+        'changed123'
+      )
+    ).toBe(true)
+  })
+})

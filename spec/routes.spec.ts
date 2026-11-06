@@ -10,7 +10,7 @@ import { GENERATED_ROUTES } from '../src/routes/generated.js'
 
 describe('route table', () => {
   it('covers every operation in the published document', () => {
-    expect(GENERATED_ROUTES.length).toBe(60)
+    expect(GENERATED_ROUTES.length).toBe(61)
     expect(ROUTES.length).toBe(GENERATED_ROUTES.length)
     expect(new Set(ROUTES.map((route) => route.id)).size).toBe(ROUTES.length)
   })
@@ -38,6 +38,30 @@ describe('route table', () => {
     expect(new Set(implemented)).toEqual(
       new Set(['Drive', 'Auth', 'Web', 'Session'])
     )
+  })
+
+  it('carries the unpublish operation, unimplemented here', () => {
+    const route = routeById('DELETE /SASjsApi/drive/deploy')
+
+    // The pair that identifies a registry entry: a name alone is not enough,
+    // because the same name republished for another folder is another app - which
+    // is why the document requires both and answers 404 when the pair matches no
+    // entry.
+    expect(
+      route?.params.map((param) => [param.name, param.in, param.required])
+    ).toEqual([
+      ['appLoc', 'body', true],
+      ['streamServiceName', 'body', true]
+    ])
+    expect(route?.responses.map((response) => response.status)).toEqual([
+      200, 400, 404
+    ])
+
+    // The publish side it inverts is not implemented here either (`sasjs/api#13`),
+    // so the two land together and a host answers 501 naming the capability until
+    // they do, rather than this package advertising a route nothing answers.
+    expect(route?.implemented).toBe(false)
+    expect(route?.capabilities).toEqual(['storage'])
   })
 
   it('marks a host-only status only where the document states it', () => {

@@ -122,6 +122,15 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'POST /SASjsApi/drive/deploy/upload': {
     implemented: false
   },
+  // Unpublishing is the counterpart of the two above and lands with them: the
+  // document in sasjs/server states it (sasjs/server#543), so a host may answer
+  // it in the meantime, but this package cannot until the publish side it would
+  // invert is implemented here. The statuses are the document's; `404` is a pair
+  // - the registry name and the appLoc it was published from - that matches no
+  // entry, and the drive's content is deliberately left alone.
+  'DELETE /SASjsApi/drive/deploy': {
+    implemented: false
+  },
   // The lockout and the provider failure are answered before the package is
   // consulted (routes/web/web.ts in sasjs/server).
   'POST /SASLogon/login': {

@@ -415,6 +415,42 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     ]
   },
   {
+    id: 'DELETE /SASjsApi/drive/deploy',
+    method: 'DELETE',
+    path: '/SASjsApi/drive/deploy',
+    tag: 'Drive',
+    summary: 'Remove an app stream entry',
+    params: [
+      {
+        name: 'appLoc',
+        in: 'body',
+        required: true,
+        type: 'string'
+      },
+      {
+        name: 'streamServiceName',
+        in: 'body',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: ['application/json'],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'Invalid Format'
+      },
+      {
+        status: 404,
+        description: 'No such app stream entry'
+      }
+    ]
+  },
+  {
     id: 'POST /SASjsApi/drive/deploy',
     method: 'POST',
     path: '/SASjsApi/drive/deploy',

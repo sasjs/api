@@ -9,7 +9,7 @@ The plan that this package implements is tracked in `sasjs/cli#1550`.
 
 ## What is in it
 
-**The route table** (`ROUTES`, `findRoute`) is every operation in the API - 31 paths, 60 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
+**The route table** (`ROUTES`, `findRoute`) is every operation in the API - 31 paths, 61 operations - derived from `spec/swagger.yaml` by `npm run sync:routes`.
 The statuses come from that document and nowhere else: the overlay cannot add one, and an overlay entry naming a status the document does not state fails the build rather than describing a wish.
 The document cannot say everything a host needs, so the reviewed overlay adds the body each response carries, the capability a route needs, and whether this package implements it.
 Where the document is wrong, it is corrected in `sasjs/server` and re-vendored here - never worked around in the overlay.

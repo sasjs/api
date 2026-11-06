@@ -161,8 +161,38 @@ describe('identity service', () => {
     }
   })
 
+  it('issues a fresh pair when the saved pair has aged out', async () => {
+    const identity = service()
+    const subject = { userId: 'user-restricted', clientId: 'sasjs' }
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(2_000_000)
+
+    try {
+      const first = await identity.token({
+        clientId: 'sasjs',
+        code: await identity.authorize(subject, 'sasjs')
+      })
+
+      // the `sasjs` client's access token lives an hour: past that the saved
+      // pair is still stored but its access half names nobody
+      clock.mockReturnValue(2_000_000 + 3600 * 1000)
+
+      const second = await identity.token({
+        clientId: 'sasjs',
+        code: await identity.authorize(subject, 'sasjs')
+      })
+
+      // handing the dead pair back would sign the caller in and then refuse
+      // every request it makes, so the exchange mints a live one instead
+      expect(second.accessToken).not.toEqual(first.accessToken)
+      expect(await identity.authenticate(second.accessToken)).toEqual(subject)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('rotates the pair on refresh', async () => {
     const identity = service()
+
     const subject = { userId: 'user-restricted', clientId: 'web_app' }
     const issued = await identity.token({
       clientId: 'web_app',
@@ -230,6 +260,44 @@ describe('deactivated accounts', () => {
       )
     ).toEqual({ status: 401, message: 'This account is not active.' })
     expect(await deactivated.authenticate('seed-access')).toBeUndefined()
+  })
+
+  /**
+   * A host with its own session - sasjs/server's browser cookie - resolves the
+   * caller itself and passes the subject in, so these two paths never go through
+   * `authenticate`. The corpus cannot reach them either: its cases name a token.
+   */
+  const inactiveStore = () =>
+    new MemoryIdentityStore({
+      ...SIGNED_IN,
+      users: SIGNED_IN.users.map((user) =>
+        user.username === 'user2' ? { ...user, isActive: false } : user
+      )
+    })
+
+  it('refuses an authorization code to a host-resolved caller who was deactivated', async () => {
+    const identity = createIdentityService(inactiveStore())
+
+    expect(
+      await failure(() =>
+        identity.authorize(
+          { userId: 'user-restricted', clientId: 'web_app' },
+          'web_app'
+        )
+      )
+    ).toEqual({ status: 401, message: 'Unauthorized' })
+  })
+
+  it('refuses the session read for a host-resolved caller who was deactivated', async () => {
+    const identity = createIdentityService(inactiveStore())
+
+    // the account is still there; it is the active flag that has changed, which
+    // is what sasjs/server's middleware re-reads on every request
+    expect(
+      await failure(() =>
+        identity.session({ userId: 'user-restricted', clientId: 'web_app' })
+      )
+    ).toEqual({ status: 401, message: 'Unauthorized' })
   })
 })
 

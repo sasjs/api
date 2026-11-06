@@ -90,8 +90,12 @@ export interface Route extends GeneratedRoute {
    * the host's limiter, a provider failure is its identity provider. The corpus
    * does not answer them, so the parity check compares the document without
    * them; the host's own suite pins them.
+   *
+   * Optional, and read as empty when absent: a host that builds a `Route` of its
+   * own is describing the document, not the lockout, and requiring the field
+   * made every such value a compile error.
    */
-  hostResponses: number[]
+  hostResponses?: number[]
   capabilities: Capability[]
   /**
    * Whether this package carries a handler for the operation. A host may still

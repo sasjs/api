@@ -10,13 +10,19 @@ import { ApiError } from '../types.js'
  */
 export interface AppStreamRegistry {
   /**
-   * Removes the entry for `appLoc` served by `streamServiceName`.
+   * Removes the app published at `appLoc`.
    *
-   * `false` when there was nothing to remove, which the route reports as a 404 -
-   * a delete that silently succeeds on a name nobody published would hide a
-   * caller's typo.
+   * **The folder is the identity.** An app is one thing to deploy and one thing
+   * to delete, and what it is called is a label on it: two apps can share a
+   * folder only as a special case, and they are still one thing to load or
+   * remove. So the lookup is by folder, and a name that no longer matches the
+   * one recorded does not turn a correct deletion into a `404`.
+   *
+   * `false` when nothing is published at that folder, which the route reports as
+   * a 404 - a delete that silently succeeded on a folder nobody deployed would
+   * hide a caller's typo.
    */
-  unpublish(streamServiceName: string, appLoc: string): Promise<boolean>
+  unpublish(appLoc: string): Promise<boolean>
 }
 
 export interface UnpublishBody {
@@ -27,10 +33,13 @@ export interface UnpublishBody {
 /**
  * `DELETE /SASjsApi/drive/deploy`.
  *
+ * The document requires both body values, so both are checked - a caller that
+ * names a stream but not the folder has not said what to remove. Only the folder
+ * reaches the registry, because that is what identifies the app.
+ *
  * The checks are here rather than in the transport because this is the one
  * implementation of the operation: a host calling it directly gets the same
- * refusals as a request to the route, in the same order, and with the same
- * messages the document states.
+ * refusals in the same order, and with the same messages the document states.
  */
 export const unpublishAppStream = async (
   registry: AppStreamRegistry,
@@ -41,28 +50,24 @@ export const unpublishAppStream = async (
 
   if (!body.appLoc) throw new ApiError(400, '"appLoc" is required')
 
-  if (!(await registry.unpublish(body.streamServiceName, body.appLoc)))
+  if (!(await registry.unpublish(body.appLoc)))
     throw new ApiError(404, 'No such app stream entry.')
 
   return { status: 'success' }
 }
 
 /**
- * The registry the corpus and the package's own tests read: one published
- * stream, keyed by both of the values a caller has to supply, so a case can be
- * wrong in either of them and be refused.
+ * The registry the corpus and the package's own tests read: one published app,
+ * identified by its folder alone.
  */
 export class MemoryAppStreamRegistry implements AppStreamRegistry {
-  private readonly entries: Map<string, string>
+  private readonly folders: Set<string>
 
-  constructor(entries: Record<string, string> = { myApp: '/Public/myApp' }) {
-    this.entries = new Map(Object.entries(entries))
+  constructor(folders: string[] = ['/Public/myApp']) {
+    this.folders = new Set(folders)
   }
 
-  async unpublish(streamServiceName: string, appLoc: string): Promise<boolean> {
-    if (this.entries.get(streamServiceName) !== appLoc) return false
-
-    this.entries.delete(streamServiceName)
-    return true
+  async unpublish(appLoc: string): Promise<boolean> {
+    return this.folders.delete(appLoc)
   }
 }

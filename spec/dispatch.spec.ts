@@ -3,6 +3,9 @@
  * about the drive.
  */
 import { dispatch } from '../src/host/dispatch.js'
+import { createRecordService } from '../src/identity/records.js'
+import { MemoryIdentityStore } from '../src/identity/memory-store.js'
+import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 import { createDriveService } from '../src/drive/service.js'
 import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { isApiError } from '../src/types.js'
@@ -21,6 +24,10 @@ const failure = async (run: () => Promise<unknown>) => {
       : String(error)
   }
 }
+
+/** The shape a host without a sign-in flow supplies: records, nothing else. */
+const recordsOnly = (): ReturnType<typeof createRecordService> =>
+  createRecordService(new MemoryIdentityStore({ ...DEFAULT_IDENTITY }))
 
 describe('dispatch', () => {
   it('answers 501 for an operation this package has no handler for, naming it and what it waits on', async () => {
@@ -48,6 +55,63 @@ describe('dispatch', () => {
     ).message
 
     expect(message).toContain('@sasjs/lint')
+  })
+
+  it('answers 501 for a record route when the host supplies no record service', async () => {
+    // the services are optional: a host that has a drive but no identity records
+    // answers these routes the same way it answers one this package never wrote,
+    // and the message says which dependency is missing rather than "no handler"
+    expect(
+      await failure(() => dispatch(services(), 'GET /SASjsApi/user'))
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/user.'
+    })
+  })
+
+  it('answers 501 on a record route when it has records but no identity service', async () => {
+    // a records-only host can answer, but only for a caller it resolved itself:
+    // without a subject there is nothing to authenticate, and a 401 would put a
+    // host without a sign-in flow into a login loop
+    expect(
+      await failure(() =>
+        dispatch(
+          { ...services(), records: recordsOnly() },
+          'GET /SASjsApi/user'
+        )
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no identity service, so it cannot answer GET /SASjsApi/user.'
+    })
+  })
+
+  it('serves a record route for a caller the host resolved itself', async () => {
+    const answer = await dispatch(
+      { ...services(), records: recordsOnly() },
+      'GET /SASjsApi/user',
+      {
+        subject: { userId: 'user-admin', clientId: 'web_app' }
+      }
+    )
+
+    expect(answer.status).toBe(200)
+  })
+
+  it('answers 501 for a sign-in route when the host supplies no identity service', async () => {
+    expect(
+      await failure(() =>
+        dispatch(services(), 'POST /SASLogon/login', {
+          body: { username: 'admin', password: 'admin123' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no identity service, so it cannot answer POST /SASLogon/login.'
+    })
   })
 
   it('answers 404 for an operation the API does not have', async () => {

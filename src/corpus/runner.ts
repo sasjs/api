@@ -13,6 +13,7 @@ import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
 import { createIdentityService } from '../identity/service.js'
+import { createRecordService } from '../identity/records.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -31,16 +32,25 @@ export interface CaseResult {
  * The identity store is built for every case, drive or not, so a case that starts
  * mid-flow can declare the tokens and codes it begins with.
  */
-export const servicesFor = (testCase: CorpusCase): Services => ({
-  drive: createDriveService(
-    testCase.unwritable
-      ? new RefusingDriveStore(testCase.seed || {})
-      : new MemoryDriveStore(testCase.seed || {})
-  ),
-  identity: createIdentityService(
-    new MemoryIdentityStore(testCase.identity || DEFAULT_IDENTITY)
+export const servicesFor = (testCase: CorpusCase): Services => {
+  // one identity store, shared by both services: a token the sign-in flow issues
+  // has to be the token a record route reads, and a user a record route creates
+  // has to be one the flow can sign in. Two stores built from the same fixture
+  // would let a case assert across two independent states and still pass.
+  const identity = new MemoryIdentityStore(
+    testCase.identity || DEFAULT_IDENTITY
   )
-})
+
+  return {
+    drive: createDriveService(
+      testCase.unwritable
+        ? new RefusingDriveStore(testCase.seed || {})
+        : new MemoryDriveStore(testCase.seed || {})
+    ),
+    identity: createIdentityService(identity),
+    records: createRecordService(identity)
+  }
+}
 
 /**
  * A drive that reads but refuses every write.

@@ -21,6 +21,10 @@ export interface IdentityFixtureUser {
   isAdmin: boolean
   isActive: boolean
   needsToUpdatePassword: boolean
+  /** Set when the account is managed by an external auth provider. */
+  authProvider?: string
+  /** The account's own auto-exec code, where the fixture declares one. */
+  autoExec?: string
 }
 
 export interface IdentityFixtureGroup {
@@ -30,6 +34,8 @@ export interface IdentityFixtureGroup {
   isActive: boolean
   /** Usernames of the members. */
   users: string[]
+  /** Set when the group is managed by an external auth provider. */
+  authProvider?: string
 }
 
 export interface IdentityFixturePermission {

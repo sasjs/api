@@ -157,7 +157,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 401,
         description:
-          'The authorization code is invalid, expired, already used, or was issued for another client, or the client id is unknown'
+          'The authorization code is invalid, expired, already used, or was issued for another client, or the client id is unknown. This route is unauthenticated, so an unknown client id is a `401` here where `POST /SASLogon/authorize` (which requires a session) answers `403`'
       }
     ]
   },
@@ -253,6 +253,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
       }
     ]
   },
@@ -293,6 +297,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 403,
+        description: 'Client ID already exists.'
       }
     ]
   },
@@ -782,7 +794,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 409,
-        description: 'Folder already exists'
+        description:
+          'Folder already exists. The body is that message as plain text.'
       }
     ]
   },
@@ -822,7 +835,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 409,
-        description: 'Something already exists at the new path'
+        description:
+          'Something already exists at the new path. The body is that message as plain text.'
       }
     ]
   },
@@ -872,6 +886,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 409,
+        description: 'Group name already exists.'
       }
     ]
   },
@@ -900,6 +922,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't add/remove user to 'public' group."
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Group not found. / User not found.'
+      },
+      {
+        status: 405,
+        description:
+          "Can't add/remove user to group created by external auth provider."
       }
     ]
   },
@@ -928,6 +967,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: "Can't add/remove user to 'public' group."
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Group not found. / User not found.'
+      },
+      {
+        status: 405,
+        description:
+          "Can't add/remove user to group created by external auth provider."
       }
     ]
   },
@@ -950,6 +1006,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Group not found.'
       }
     ]
   },
@@ -972,6 +1036,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 404,
+        description: 'Group not found.'
       }
     ]
   },
@@ -994,6 +1062,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 404,
+        description: 'Group not found.'
       }
     ]
   },
@@ -1054,6 +1126,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required, or no grant on the route'
+      },
+      {
+        status: 404,
+        description: 'User not found.'
       }
     ]
   },
@@ -1100,6 +1180,24 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Can not add permission for admin user. / Invalid principal type. Valid types are user or group.'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'User not found. / Group not found.'
+      },
+      {
+        status: 409,
+        description:
+          'Permission already exists with provided Path, Type and User. / Permission already exists with provided Path, Type and Group.'
       }
     ]
   },
@@ -1122,6 +1220,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 204,
         description: 'No content'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Permission not found.'
       }
     ]
   },
@@ -1150,6 +1256,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Permission not found.'
       }
     ]
   },
@@ -1414,6 +1528,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 409,
+        description: 'Username already exists.'
       }
     ]
   },
@@ -1442,6 +1564,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 204,
         description: 'No content'
+      },
+      {
+        status: 401,
+        description: 'Admin account required, or invalid password'
+      },
+      {
+        status: 404,
+        description: 'User is not found.'
       }
     ]
   },
@@ -1464,6 +1594,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
+        status: 404,
+        description: 'User is not found.'
       }
     ]
   },
@@ -1522,6 +1660,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Unable to find user with <id>'
+      },
+      {
+        status: 405,
+        description:
+          'Can not update username of user that is created by an external auth provider. / Can not update display name of user that is created by an external auth provider.'
+      },
+      {
+        status: 409,
+        description: 'Username already exists.'
       }
     ]
   },
@@ -1550,6 +1705,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 204,
         description: 'No content'
+      },
+      {
+        status: 401,
+        description: 'Admin account required, or invalid password'
+      },
+      {
+        status: 404,
+        description: 'User is not found.'
       }
     ]
   },
@@ -1572,6 +1735,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
+        status: 404,
+        description: 'User is not found.'
       }
     ]
   },
@@ -1630,6 +1801,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Admin account required'
+      },
+      {
+        status: 404,
+        description: 'Unable to find user with <username>'
+      },
+      {
+        status: 405,
+        description:
+          'Can not update username of user that is created by an external auth provider. / Can not update display name of user that is created by an external auth provider.'
+      },
+      {
+        status: 409,
+        description: 'Username already exists.'
       }
     ]
   },
@@ -1664,7 +1852,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 403,
-        description: 'The client id is unknown'
+        description:
+          'The client id is unknown. This route runs under a signed-in session, so the caller is authenticated and an unknown client is refused as forbidden; the unauthenticated `POST /SASjsApi/auth/token` answers `401` for the same condition'
       }
     ]
   },

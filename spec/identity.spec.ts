@@ -4,6 +4,7 @@
  * rotates the pair, and a fixture is refused by a name rather than a stack.
  */
 import { createIdentityService } from '../src/identity/service.js'
+import { createRecordService } from '../src/identity/records.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import {
   DEFAULT_IDENTITY,
@@ -12,6 +13,7 @@ import {
 } from '../src/identity/fixture.js'
 import { isApiError } from '../src/types.js'
 import { SIGNED_IN } from '../src/corpus/identity.js'
+import { ADMIN_SIGNED_IN } from '../src/corpus/records.js'
 
 const failure = async (run: () => Promise<unknown>) => {
   try {
@@ -336,5 +338,107 @@ describe('identity fixture', () => {
   it('refuses a fixture missing a collection, naming it', () => {
     const { users: _users, ...rest } = DEFAULT_IDENTITY
     expect(() => parseIdentity(rest)).toThrow(/no `users` array/)
+  })
+})
+
+describe('what the store refuses', () => {
+  it('refuses a fixture whose format this build does not read', () => {
+    expect(
+      () =>
+        new MemoryIdentityStore({
+          ...DEFAULT_IDENTITY,
+          format: IDENTITY_FORMAT + 1
+        })
+    ).toThrow(/this store reads/)
+  })
+
+  it('refuses a seeded token that is only half a pair', () => {
+    for (const half of [
+      { username: 'admin', clientId: 'web_app', accessToken: 'only-this' },
+      { username: 'admin', clientId: 'web_app', refreshToken: 'only-this' }
+    ])
+      expect(() =>
+        parseIdentity({ ...DEFAULT_IDENTITY, tokens: [half] })
+      ).toThrow(/half pair/)
+  })
+
+  it('refuses to mint an identity string when the host has no Web Crypto', async () => {
+    const crypto = (globalThis as { crypto?: unknown }).crypto
+    // a host without Web Crypto cannot mint an unguessable string, and a
+    // guessable token is an authentication bypass rather than a demo quirk
+    delete (globalThis as { crypto?: unknown }).crypto
+    try {
+      const store = new MemoryIdentityStore()
+      expect(
+        await failure(() =>
+          store.issueCode({ userId: 'user-restricted', clientId: 'web_app' })
+        )
+      ).toEqual({
+        status: 500,
+        message:
+          'This host has no Web Crypto (`globalThis.crypto`), so it cannot mint an unguessable identity string.'
+      })
+    } finally {
+      ;(globalThis as { crypto?: unknown }).crypto = crypto
+    }
+  })
+})
+
+describe('the record service, where the store disagrees', () => {
+  const caller = { userId: 'user-admin', clientId: 'web_app' }
+
+  it('answers 400 when the store cannot add a member', async () => {
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    jest.spyOn(store, 'addToGroup').mockResolvedValue(undefined)
+    const records = createRecordService(store)
+
+    expect(
+      await failure(() =>
+        records.addUserToGroup(caller, 'group-admins', 'user-restricted')
+      )
+    ).toEqual({ status: 400, message: 'Unable to update group.' })
+  })
+
+  it('answers 404 when the store loses a user between the read and the write', async () => {
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    jest.spyOn(store, 'updateUser').mockResolvedValue(undefined)
+    const records = createRecordService(store)
+
+    expect(
+      await failure(() =>
+        records.updateUser(
+          caller,
+          { uid: 'user-restricted' },
+          { displayName: 'Renamed', username: 'user2', password: 'user123' }
+        )
+      )
+    ).toEqual({
+      status: 404,
+      message: 'Unable to find user with user-restricted'
+    })
+  })
+})
+
+describe('a password change', () => {
+  it('clears the flag through the store, so a host stops asking', async () => {
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    const records = createRecordService(store)
+
+    await records.updatePassword(
+      { userId: 'user-restricted', clientId: 'web_app' },
+      { currentPassword: 'user123', newPassword: 'changed123' }
+    )
+
+    // sasjs/server refuses every other call while this stands, so it has to reach
+    // the store rather than a record the read happened to return
+    expect(
+      (await store.userById('user-restricted'))?.needsToUpdatePassword
+    ).toBe(false)
+    expect(
+      await store.passwordMatches(
+        (await store.userById('user-restricted'))!,
+        'changed123'
+      )
+    ).toBe(true)
   })
 })

@@ -19,10 +19,11 @@ Where the document is wrong, it is corrected in `sasjs/server` and re-vendored h
 
 `spec/swagger.yaml` is generated from the controllers in `sasjs/server`. In a checkout of that repository run `npm run swagger` (tsoa), copy `api/public/swagger.yaml` over `spec/swagger.yaml` keeping the header at the top of the file, then run `npm run sync:routes` here. `npm run check:routes` fails if `src/routes/generated.ts` no longer matches the document.
 
-**The services** (`createDriveService`, `createIdentityService`) are the API's decisions over storage the host supplies: the statuses, the messages, the order of the checks, and the path rules (including `resolveWithinDrive`'s containment).
+**The services** (`createDriveService`, `createIdentityService`, `createRecordService`) are the API's decisions over storage the host supplies: the statuses, the messages, the order of the checks, and the path rules (including `resolveWithinDrive`'s containment).
+`createRecordService` is the administration surface - users, groups, permission rules and clients - over the same `IdentityStore`, including the admin gate (`401 Admin account required`) and the self-or-admin rule the server applies in middleware.
 They are `async`, take a `DriveStore`, and import nothing - so the same code runs under Express and inside a service worker.
 
-**The corpus** (`DRIVE_CORPUS`, `IDENTITY_CORPUS`, `runCase`) is what "the same API" means when a test has to check it: each case is a request, the answer a client expects, and the files it starts from.
+**The corpus** (`DRIVE_CORPUS`, `IDENTITY_CORPUS`, `RECORD_CORPUS`, `runCase`) is what "the same API" means when a test has to check it: each case is a request, the answer a client expects, and the files it starts from.
 The same cases are meant to run against a live server and against the browser build, so a difference fails a test rather than waiting for a reviewer to notice.
 
 ## Using it

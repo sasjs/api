@@ -31,12 +31,23 @@ describe('route table', () => {
     expect(claimed).toEqual([...HANDLED_ROUTES].sort())
   })
 
-  it('implements the drive and the sign-in flow, and nothing else yet', () => {
+  it('implements the drive, the sign-in flow and the identity records', () => {
     const implemented = ROUTES.filter((route) => route.implemented).map(
       (route) => route.tag
     )
+    // the tags left out are the ones that need a runtime, an editor, a
+    // directory or a size-capped deploy: Code, STP, Admin, Info, Auth Config
     expect(new Set(implemented)).toEqual(
-      new Set(['Drive', 'Auth', 'Web', 'Session'])
+      new Set([
+        'Drive',
+        'Auth',
+        'Web',
+        'Session',
+        'User',
+        'Group',
+        'Permission',
+        'Client'
+      ])
     )
   })
 

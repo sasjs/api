@@ -15,13 +15,23 @@ import type { Route } from '../types.js'
 import { routeById } from '../routes/index.js'
 import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
+import type { RecordService } from '../identity/records.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
+/** The defaults sasjs/server's Client schema applies to an omitted lifetime. */
+const SECONDS_IN_A_DAY = 86400
+
 export interface ApiRequest {
   query?: Record<string, string | undefined>
   body?: Record<string, unknown>
+  /**
+   * The values the route's path parameters carried, by name - `{ uid: 'abc' }`
+   * for `/user/{uid}`. A host extracts them from its own router; the corpus
+   * states them.
+   */
+  params?: Record<string, string>
   /** The multipart payload: the API names it `file` on every route that takes one. */
   file?: { name: string; contents: string | Uint8Array }
   /**
@@ -50,6 +60,8 @@ export interface Services {
    * implement - the difference is the message, and it names the capability.
    */
   identity?: IdentityService
+  /** Users, groups, permission rules and clients. Absent, the record routes answer 501. */
+  records?: RecordService
 }
 
 /**
@@ -95,11 +107,51 @@ export const dispatch = async (
 ): Promise<ApiResponse> => {
   const route = routeById(routeId)
   if (!route) throw new ApiError(404, `No such operation: ${routeId}`)
+
+  const { drive, identity, records } = services
+
+  // The server authenticates before its payload schema runs, so an anonymous
+  // request with an incomplete body is a 401 there rather than a 400. The order
+  // is only observable on the route groups that gate on a caller: the sign-in
+  // flow has no caller by definition, and the drive has no identity at all.
+  const identityScoped =
+    ['User', 'Group', 'Permission', 'Client'].includes(route.tag) ||
+    routeId === 'PATCH /SASjsApi/auth/updatePassword'
+
+  if (identityScoped && records) {
+    const subject =
+      request.subject ??
+      (identity ? await identity.authenticate(request.token) : undefined)
+
+    if (!subject) {
+      // A host may serve records without a sign-in flow - it resolves the caller
+      // itself and passes `subject`. Without one it cannot authenticate at all,
+      // and a 401 would send every request round the login loop for ever, so it
+      // is told which capability it is missing instead.
+      if (!identity)
+        throw new ApiError(
+          501,
+          `This host has no identity service, so it cannot answer ${routeId}.`
+        )
+      throw new ApiError(401, 'Unauthorized')
+    }
+  }
+
   validate(route, request)
 
-  const { drive, identity } = services
   const query = request.query || {}
   const body = request.body || {}
+  const params = request.params || {}
+
+  /** The record service, or the 501 a host without one answers. */
+  const required = (): RecordService => {
+    if (!records)
+      throw new ApiError(
+        501,
+        `This host has no record service, so it cannot answer ${routeId}.`
+      )
+    return records
+  }
 
   /** The caller, from the request's own subject or the token it carried. */
   const caller = async (): Promise<Subject | undefined> => {
@@ -214,6 +266,183 @@ export const dispatch = async (
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
 
+    // ------------------------------------------------------------- records
+    //
+    // The administration routes: users, groups, permission rules, clients and the
+    // caller's own password. Each handler resolves the caller and passes it on;
+    // the admin gate and the wording live in the service.
+
+    case 'GET /SASjsApi/user':
+      return { status: 200, body: await required().listUsers(await caller()) }
+    case 'GET /SASjsApi/user/{uid}':
+      return {
+        status: 200,
+        body: await required().getUser(await caller(), {
+          uid: String(params.uid ?? '')
+        })
+      }
+    case 'GET /SASjsApi/user/by/username/{username}':
+      return {
+        status: 200,
+        body: await required().getUser(await caller(), {
+          username: String(params.username ?? '')
+        })
+      }
+    case 'POST /SASjsApi/user':
+      return {
+        status: 200,
+        body: await required().createUser(await caller(), {
+          username: String(body.username ?? ''),
+          displayName: String(body.displayName ?? ''),
+          password: String(body.password ?? ''),
+          isAdmin: body.isAdmin as boolean | undefined,
+          isActive: body.isActive as boolean | undefined,
+          autoExec: body.autoExec as string | undefined
+        })
+      }
+    case 'PATCH /SASjsApi/user/{uid}':
+      return {
+        status: 200,
+        body: await required().updateUser(
+          await caller(),
+          { uid: String(params.uid ?? '') },
+          body
+        )
+      }
+    case 'PATCH /SASjsApi/user/by/username/{username}':
+      return {
+        status: 200,
+        body: await required().updateUser(
+          await caller(),
+          { username: String(params.username ?? '') },
+          body
+        )
+      }
+    case 'DELETE /SASjsApi/user/{uid}':
+      await required().deleteUser(
+        await caller(),
+        { uid: String(params.uid ?? '') },
+        { password: body.password as string | undefined }
+      )
+      return { status: 204 }
+    case 'DELETE /SASjsApi/user/by/username/{username}':
+      await required().deleteUser(
+        await caller(),
+        { username: String(params.username ?? '') },
+        { password: body.password as string | undefined }
+      )
+      return { status: 204 }
+
+    case 'GET /SASjsApi/group':
+      return { status: 200, body: await required().listGroups(await caller()) }
+    case 'GET /SASjsApi/group/{uid}':
+      return {
+        status: 200,
+        body: await required().getGroup(await caller(), {
+          uid: String(params.uid ?? '')
+        })
+      }
+    case 'GET /SASjsApi/group/by/groupname/{name}':
+      return {
+        status: 200,
+        body: await required().getGroup(await caller(), {
+          name: String(params.name ?? '')
+        })
+      }
+    case 'POST /SASjsApi/group':
+      return {
+        status: 200,
+        body: await required().createGroup(await caller(), {
+          name: String(body.name ?? ''),
+          description: String(body.description ?? ''),
+          isActive: body.isActive as boolean | undefined
+        })
+      }
+    case 'POST /SASjsApi/group/{groupUid}/{userUid}':
+      return {
+        status: 200,
+        body: await required().addUserToGroup(
+          await caller(),
+          String(params.groupUid ?? ''),
+          String(params.userUid ?? '')
+        )
+      }
+    case 'DELETE /SASjsApi/group/{groupUid}/{userUid}':
+      return {
+        status: 200,
+        body: await required().removeUserFromGroup(
+          await caller(),
+          String(params.groupUid ?? ''),
+          String(params.userUid ?? '')
+        )
+      }
+    case 'DELETE /SASjsApi/group/{uid}':
+      // the document states 200 for this one - the server answers with the
+      // driver's delete result rather than nothing
+      await required().deleteGroup(await caller(), String(params.uid ?? ''))
+      return { status: 200 }
+
+    case 'GET /SASjsApi/permission':
+      return {
+        status: 200,
+        body: await required().listPermissions(await caller())
+      }
+    case 'POST /SASjsApi/permission':
+      return {
+        status: 200,
+        body: await required().createPermission(await caller(), {
+          path: String(body.path ?? ''),
+          type: String(body.type ?? ''),
+          setting: String(body.setting ?? ''),
+          principalType: String(body.principalType ?? ''),
+          principalId: String(body.principalId ?? '')
+        })
+      }
+    case 'PATCH /SASjsApi/permission/{uid}':
+      return {
+        status: 200,
+        body: await required().updatePermission(
+          await caller(),
+          String(params.uid ?? ''),
+          { setting: String(body.setting ?? '') }
+        )
+      }
+    case 'DELETE /SASjsApi/permission/{uid}':
+      await required().deletePermission(
+        await caller(),
+        String(params.uid ?? '')
+      )
+      return { status: 204 }
+
+    case 'GET /SASjsApi/client':
+      return { status: 200, body: await required().listClients(await caller()) }
+    case 'POST /SASjsApi/client':
+      return {
+        status: 200,
+        // An omitted lifetime is the schema's default, not NaN: the server's
+        // Client model declares 86400 and 2592000, and a NaN lifetime would make
+        // every token the client buys expire on arrival.
+        body: await required().createClient(await caller(), {
+          clientId: String(body.clientId ?? ''),
+          clientSecret: String(body.clientSecret ?? ''),
+          accessTokenExpiration:
+            body.accessTokenExpiration === undefined
+              ? SECONDS_IN_A_DAY
+              : Number(body.accessTokenExpiration),
+          refreshTokenExpiration:
+            body.refreshTokenExpiration === undefined
+              ? SECONDS_IN_A_DAY * 30
+              : Number(body.refreshTokenExpiration)
+        })
+      }
+
+    case 'PATCH /SASjsApi/auth/updatePassword':
+      await required().updatePassword(await caller(), {
+        currentPassword: String(body.currentPassword ?? ''),
+        newPassword: String(body.newPassword ?? '')
+      })
+      return { status: 204 }
+
     default: {
       // The reason the table carries travels with the refusal: a host developer
       // reading a 501 wants to know what the operation waits on, not only that
@@ -246,5 +475,27 @@ export const HANDLED_ROUTES: string[] = [
   'POST /SASLogon/login',
   'POST /SASLogon/authorize',
   'GET /SASLogon/logout',
-  'GET /SASjsApi/session'
+  'GET /SASjsApi/session',
+  'GET /SASjsApi/user',
+  'GET /SASjsApi/user/{uid}',
+  'GET /SASjsApi/user/by/username/{username}',
+  'POST /SASjsApi/user',
+  'PATCH /SASjsApi/user/{uid}',
+  'PATCH /SASjsApi/user/by/username/{username}',
+  'DELETE /SASjsApi/user/{uid}',
+  'DELETE /SASjsApi/user/by/username/{username}',
+  'GET /SASjsApi/group',
+  'GET /SASjsApi/group/{uid}',
+  'GET /SASjsApi/group/by/groupname/{name}',
+  'POST /SASjsApi/group',
+  'POST /SASjsApi/group/{groupUid}/{userUid}',
+  'DELETE /SASjsApi/group/{groupUid}/{userUid}',
+  'DELETE /SASjsApi/group/{uid}',
+  'GET /SASjsApi/permission',
+  'POST /SASjsApi/permission',
+  'PATCH /SASjsApi/permission/{uid}',
+  'DELETE /SASjsApi/permission/{uid}',
+  'GET /SASjsApi/client',
+  'POST /SASjsApi/client',
+  'PATCH /SASjsApi/auth/updatePassword'
 ]

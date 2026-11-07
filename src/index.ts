@@ -108,6 +108,20 @@ export { DRIVE_CORPUS } from './corpus/drive.js'
 export { IDENTITY_CORPUS } from './corpus/identity.js'
 export { DEPLOY_CORPUS } from './corpus/deploy.js'
 export { SESSION_CORPUS } from './corpus/session.js'
+export { createSessionService } from './session/service.js'
+export type {
+  HostSession,
+  SessionHost,
+  SessionService,
+  SessionStateResponse,
+  SessionSummary
+} from './session/service.js'
+export { DEFAULT_SESSIONS, MemorySessionHost } from './session/memory-host.js'
+export {
+  MemoryAppStreamRegistry,
+  unpublishAppStream
+} from './drive/registry.js'
+export type { AppStreamRegistry, UnpublishBody } from './drive/registry.js'
 export {
   RECORD_CORPUS,
   ADMIN_SIGNED_IN,

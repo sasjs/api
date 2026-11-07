@@ -10,11 +10,11 @@ import type { IdentityFixture } from '../src/identity/fixture.js'
 /**
  * The half of the session contract the document does not state.
  *
- * sasjs/server documents these four routes with a `200` and nothing else, so the
- * corpus cannot pin a refusal - `spec/corpus-parity.spec.ts` compares by status
- * and would call the case drift. The `401`, and the `404` that covers both "no
- * such session" and "not yours", live here until the routes carry their
- * `@Response` decorators upstream.
+ * The `401` and the `404` now have corpus cases, because sasjs/server#574
+ * documents both. What stays here is what a corpus case cannot express: a
+ * deactivated account, a host that recorded the owner by username, and a run
+ * time that has lost a session the registry still lists - each needs a store or a
+ * host built for it.
  */
 const service = () =>
   createSessionService(

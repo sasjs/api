@@ -1323,6 +1323,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'No valid access token or session was supplied'
+      },
+      {
+        status: 404,
+        description: 'Session with the given ID was not found.'
       }
     ]
   },
@@ -1345,6 +1353,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'No valid access token or session was supplied'
+      },
+      {
+        status: 404,
+        description: 'Session with the given ID was not found.'
       }
     ]
   },
@@ -1367,6 +1383,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'No valid access token or session was supplied'
+      },
+      {
+        status: 404,
+        description: 'Session with the given ID was not found.'
       }
     ]
   },
@@ -1389,6 +1413,14 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'No valid access token or session was supplied'
+      },
+      {
+        status: 404,
+        description: 'Session with the given ID was not found.'
       }
     ]
   },

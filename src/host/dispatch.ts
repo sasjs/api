@@ -286,6 +286,11 @@ export const dispatch = async (
         )
       }
 
+    // The archive is the host's transport - multer and a zip library on a
+    // server, `DecompressionStream` in a worker - and it hands this the same tree
+    // `POST /deploy` takes. The deploy cap is measured on that tree, after
+    // expansion, which is why the two share this path rather than reading bytes.
+    case 'POST /SASjsApi/drive/deploy/upload':
     case 'POST /SASjsApi/drive/deploy': {
       // `streamWebFolder` is the host's: publishing an app stream is not a drive
       // operation, and a host that has no app stream ignores it.
@@ -586,6 +591,7 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'POST /SASjsApi/drive/deploy/upload',
   'DELETE /SASjsApi/drive/deploy',
   'GET /SASjsApi/session/{sessionId}',
   'GET /SASjsApi/session/{sessionId}/log',

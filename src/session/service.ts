@@ -34,6 +34,17 @@ export interface SessionArtifact {
 }
 
 /**
+ * The states the document's `SessionState` enumerates.
+ *
+ * A host's run time reports one of these five and maps its own vocabulary onto
+ * them: the object is what a Viya caller already polls, and the union is what
+ * makes `{ state: 'runing' }` a compile error rather than a body no client can
+ * read.
+ */
+export type SessionStateValue =
+  'initialising' | 'pending' | 'running' | 'completed' | 'failed'
+
+/**
  * What `/state` answers: the state, and nothing else.
  *
  * The document's `SessionStateResponse` is `{ state }` with
@@ -44,7 +55,7 @@ export interface SessionArtifact {
  * The object is a fixed shape rather than the bare enum because a Viya caller
  * already polls `{ state: 'running' }` and one client serves both.
  */
-export type SessionStateResponse = { state: string }
+export type SessionStateResponse = { state: SessionStateValue }
 
 /**
  * A session as the host holds it.

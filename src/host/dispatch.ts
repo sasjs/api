@@ -17,6 +17,8 @@ import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
+import type { AppStreamRegistry } from '../drive/registry.js'
+import { unpublishAppStream } from '../drive/registry.js'
 import type { CodeService } from '../code/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
@@ -71,6 +73,11 @@ export interface Services {
    * answers 501 for these four, naming the capability.
    */
   session?: SessionService
+  /**
+   * The app streams a host has published. Absent, `DELETE /drive/deploy`
+   * answers 501 - the package cannot know a host's stream registry.
+   */
+  registry?: AppStreamRegistry
 }
 
 /**
@@ -286,6 +293,17 @@ export const dispatch = async (
 
       return { status: 200, body: DEPLOY_SUCCESS }
     }
+
+    case 'DELETE /SASjsApi/drive/deploy':
+      if (!services.registry)
+        throw new ApiError(
+          501,
+          `This host has no app stream registry, so it cannot answer ${routeId}.`
+        )
+      return {
+        status: 200,
+        body: await unpublishAppStream(services.registry, body)
+      }
 
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
@@ -568,6 +586,7 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'DELETE /SASjsApi/drive/deploy',
   'GET /SASjsApi/session/{sessionId}',
   'GET /SASjsApi/session/{sessionId}/log',
   'GET /SASjsApi/session/{sessionId}/output',

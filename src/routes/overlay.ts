@@ -105,9 +105,6 @@ const WEB_BUNDLE =
 const ARCHIVE =
   "Expanding the uploaded archive is the host's transport work - multer and a zip library on the server, `DecompressionStream` in a worker - and the host hands this package the tree it produces, which is the same tree `POST /SASjsApi/drive/deploy` takes."
 
-const UNPUBLISH =
-  'Unpublishing inverts the deploy route, so the two land together.'
-
 const success = { status: 'success' }
 
 const user = {
@@ -249,10 +246,7 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   // `404` is a pair - the registry name and the appLoc it was published from -
   // that matches no entry, and the drive's content is deliberately left alone.
-  'DELETE /SASjsApi/drive/deploy': {
-    implemented: false,
-    reason: UNPUBLISH
-  },
+  'DELETE /SASjsApi/drive/deploy': { implemented: true },
 
   // Group - members and the groups themselves
   'GET /SASjsApi/group': { implemented: true },

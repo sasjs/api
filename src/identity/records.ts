@@ -548,9 +548,14 @@ export const createRecordService = (
     },
 
     async listAuthorizedRoutes(caller) {
-      // an identity is required because the route is about a caller's access,
-      // even though what it returns is the whole inventory
-      await requireCaller(store, caller)
+      // The inventory is for the administration dialog, and it is admin-only:
+      // the routes a caller may reach are reconnaissance, and a non-administrator
+      // learns their own access from `myAuthorizedRoutes` instead. The refusal is
+      // the host's too - sasjs/server gates the same path with `verifyAdmin` -
+      // which is why the message matches what a caller sees there.
+      const reader = await requireCaller(store, caller)
+      if (!reader.isAdmin) throw new ApiError(401, 'Admin account required')
+
       return { paths: [...grantableRoutes] }
     },
 

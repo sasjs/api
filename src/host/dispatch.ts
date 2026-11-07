@@ -118,10 +118,23 @@ export const dispatch = async (
     ['User', 'Group', 'Permission', 'Client'].includes(route.tag) ||
     routeId === 'PATCH /SASjsApi/auth/updatePassword'
 
-  if (identityScoped && identity) {
+  if (identityScoped && records) {
     const subject =
-      request.subject ?? (await identity.authenticate(request.token))
-    if (!subject) throw new ApiError(401, 'Unauthorized')
+      request.subject ??
+      (identity ? await identity.authenticate(request.token) : undefined)
+
+    if (!subject) {
+      // A host may serve records without a sign-in flow - it resolves the caller
+      // itself and passes `subject`. Without one it cannot authenticate at all,
+      // and a 401 would send every request round the login loop for ever, so it
+      // is told which capability it is missing instead.
+      if (!identity)
+        throw new ApiError(
+          501,
+          `This host has no identity service, so it cannot answer ${routeId}.`
+        )
+      throw new ApiError(401, 'Unauthorized')
+    }
   }
 
   validate(route, request)

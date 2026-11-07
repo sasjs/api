@@ -222,6 +222,14 @@ export const RECORD_CORPUS: CorpusCase[] = [
     expect: { status: 401, error: 'Admin account required' }
   },
   {
+    id: 'create-user-anonymous-incomplete',
+    route: 'POST /SASjsApi/user',
+    description: 'answers 401 before the payload schema, anonymously and empty',
+    identity: ADMIN_SIGNED_IN,
+    request: { body: {} },
+    expect: { status: 401, error: 'Unauthorized' }
+  },
+  {
     id: 'create-user-duplicate',
     route: 'POST /SASjsApi/user',
     description: 'refuses a username that is taken',

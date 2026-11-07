@@ -1,0 +1,16 @@
+[
+  {
+    "source": 1244013,
+    "package": "glob",
+    "severity": "moderate",
+    "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
+    "reason": "Inside the npm tree that @semantic-release/npm bundles at glob 13.0.6 (fixed in 14.0.2). `overrides` cannot reach a bundled dependency, so it cannot be cleared from this package. Issue #8 carries the evidence; remove this entry when the release toolchain ships a fixed bundled version."
+  },
+  {
+    "source": 1244623,
+    "package": "minimatch",
+    "severity": "moderate",
+    "title": "minimatch has potential denial of service via globparts amplification",
+    "reason": "The same bundled npm tree, at minimatch 10.2.5 (fixed in 11.0.1). A denial of service reachable only from the release toolchain's own glob patterns on files we control, not from anything this package runs. Issue #8 carries the evidence."
+  }
+]

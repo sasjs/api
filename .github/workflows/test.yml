@@ -45,6 +45,12 @@ jobs:
       - name: No high or critical advisory
         run: npm audit --audit-level=high
 
+      # The step above ignores the moderate class, so a new moderate used to ship
+      # silently. Every moderate we carry is listed in scripts/audit-allowlist.json
+      # with the reason it is still open; a 37th fails here.
+      - name: No new moderate advisory
+        run: npm run audit:gate
+
       - name: Formatting
         run: npm run lint
 

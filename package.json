@@ -35,7 +35,8 @@
     "lint": "prettier --check \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
     "lint:fix": "prettier --write \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
     "sync:routes": "node scripts/sync-routes.mjs",
-    "check:routes": "node scripts/sync-routes.mjs --check"
+    "check:routes": "node scripts/sync-routes.mjs --check",
+    "audit:gate": "node scripts/audit.mjs"
   },
   "devDependencies": {
     "@semantic-release/commit-analyzer": "13.0.1",

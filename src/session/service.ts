@@ -1,6 +1,6 @@
 import { ApiError } from '../types.js'
 import type { Subject } from '../identity/types.js'
-import type { IdentityStore, IdentityUserRecord } from '../identity/types.js'
+import type { IdentityUserRecord } from '../identity/types.js'
 
 /** A triggered session as the API reports one. */
 export interface SessionSummary {
@@ -45,6 +45,19 @@ export interface SessionHost {
   output(id: string): Promise<string | undefined>
 }
 
+/**
+ * What the session service needs to know about a caller.
+ *
+ * One method, because one is all it reads: who the caller is, whether the
+ * account is still active, and whether it is an administrator. An `IdentityStore`
+ * satisfies this structurally, so a host that already has one passes it
+ * unchanged; a host whose identity lives in its own models implements four lines
+ * instead of an entire store it would otherwise have to fake.
+ */
+export interface CallerDirectory {
+  userById(uid: string): Promise<IdentityUserRecord | undefined>
+}
+
 export interface SessionService {
   summary(caller: Subject | undefined, id: string): Promise<SessionSummary>
   state(caller: Subject | undefined, id: string): Promise<SessionStateResponse>
@@ -66,7 +79,7 @@ export interface SessionService {
  * confirming the id exists would say it was right.
  */
 export const createSessionService = (
-  store: IdentityStore,
+  directory: CallerDirectory,
   host: SessionHost
 ): SessionService => {
   /** The server's wording, so adopting it here does not become a later change. */
@@ -79,7 +92,7 @@ export const createSessionService = (
   ): Promise<HostSession> => {
     if (!caller) throw new ApiError(401, 'Unauthorized')
 
-    const reader: IdentityUserRecord | undefined = await store.userById(
+    const reader: IdentityUserRecord | undefined = await directory.userById(
       caller.userId
     )
     if (!reader || !reader.isActive) throw new ApiError(401, 'Unauthorized')

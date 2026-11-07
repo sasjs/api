@@ -110,6 +110,7 @@ export { DEPLOY_CORPUS } from './corpus/deploy.js'
 export { SESSION_CORPUS } from './corpus/session.js'
 export { createSessionService } from './session/service.js'
 export type {
+  CallerDirectory,
   HostSession,
   SessionHost,
   SessionService,

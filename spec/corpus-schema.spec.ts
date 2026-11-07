@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { parse } from 'yaml'
 
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
@@ -20,7 +21,12 @@ import { RECORD_CORPUS } from '../src/corpus/records.js'
  * at a time.
  */
 
-const document = parse(readFileSync('spec/swagger.yaml', 'utf8')) as any
+// resolved from this file rather than the process CWD: jest's `roots` governs
+// discovery, not where a `readFileSync` lands, and a wrong CWD would take the
+// whole suite down at module load rather than failing one test
+const document = parse(
+  readFileSync(join(__dirname, 'swagger.yaml'), 'utf8')
+) as any
 const schemas: Record<string, any> = document?.components?.schemas || {}
 
 /** Follow a `$ref` to the schema it names, and no further than it must. */
@@ -48,7 +54,7 @@ const operationOf = (route: string): any => {
 }
 
 /** Every place where a pinned value and the documented type disagree. */
-const differences = (
+export const differences = (
   value: unknown,
   schema: any,
   at: string,
@@ -80,7 +86,7 @@ const differences = (
     )) {
       const property = properties[key]
       if (!property) {
-        found.push(`${at || 'the body'}.${key} is pinned but not documented`)
+        found.push(`${at ? `${at}.${key}` : key} is pinned but not documented`)
         continue
       }
       differences(inner, property, at ? `${at}.${key}` : key, found)
@@ -127,4 +133,78 @@ describe('every body the corpus pins is the body the document declares', () => {
       expect(mismatches(testCase)).toEqual([])
     }
   )
+})
+
+/**
+ * The gate's own failure, pinned. Every assertion below currently passes, so a
+ * change that made `differences` return nothing - or `resolve` stop following a
+ * `$ref` - would leave the suite green and the drift it exists to catch
+ * unguarded. These are the exact strings it reports for the two shapes that
+ * matter: a principal that became an identifier, and a field nobody documented.
+ */
+describe('the schema comparison itself', () => {
+  const schemaOf = {
+    PermissionDetailsResponse: {
+      type: 'object',
+      properties: {
+        uid: { type: 'string' },
+        user: { $ref: '#/components/schemas/UserResponse' }
+      }
+    },
+    UserResponse: {
+      type: 'object',
+      properties: { uid: { type: 'string' }, username: { type: 'string' } }
+    }
+  }
+
+  // `resolve` reads the module-level `schemas` table, which is built from the
+  // vendored document; the fixture names are the ones it already holds
+  it('reports an identifier where the schema documents an account', () => {
+    expect(
+      differences(
+        { uid: 'rule-1', user: 'user-restricted' },
+        schemaOf.PermissionDetailsResponse,
+        ''
+      )
+    ).toContain('user is documented as object, the corpus pins string')
+  })
+
+  it('follows a $ref rather than treating it as unconstrained', () => {
+    // a populated account is what the schema declares, so it compares clean -
+    // which is only true if the ref was resolved
+    expect(
+      differences(
+        { uid: 'rule-1', user: { uid: 'user-restricted', username: 'user2' } },
+        schemaOf.PermissionDetailsResponse,
+        ''
+      )
+    ).toEqual([])
+  })
+
+  it('reports a field the document does not declare', () => {
+    expect(
+      differences(
+        { uid: 'rule-1', hidden: true },
+        schemaOf.PermissionDetailsResponse,
+        ''
+      )
+    ).toEqual(['hidden is pinned but not documented'])
+  })
+
+  it('compares the elements of an array, not only the array', () => {
+    expect(
+      differences(
+        [{ uid: 'rule-1', user: 'user-restricted' }],
+        { type: 'array', items: schemaOf.PermissionDetailsResponse },
+        ''
+      )
+    ).toContain('user is documented as object, the corpus pins string')
+  })
+
+  it('reports a body pinned against a response with no schema', () => {
+    // the delete routes answer text, so this is the branch that keeps the gate
+    // from demanding a schema where the document carries the message instead
+    const response = document.paths['/SASjsApi/permission/{uid}'].delete
+    expect(response.responses['200'].content).toBeUndefined()
+  })
 })

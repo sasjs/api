@@ -112,6 +112,7 @@ export { createSessionService } from './session/service.js'
 export type {
   CallerDirectory,
   HostSession,
+  SessionArtifact,
   SessionHost,
   SessionService,
   SessionStateResponse,

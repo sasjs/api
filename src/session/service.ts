@@ -19,11 +19,12 @@ export type SessionStateResponse = Record<string, unknown>
 /**
  * A session as the host holds it.
  *
- * `owner` is a **uid**, not a username. A username is mutable client data - an
- * administrator can rename an account, and two accounts can swap names - so a
- * name comparison can hand a session to whoever holds the name later. A host
- * whose session store keeps usernames maps them to the uid when it implements
- * this port.
+ * `owner` should be a **uid**: a username is mutable client data - an account
+ * can be renamed, and two accounts can swap names - so a name comparison can
+ * hand a session to whoever holds the name later. A username is accepted too,
+ * because sasjs/server's own session records carry the owner's username, and a
+ * host that hands those straight through the port must not 404 the owner of
+ * every session. The uid is tried first; the name is the fallback.
  */
 export interface HostSession {
   owner: string
@@ -68,7 +69,8 @@ export const createSessionService = (
   store: IdentityStore,
   host: SessionHost
 ): SessionService => {
-  const NOT_FOUND = 'Session not found.'
+  /** The server's wording, so adopting it here does not become a later change. */
+  const notFound = (id: string) => `Session with ID '${id}' was not found.`
 
   /** The caller, and the session if they may see it - or the 404 that hides it. */
   const visible = async (
@@ -83,9 +85,12 @@ export const createSessionService = (
     if (!reader || !reader.isActive) throw new ApiError(401, 'Unauthorized')
 
     const session = await host.session(id)
-    if (!session) throw new ApiError(404, NOT_FOUND)
-    if (session.owner !== reader.uid && !reader.isAdmin)
-      throw new ApiError(404, NOT_FOUND)
+    if (!session) throw new ApiError(404, notFound(id))
+
+    // the uid is the key to compare; a name is the fallback a host may need
+    const owner = session.owner
+    if (owner !== reader.uid && owner !== reader.username && !reader.isAdmin)
+      throw new ApiError(404, notFound(id))
 
     return session
   }
@@ -99,21 +104,21 @@ export const createSessionService = (
     async state(caller, id) {
       await visible(caller, id)
       const state = await host.state(id)
-      if (!state) throw new ApiError(404, NOT_FOUND)
+      if (!state) throw new ApiError(404, notFound(id))
       return state
     },
 
     async log(caller, id) {
       await visible(caller, id)
       const log = await host.log(id)
-      if (log === undefined) throw new ApiError(404, NOT_FOUND)
+      if (log === undefined) throw new ApiError(404, notFound(id))
       return log
     },
 
     async output(caller, id) {
       await visible(caller, id)
       const output = await host.output(id)
-      if (output === undefined) throw new ApiError(404, NOT_FOUND)
+      if (output === undefined) throw new ApiError(404, notFound(id))
       return output
     }
   }

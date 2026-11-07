@@ -158,6 +158,16 @@ export const dispatch = async (
   const params = request.params || {}
 
   /** The record service, or the 501 a host without one answers. */
+  /** The host's sessions, or the 501 that names the missing capability. */
+  const sessionRequired = (): SessionService => {
+    if (!services.session)
+      throw new ApiError(
+        501,
+        `This host has no session service, so it cannot answer ${routeId}.`
+      )
+    return services.session
+  }
+
   const required = (): RecordService => {
     if (!records)
       throw new ApiError(
@@ -282,14 +292,9 @@ export const dispatch = async (
 
     // ------------------------------------------------------------- sessions
     case 'GET /SASjsApi/session/{sessionId}': {
-      if (!services.session)
-        throw new ApiError(
-          501,
-          'This host has no session service, so it cannot answer this route.'
-        )
       return {
         status: 200,
-        body: await services.session.summary(
+        body: await sessionRequired().summary(
           await caller(),
           String(params.sessionId ?? '')
         )
@@ -297,14 +302,9 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/session/{sessionId}/log': {
-      if (!services.session)
-        throw new ApiError(
-          501,
-          'This host has no session service, so it cannot answer this route.'
-        )
       return {
         status: 200,
-        contents: await services.session.log(
+        contents: await sessionRequired().log(
           await caller(),
           String(params.sessionId ?? '')
         )
@@ -312,14 +312,9 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/session/{sessionId}/output': {
-      if (!services.session)
-        throw new ApiError(
-          501,
-          'This host has no session service, so it cannot answer this route.'
-        )
       return {
         status: 200,
-        contents: await services.session.output(
+        contents: await sessionRequired().output(
           await caller(),
           String(params.sessionId ?? '')
         )
@@ -327,14 +322,9 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/session/{sessionId}/state': {
-      if (!services.session)
-        throw new ApiError(
-          501,
-          'This host has no session service, so it cannot answer this route.'
-        )
       return {
         status: 200,
-        body: await services.session.state(
+        body: await sessionRequired().state(
           await caller(),
           String(params.sessionId ?? '')
         )

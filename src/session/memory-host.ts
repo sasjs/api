@@ -1,8 +1,7 @@
 import type {
   HostSession,
   SessionHost,
-  SessionStateResponse,
-  SessionSummary
+  SessionStateResponse
 } from './service.js'
 
 /**
@@ -79,10 +78,5 @@ export class MemorySessionHost implements SessionHost {
 
   async output(id: string): Promise<string | undefined> {
     return OUTPUTS[id]
-  }
-
-  /** The summary a host reports, without the ownership the port carries. */
-  static summaryFor(session: HostSession): SessionSummary {
-    return session.summary
   }
 }

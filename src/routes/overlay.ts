@@ -292,6 +292,9 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     implemented: true,
     responses: { 200: user }
   },
+  // The port takes the owner as a uid and falls back to a username, which is
+  // what sasjs/server records today - a host hands its sessions through as they
+  // are, and the comparison tries the identifier first.
   'GET /SASjsApi/session/{sessionId}': { implemented: true },
   'GET /SASjsApi/session/{sessionId}/log': { implemented: true },
   'GET /SASjsApi/session/{sessionId}/output': { implemented: true },

@@ -102,9 +102,6 @@ const SESSION_RECORD =
 const HOST_CONFIG =
   "The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
 
-const PERMISSIONS =
-  "The route inventory is the host's permission model, which this package does not hold."
-
 const HOST_OWNED =
   "The host owns this report: it describes the host's own process and files, which a browser build has no equivalent of."
 
@@ -269,16 +266,12 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   // Info - what the host is, and what this caller may use
   'GET /SASjsApi/info': { implemented: false, reason: HOST_CONFIG },
   'GET /SASjsApi/info/authorizedRoutes': {
-    implemented: false,
-    // the route inventory reports what the CALLER may use, so it needs an
-    // identity even though the rest of the Info tag needs nothing
-    capabilities: ['identity'],
-    reason: PERMISSIONS
+    implemented: true,
+    capabilities: ['identity']
   },
   'GET /SASjsApi/info/myAuthorizedRoutes': {
-    implemented: false,
-    capabilities: ['identity'],
-    reason: PERMISSIONS
+    implemented: true,
+    capabilities: ['identity']
   },
 
   // Permission - the rules the inventory above is derived from

@@ -1,5 +1,6 @@
 import type {
   HostSession,
+  SessionArtifact,
   SessionHost,
   SessionStateResponse
 } from './service.js'
@@ -55,10 +56,13 @@ const LOGS: Record<string, string> = {
   'sess-silent': ''
 }
 
-const OUTPUTS: Record<string, string> = {
-  'sess-admin': '<html><body>42</body></html>',
-  'sess-restricted': '',
-  'sess-silent': ''
+const OUTPUTS: Record<string, SessionArtifact> = {
+  'sess-admin': {
+    contents: '<html><body>42</body></html>',
+    contentType: 'text/html'
+  },
+  'sess-restricted': { contents: '' },
+  'sess-silent': { contents: '' }
 }
 
 export class MemorySessionHost implements SessionHost {
@@ -76,7 +80,7 @@ export class MemorySessionHost implements SessionHost {
     return LOGS[id]
   }
 
-  async output(id: string): Promise<string | undefined> {
+  async output(id: string): Promise<SessionArtifact | undefined> {
     return OUTPUTS[id]
   }
 }

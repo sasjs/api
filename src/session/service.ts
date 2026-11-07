@@ -13,6 +13,18 @@ export interface SessionSummary {
   expiresAfterMins?: number
 }
 
+/**
+ * An artefact a session left behind.
+ *
+ * `contents` is bytes: a program may write text, HTML, CSV or a binary
+ * attachment, and a mock holds bytes exactly as easily as a string. The content
+ * type is the one the program asked for, when the host can know it.
+ */
+export interface SessionArtifact {
+  contents: string | Uint8Array
+  contentType?: string
+}
+
 /** What `/state` answers: whatever the host's run time reports for a session. */
 export type SessionStateResponse = Record<string, unknown>
 
@@ -42,7 +54,7 @@ export interface SessionHost {
   session(id: string): Promise<HostSession | undefined>
   state(id: string): Promise<SessionStateResponse | undefined>
   log(id: string): Promise<string | undefined>
-  output(id: string): Promise<string | undefined>
+  output(id: string): Promise<SessionArtifact | undefined>
 }
 
 /**
@@ -62,7 +74,7 @@ export interface SessionService {
   summary(caller: Subject | undefined, id: string): Promise<SessionSummary>
   state(caller: Subject | undefined, id: string): Promise<SessionStateResponse>
   log(caller: Subject | undefined, id: string): Promise<string>
-  output(caller: Subject | undefined, id: string): Promise<string>
+  output(caller: Subject | undefined, id: string): Promise<SessionArtifact>
 }
 
 /**

@@ -68,6 +68,23 @@ describe('dispatch', () => {
     })
   })
 
+  it('answers 501 for a session route when the host supplies no session service', async () => {
+    // same rule as the records above: the four session routes need something the
+    // package cannot invent - the run time that holds the sessions - and the
+    // message names it rather than reporting "no handler"
+    expect(
+      await failure(() =>
+        dispatch(services(), 'GET /SASjsApi/session/{sessionId}', {
+          params: { sessionId: 'sess-admin' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no session service, so it cannot answer GET /SASjsApi/session/{sessionId}.'
+    })
+  })
+
   it('answers 501 on a record route when it has records but no identity service', async () => {
     // a records-only host can answer, but only for a caller it resolved itself:
     // without a subject there is nothing to authenticate, and a 401 would put a

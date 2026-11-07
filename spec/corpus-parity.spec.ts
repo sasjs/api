@@ -3,6 +3,7 @@ import { CODE_CORPUS } from '../src/corpus/code.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
+import { SESSION_CORPUS } from '../src/corpus/session.js'
 
 /**
  * The document says what a host may answer; the corpus is what a host is shown
@@ -24,7 +25,8 @@ const corpusByRoute = () => {
     ...DRIVE_CORPUS,
     ...CODE_CORPUS,
     ...IDENTITY_CORPUS,
-    ...RECORD_CORPUS
+    ...RECORD_CORPUS,
+    ...SESSION_CORPUS
   ]) {
     const seen = byRoute.get(testCase.route) || new Set<number>()
     seen.add(testCase.expect.status)

@@ -93,9 +93,6 @@ const DIRECTORY =
 const RUNTIME =
   'Starting a program needs a runtime port, which this package does not have: a host decides which languages it holds, and answers this itself until then.'
 
-const SESSION_RECORD =
-  "A triggered session's record, log, output and state belong to the runtime that ran the program, and this package has no runtime port."
-
 const HOST_CONFIG =
   "The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
 
@@ -295,22 +292,13 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     implemented: true,
     responses: { 200: user }
   },
-  'GET /SASjsApi/session/{sessionId}': {
-    implemented: false,
-    reason: SESSION_RECORD
-  },
-  'GET /SASjsApi/session/{sessionId}/log': {
-    implemented: false,
-    reason: SESSION_RECORD
-  },
-  'GET /SASjsApi/session/{sessionId}/output': {
-    implemented: false,
-    reason: SESSION_RECORD
-  },
-  'GET /SASjsApi/session/{sessionId}/state': {
-    implemented: false,
-    reason: SESSION_RECORD
-  },
+  // The port takes the owner as a uid and falls back to a username, which is
+  // what sasjs/server records today - a host hands its sessions through as they
+  // are, and the comparison tries the identifier first.
+  'GET /SASjsApi/session/{sessionId}': { implemented: true },
+  'GET /SASjsApi/session/{sessionId}/log': { implemented: true },
+  'GET /SASjsApi/session/{sessionId}/output': { implemented: true },
+  'GET /SASjsApi/session/{sessionId}/state': { implemented: true },
 
   // STP - a stored program, on the runtime port
   'GET /SASjsApi/stp/execute': { implemented: false, reason: RUNTIME },

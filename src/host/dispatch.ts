@@ -335,13 +335,14 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/session/{sessionId}/output': {
-      return {
-        status: 200,
-        contents: await sessionRequired().output(
-          await caller(),
-          String(params.sessionId ?? '')
-        )
-      }
+      const artifact = await sessionRequired().output(
+        await caller(),
+        String(params.sessionId ?? '')
+      )
+
+      // the artefact travels as the response body; the content type it asked for
+      // is the host's to set, because only it knows the transport
+      return { status: 200, contents: artifact.contents }
     }
 
     case 'GET /SASjsApi/session/{sessionId}/state': {

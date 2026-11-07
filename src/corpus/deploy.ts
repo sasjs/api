@@ -65,7 +65,7 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
       subject: SUBJECT,
       body: { streamServiceName: 'myApp', appLoc: '/Public/not-an-app' }
     },
-    expect: { status: 404, error: 'No such app stream entry.' }
+    expect: { status: 404, error: 'No app is published at that folder.' }
   },
 
   // ------------------------------------------- the uploaded-archive route

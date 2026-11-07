@@ -476,7 +476,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 404,
-        description: 'No such app stream entry'
+        description: 'No app is published at that folder'
       }
     ]
   },

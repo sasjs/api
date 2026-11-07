@@ -51,7 +51,7 @@ export const unpublishAppStream = async (
   if (!body.appLoc) throw new ApiError(400, '"appLoc" is required')
 
   if (!(await registry.unpublish(body.appLoc)))
-    throw new ApiError(404, 'No such app stream entry.')
+    throw new ApiError(404, 'No app is published at that folder.')
 
   return { status: 'success' }
 }

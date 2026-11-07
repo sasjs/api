@@ -31,7 +31,13 @@ export const DEFAULT_SESSIONS: Record<string, HostSession> = {
       sessionId: 'sess-restricted',
       state: 'running',
       pid: 4243,
-      creationTimeStamp: '2026-11-07T09:05:00.000Z'
+      creationTimeStamp: '2026-11-07T09:05:00.000Z',
+      // the document makes both stamps required, and a real session carries
+      // the death stamp from the moment it is created: sasjs/server writes
+      // creation + its default lifetime, which is what a poller reads to know
+      // when the folder will be gone. A running session without one is a shape
+      // no host produces.
+      deathTimeStamp: '2026-11-07T09:20:00.000Z'
     }
   },
   'sess-silent': {

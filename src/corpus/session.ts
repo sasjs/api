@@ -44,13 +44,17 @@ export const SESSION_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/session/{sessionId}',
     description: "answers an administrator another account's session",
     request: { subject: ADMIN, params: { sessionId: 'sess-restricted' } },
+    // both stamps: the document requires them, and this host stamps a session's
+    // death time at creation rather than at completion - a running session
+    // answers with the moment it is due to be destroyed
     expect: {
       status: 200,
       body: {
         sessionId: 'sess-restricted',
         state: 'running',
         pid: 4243,
-        creationTimeStamp: '2026-11-07T09:05:00.000Z'
+        creationTimeStamp: '2026-11-07T09:05:00.000Z',
+        deathTimeStamp: '2026-11-07T09:20:00.000Z'
       }
     }
   },

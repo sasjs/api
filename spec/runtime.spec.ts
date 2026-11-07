@@ -455,7 +455,7 @@ describe('the refusals only the service can answer', () => {
     })
 
     await expect(
-      onlyJs.execute(ADMIN, { code: 'x', runTime: 'sas' })
+      onlyJs.execute(ADMIN, { source: 'code', code: 'x', runTime: 'sas' })
     ).rejects.toMatchObject({
       status: 400,
       message: '"runTime" must be one of [js]'
@@ -465,7 +465,34 @@ describe('the refusals only the service can answer', () => {
     // option is not silently narrower than the contract
     const defaults = createRuntimeService(identity, new MemorySessionRunner())
     await expect(
-      defaults.execute(ADMIN, { code: 'x', runTime: 'sasviya' })
+      defaults.execute(ADMIN, { source: 'code', code: 'x', runTime: 'sasviya' })
+    ).resolves.toBeDefined()
+  })
+
+  it('names the parameter its own route declared, when one is missing', async () => {
+    const runtime = createRuntimeService(
+      new MemoryIdentityStore(DEFAULT_IDENTITY),
+      new MemorySessionRunner()
+    )
+
+    // a code route never had a `_program`, so refusing one by that name would
+    // send a client looking for a field the document does not give it
+    await expect(
+      runtime.execute(ADMIN, { source: 'code' })
+    ).rejects.toMatchObject({ status: 400, message: '"code" is required' })
+
+    await expect(
+      runtime.trigger(ADMIN, { source: 'code', code: 'x' })
+    ).rejects.toMatchObject({ status: 400, message: '"runTime" is required' })
+
+    await expect(
+      runtime.execute(ADMIN, { source: 'program' })
+    ).rejects.toMatchObject({ status: 400, message: '"_program" is required' })
+
+    // and a stored program's run time is the host's to resolve, so its absence
+    // is not a refusal
+    await expect(
+      runtime.execute(ADMIN, { source: 'program', program: '/x.sas' })
     ).resolves.toBeDefined()
   })
 
@@ -479,11 +506,11 @@ describe('the refusals only the service can answer', () => {
     const runtime = createRuntimeService(identity, new MemorySessionRunner())
 
     await expect(
-      runtime.execute(RESTRICTED, { code: 'x', runTime: 'sas' })
+      runtime.execute(RESTRICTED, { source: 'code', code: 'x', runTime: 'sas' })
     ).rejects.toMatchObject({ status: 401, message: 'Unauthorized' })
 
     await expect(
-      runtime.execute(undefined, { code: 'x', runTime: 'sas' })
+      runtime.execute(undefined, { source: 'code', code: 'x', runTime: 'sas' })
     ).rejects.toMatchObject({ status: 401, message: 'Unauthorized' })
   })
 })

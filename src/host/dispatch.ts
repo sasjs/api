@@ -396,6 +396,7 @@ export const dispatch = async (
 
     case 'GET /SASjsApi/stp/execute': {
       const output = await runtimeRequired().execute(await caller(), {
+        source: 'program',
         program: query._program,
         vars: { ...query },
         files: uploaded()
@@ -408,6 +409,7 @@ export const dispatch = async (
       // the query wins over the body, which is the order the server resolves
       // them in: an empty query value is absent in every sense that matters
       const output = await runtimeRequired().execute(await caller(), {
+        source: 'program',
         program: query._program || (body._program as string | undefined),
         vars: { ...query, ...body },
         files: uploaded()
@@ -420,6 +422,7 @@ export const dispatch = async (
       return {
         status: 200,
         body: await runtimeRequired().trigger(await caller(), {
+          source: 'program',
           program: query._program,
           vars: { ...query },
           expiresAfterMins: query.expiresAfterMins
@@ -428,6 +431,7 @@ export const dispatch = async (
 
     case 'POST /SASjsApi/code/execute': {
       const output = await runtimeRequired().execute(await caller(), {
+        source: 'code',
         code: body.code as string,
         runTime: body.runTime as string | undefined,
         vars: { ...query, ...body },
@@ -441,6 +445,7 @@ export const dispatch = async (
       return {
         status: 200,
         body: await runtimeRequired().trigger(await caller(), {
+          source: 'code',
           code: body.code as string,
           runTime: body.runTime as string | undefined,
           vars: { ...query, ...body },

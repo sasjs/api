@@ -150,10 +150,16 @@ export interface TriggerResponse {
  * One run, in the shape a caller of the service states it.
  *
  * `program` and `code` are the two sources the document names - a drive path on
- * the stored-program routes, a buffer on the code routes - and a request carries
- * one of them.
+ * the stored-program routes, a buffer on the code routes - and `source` says
+ * which one the route promised. It is not derivable from the payload: a request
+ * with neither field still has to name the right parameter in its refusal, and
+ * the stored-program and code schemas disagree about what is required
+ * (`runTime` is required on the code routes, and resolved from the file's
+ * extension on the stored-program ones).
  */
 export interface RuntimeRequest {
+  /** Which source the route promised. */
+  source: 'program' | 'code'
   /** The drive path of a stored program. */
   program?: string
   /** The code to run, instead of a stored program. */
@@ -294,32 +300,44 @@ export const createRuntimeService = (
    * something about the host's filesystem.
    */
   const programOf = (request: RuntimeRequest): ProgramSource => {
-    if (request.program !== undefined) {
-      if (typeof request.program !== 'string')
-        throw new ApiError(400, '"_program" must be a string')
-      if (request.program === '')
-        throw new ApiError(400, '"_program" is not allowed to be empty')
+    // a refusal names the parameter its own route declared: a code route told
+    // its caller that "_program" is missing is answering about a field the
+    // route never had
+    if (request.source === 'code') {
+      if (request.code === undefined)
+        throw new ApiError(400, '"code" is required')
 
-      const resolved = normaliseDrivePath(request.program)
-      if (resolved === null) return failedRun(notThere(request.program))
+      if (typeof request.code !== 'string')
+        throw new ApiError(400, '"code" must be a string')
+      if (request.code === '')
+        throw new ApiError(400, '"code" is not allowed to be empty')
 
-      return { path: resolved }
+      return { code: request.code }
     }
 
-    if (request.code === undefined)
+    if (request.program === undefined)
       throw new ApiError(400, '"_program" is required')
 
-    if (typeof request.code !== 'string')
-      throw new ApiError(400, '"code" must be a string')
-    if (request.code === '')
-      throw new ApiError(400, '"code" is not allowed to be empty')
+    if (typeof request.program !== 'string')
+      throw new ApiError(400, '"_program" must be a string')
+    if (request.program === '')
+      throw new ApiError(400, '"_program" is not allowed to be empty')
 
-    return { code: request.code }
+    const resolved = normaliseDrivePath(request.program)
+    if (resolved === null) return failedRun(notThere(request.program))
+
+    return { path: resolved }
   }
 
-  /** The run time, refused when the host does not hold it. */
+  /** The run time, refused when it is absent where the document requires it, or unheld. */
   const runTimeOf = (request: RuntimeRequest): string | undefined => {
-    if (request.runTime === undefined) return undefined
+    if (request.runTime === undefined) {
+      // the code routes document `runTime` as required; a stored program's run
+      // time is the host's to resolve from the path, so absent is normal there
+      if (request.source === 'code')
+        throw new ApiError(400, '"runTime" is required')
+      return undefined
+    }
 
     if (typeof request.runTime !== 'string')
       throw new ApiError(400, '"runTime" must be a string')

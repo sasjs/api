@@ -71,4 +71,36 @@ describe('the session service', () => {
       'Session not found.'
     )
   })
+
+  it('refuses a subject the store does not hold', async () => {
+    await expect(
+      service().summary(
+        { userId: 'no-such-user', clientId: 'web_app' },
+        'sess-admin'
+      )
+    ).rejects.toThrow('Unauthorized')
+  })
+
+  it('answers 404 when the host loses the session between the record and the file', async () => {
+    // the registry knows it, the run time no longer has a log or a state for it
+    const vanishing = createSessionService(
+      new MemoryIdentityStore(DEFAULT_IDENTITY),
+      {
+        session: async (id: string) => DEFAULT_SESSIONS[id],
+        state: async () => undefined,
+        log: async () => undefined,
+        output: async () => undefined
+      }
+    )
+
+    await expect(vanishing.log(ADMIN, 'sess-admin')).rejects.toThrow(
+      'Session not found.'
+    )
+    await expect(vanishing.output(ADMIN, 'sess-admin')).rejects.toThrow(
+      'Session not found.'
+    )
+    await expect(vanishing.state(ADMIN, 'sess-admin')).rejects.toThrow(
+      'Session not found.'
+    )
+  })
 })

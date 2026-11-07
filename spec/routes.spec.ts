@@ -54,7 +54,7 @@ describe('route table', () => {
     )
   })
 
-  it('carries the unpublish operation, unimplemented here', () => {
+  it('carries the unpublish operation, and answers it', () => {
     const route = routeById('DELETE /SASjsApi/drive/deploy')
 
     // The pair that identifies a registry entry: a name alone is not enough,
@@ -71,10 +71,9 @@ describe('route table', () => {
       200, 400, 404
     ])
 
-    // The publish side it inverts is not implemented here either (`sasjs/api#13`),
-    // so the two land together and a host answers 501 naming the capability until
-    // they do, rather than this package advertising a route nothing answers.
-    expect(route?.implemented).toBe(false)
+    // Unpublishing needs only the host's stream registry, which it supplies
+    // through a port - so unlike the publish side it inverts, this one answers.
+    expect(route?.implemented).toBe(true)
     expect(route?.capabilities).toEqual(['storage'])
   })
 

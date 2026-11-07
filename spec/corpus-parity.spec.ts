@@ -1,6 +1,7 @@
 import { ROUTES, routeById } from '../src/routes/index.js'
 import { CODE_CORPUS } from '../src/corpus/code.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
+import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
 import { SESSION_CORPUS } from '../src/corpus/session.js'
@@ -23,6 +24,7 @@ const corpusByRoute = () => {
 
   for (const testCase of [
     ...DRIVE_CORPUS,
+    ...DEPLOY_CORPUS,
     ...CODE_CORPUS,
     ...IDENTITY_CORPUS,
     ...RECORD_CORPUS,

@@ -9,6 +9,7 @@
 import { CODE_CORPUS } from '../src/corpus/code.js'
 import { createCodeService } from '../src/code/service.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
+import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
 import { SESSION_CORPUS } from '../src/corpus/session.js'
@@ -17,6 +18,7 @@ import type { CorpusCase } from '../src/corpus/drive.js'
 
 const CORPORA: Array<[string, CorpusCase[]]> = [
   ['drive corpus', DRIVE_CORPUS],
+  ['deploy corpus', DEPLOY_CORPUS],
   ['code corpus', CODE_CORPUS],
   ['identity corpus', IDENTITY_CORPUS],
   ['record corpus', RECORD_CORPUS],

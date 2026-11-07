@@ -12,6 +12,7 @@ import { dispatch } from '../host/dispatch.js'
 import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
+import { MemoryAppStreamRegistry } from '../drive/registry.js'
 import { createIdentityService } from '../identity/service.js'
 import { createRecordService } from '../identity/records.js'
 import { createSessionService } from '../session/service.js'
@@ -51,6 +52,7 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     ),
     identity: createIdentityService(identity),
     records: createRecordService(identity),
+    registry: new MemoryAppStreamRegistry(),
     session: createSessionService(identity, new MemorySessionHost())
   }
 }

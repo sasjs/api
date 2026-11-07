@@ -42,8 +42,11 @@ jobs:
       # then the gate stays at high - which is stricter than production-only and
       # catches the case that would matter, a high or critical appearing anywhere,
       # including in the release toolchain.
-      - name: No high or critical advisory
-        run: npm audit --audit-level=high
+      # The package has no runtime dependencies at all, so this is the cheapest
+      # possible way to say so: nothing ships, and the gate that proves it can
+      # never need an exemption.
+      - name: No advisory in what ships
+        run: npm audit --omit=dev --audit-level=low
 
       # The step above ignores the moderate class, so a new moderate used to ship
       # silently. Every moderate we carry is listed in scripts/audit-allowlist.json

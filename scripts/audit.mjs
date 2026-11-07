@@ -119,7 +119,7 @@ const advisoriesIn = (report) => {
 
 const main = () => {
   const allowlistPath = arg('allowlist', join(here, 'audit-allowlist.json'))
-  const floor = arg('floor', 'moderate')
+  const floor = arg('floor', 'low')
   if (!SEVERITY.includes(floor))
     throw new Error(`--floor must be one of ${SEVERITY.join(', ')}`)
 

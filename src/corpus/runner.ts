@@ -14,6 +14,8 @@ import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
 import { createIdentityService } from '../identity/service.js'
 import { createRecordService } from '../identity/records.js'
+import { createSessionService } from '../session/service.js'
+import { MemorySessionHost } from '../session/memory-host.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -48,7 +50,8 @@ export const servicesFor = (testCase: CorpusCase): Services => {
         : new MemoryDriveStore(testCase.seed || {})
     ),
     identity: createIdentityService(identity),
-    records: createRecordService(identity)
+    records: createRecordService(identity),
+    session: createSessionService(identity, new MemorySessionHost())
   }
 }
 

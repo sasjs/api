@@ -11,6 +11,7 @@ import { createCodeService } from '../src/code/service.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
+import { SESSION_CORPUS } from '../src/corpus/session.js'
 import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 
@@ -18,7 +19,8 @@ const CORPORA: Array<[string, CorpusCase[]]> = [
   ['drive corpus', DRIVE_CORPUS],
   ['code corpus', CODE_CORPUS],
   ['identity corpus', IDENTITY_CORPUS],
-  ['record corpus', RECORD_CORPUS]
+  ['record corpus', RECORD_CORPUS],
+  ['session corpus', SESSION_CORPUS]
 ]
 
 describe.each(CORPORA)('%s', (_name, corpus) => {

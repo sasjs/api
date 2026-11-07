@@ -16,6 +16,7 @@ import { routeById } from '../routes/index.js'
 import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
+import type { SessionService } from '../session/service.js'
 import type { CodeService } from '../code/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
@@ -65,6 +66,11 @@ export interface Services {
   identity?: IdentityService
   /** Users, groups, permission rules and clients. Absent, the record routes answer 501. */
   records?: RecordService
+  /**
+   * A triggered session's record, log, output and state. A host without one
+   * answers 501 for these four, naming the capability.
+   */
+  session?: SessionService
 }
 
 /**
@@ -273,6 +279,67 @@ export const dispatch = async (
 
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
+
+    // ------------------------------------------------------------- sessions
+    case 'GET /SASjsApi/session/{sessionId}': {
+      if (!services.session)
+        throw new ApiError(
+          501,
+          'This host has no session service, so it cannot answer this route.'
+        )
+      return {
+        status: 200,
+        body: await services.session.summary(
+          await caller(),
+          String(params.sessionId ?? '')
+        )
+      }
+    }
+
+    case 'GET /SASjsApi/session/{sessionId}/log': {
+      if (!services.session)
+        throw new ApiError(
+          501,
+          'This host has no session service, so it cannot answer this route.'
+        )
+      return {
+        status: 200,
+        contents: await services.session.log(
+          await caller(),
+          String(params.sessionId ?? '')
+        )
+      }
+    }
+
+    case 'GET /SASjsApi/session/{sessionId}/output': {
+      if (!services.session)
+        throw new ApiError(
+          501,
+          'This host has no session service, so it cannot answer this route.'
+        )
+      return {
+        status: 200,
+        contents: await services.session.output(
+          await caller(),
+          String(params.sessionId ?? '')
+        )
+      }
+    }
+
+    case 'GET /SASjsApi/session/{sessionId}/state': {
+      if (!services.session)
+        throw new ApiError(
+          501,
+          'This host has no session service, so it cannot answer this route.'
+        )
+      return {
+        status: 200,
+        body: await services.session.state(
+          await caller(),
+          String(params.sessionId ?? '')
+        )
+      }
+    }
 
     // ------------------------------------------------------------- records
     //
@@ -511,6 +578,10 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'GET /SASjsApi/session/{sessionId}',
+  'GET /SASjsApi/session/{sessionId}/log',
+  'GET /SASjsApi/session/{sessionId}/output',
+  'GET /SASjsApi/session/{sessionId}/state',
   'POST /SASjsApi/code/lint',
   'POST /SASjsApi/code/format',
   'GET /SASjsApi/info/authorizedRoutes',

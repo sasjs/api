@@ -30,6 +30,16 @@ export interface CorpusCase {
    * that always accepts writes could never produce one.
    */
   unwritable?: boolean
+  /**
+   * What the case's program produces, for a route that runs one.
+   *
+   * A mock cannot know what a program writes, so the corpus states it: a case
+   * that pins an output needs a runner that answers with one, and the output is
+   * then the only thing about the run the case asserts.
+   */
+  runOutput?: { contents: string | Uint8Array; contentType?: string }
+  /** The run fails, so a case can pin the `400` a failed run answers. */
+  failingRun?: boolean
   request: ApiRequest
   expect: {
     status: number

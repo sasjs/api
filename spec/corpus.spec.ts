@@ -13,6 +13,7 @@ import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
 import { SESSION_CORPUS } from '../src/corpus/session.js'
+import { RUNTIME_CORPUS } from '../src/corpus/runtime.js'
 import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 
@@ -22,7 +23,8 @@ const CORPORA: Array<[string, CorpusCase[]]> = [
   ['code corpus', CODE_CORPUS],
   ['identity corpus', IDENTITY_CORPUS],
   ['record corpus', RECORD_CORPUS],
-  ['session corpus', SESSION_CORPUS]
+  ['session corpus', SESSION_CORPUS],
+  ['runtime corpus', RUNTIME_CORPUS]
 ]
 
 describe.each(CORPORA)('%s', (_name, corpus) => {

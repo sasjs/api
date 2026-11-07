@@ -5,6 +5,7 @@ import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
 import { SESSION_CORPUS } from '../src/corpus/session.js'
+import { RUNTIME_CORPUS } from '../src/corpus/runtime.js'
 
 /**
  * The document says what a host may answer; the corpus is what a host is shown
@@ -28,7 +29,8 @@ const corpusByRoute = () => {
     ...CODE_CORPUS,
     ...IDENTITY_CORPUS,
     ...RECORD_CORPUS,
-    ...SESSION_CORPUS
+    ...SESSION_CORPUS,
+    ...RUNTIME_CORPUS
   ]) {
     const seen = byRoute.get(testCase.route) || new Set<number>()
     seen.add(testCase.expect.status)

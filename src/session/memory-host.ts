@@ -65,22 +65,41 @@ const OUTPUTS: Record<string, SessionArtifact> = {
   'sess-silent': { contents: '' }
 }
 
+/**
+ * Sessions held in maps.
+ *
+ * The four maps are `protected` rather than `private`, because a trigger creates
+ * a session and the same object has to be able to record it - a runner that
+ * wrote a record into a second map would leave the session routes answering 404
+ * for a session that exists.
+ */
 export class MemorySessionHost implements SessionHost {
-  constructor(private readonly sessions = DEFAULT_SESSIONS) {}
+  constructor(
+    protected readonly sessions: Record<string, HostSession> = {
+      ...DEFAULT_SESSIONS
+    },
+    protected readonly states: Record<string, SessionStateResponse> = {
+      ...STATES
+    },
+    protected readonly logs: Record<string, string> = { ...LOGS },
+    protected readonly outputs: Record<string, SessionArtifact> = {
+      ...OUTPUTS
+    }
+  ) {}
 
   async session(id: string) {
     return this.sessions[id]
   }
 
   async state(id: string): Promise<SessionStateResponse | undefined> {
-    return STATES[id]
+    return this.states[id]
   }
 
   async log(id: string): Promise<string | undefined> {
-    return LOGS[id]
+    return this.logs[id]
   }
 
   async output(id: string): Promise<SessionArtifact | undefined> {
-    return OUTPUTS[id]
+    return this.outputs[id]
   }
 }

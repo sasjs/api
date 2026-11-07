@@ -17,6 +17,7 @@ import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
+import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamRegistry } from '../drive/registry.js'
 import { unpublishAppStream } from '../drive/registry.js'
 import type { CodeService } from '../code/service.js'
@@ -26,6 +27,23 @@ import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
 /** The defaults sasjs/server's Client schema applies to an omitted lifetime. */
 const SECONDS_IN_A_DAY = 86400
+
+/**
+ * The routes that perform work, and so find their caller before they read the
+ * payload.
+ *
+ * sasjs/server mounts `authenticateAccessToken` ahead of the router that owns
+ * these, so an anonymous request with an invalid program is a `401` there and
+ * would be a `400` here if the schema ran first. The same ordering is observable
+ * on the record routes, which is why both are resolved in one place.
+ */
+const RUN_ROUTES = [
+  'GET /SASjsApi/stp/execute',
+  'POST /SASjsApi/stp/execute',
+  'POST /SASjsApi/stp/trigger',
+  'POST /SASjsApi/code/execute',
+  'POST /SASjsApi/code/trigger'
+]
 
 export interface ApiRequest {
   query?: Record<string, string | undefined>
@@ -38,6 +56,12 @@ export interface ApiRequest {
   params?: Record<string, string>
   /** The multipart payload: the API names it `file` on every route that takes one. */
   file?: { name: string; contents: string | Uint8Array }
+  /**
+   * The multipart payload under the field names the caller chose, which is what
+   * the execute routes receive: the program sees each file as a session variable.
+   * A host that carries one file may pass `file` instead.
+   */
+  files?: Array<{ name: string; contents: string | Uint8Array }>
   /**
    * The bearer token the request carried, for the routes that name their caller
    * in a header rather than a body. A host that already resolved the caller - a
@@ -73,6 +97,11 @@ export interface Services {
    * answers 501 for these four, naming the capability.
    */
   session?: SessionService
+  /**
+   * The execute and trigger routes, over the host's runner. Absent, they answer
+   * 501: the package can decide everything about a run except performing it.
+   */
+  runtime?: RuntimeService
   /**
    * The app streams a host has published. Absent, `DELETE /drive/deploy`
    * answers 501 - the package cannot know a host's stream registry.
@@ -139,7 +168,12 @@ export const dispatch = async (
     ['User', 'Group', 'Permission', 'Client'].includes(route.tag) ||
     routeId === 'PATCH /SASjsApi/auth/updatePassword'
 
-  if (identityScoped && records) {
+  // A host that answers the run routes must have a runner; without one it is
+  // told which capability it is missing rather than sent round a login loop, so
+  // the gate is tested on the service that serves the route.
+  const runtimeScoped = RUN_ROUTES.includes(routeId)
+
+  if ((identityScoped && records) || (runtimeScoped && services.runtime)) {
     const subject =
       request.subject ??
       (identity ? await identity.authenticate(request.token) : undefined)
@@ -174,6 +208,47 @@ export const dispatch = async (
       )
     return services.session
   }
+
+  /** The runtime service, or the 501 a host without a runner answers. */
+  const runtimeRequired = (): RuntimeService => {
+    if (!services.runtime)
+      throw new ApiError(
+        501,
+        `This host has no runtime service, so it cannot answer ${routeId}.`
+      )
+    return services.runtime
+  }
+
+  /**
+   * The files a multipart request carried, by field name.
+   *
+   * A host with one file passes `file`; one with several passes `files`, because
+   * the field names are the caller's and a program reads them as session
+   * variables.
+   */
+  const uploaded = (): Record<string, string | Uint8Array> | undefined => {
+    const files = request.files || (request.file ? [request.file] : [])
+    if (!files.length) return undefined
+
+    return files.reduce<Record<string, string | Uint8Array>>((byName, file) => {
+      byName[file.name] = file.contents
+      return byName
+    }, {})
+  }
+
+  /**
+   * A program's output travels as the response body, bytes or not.
+   *
+   * The same shape `GET /session/{sessionId}/output` answers with, and for the
+   * same reason: the body is the artefact, not a value the API composed, so it
+   * is handed on as it came rather than wrapped in a JSON string.
+   */
+  const artifact = (output: {
+    contents: string | Uint8Array
+  }): ApiResponse => ({
+    status: 200,
+    contents: output.contents
+  })
 
   const required = (): RecordService => {
     if (!records)
@@ -312,6 +387,66 @@ export const dispatch = async (
 
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
+
+    // ------------------------------------------------------------- run times
+    //
+    // A stored program is named by a drive path and a code buffer travels in the
+    // body; either way the package decides everything about the request and the
+    // host's runner does the work.
+
+    case 'GET /SASjsApi/stp/execute': {
+      const output = await runtimeRequired().execute(await caller(), {
+        program: query._program,
+        vars: { ...query },
+        files: uploaded()
+      })
+
+      return artifact(output)
+    }
+
+    case 'POST /SASjsApi/stp/execute': {
+      // the query wins over the body, which is the order the server resolves
+      // them in: an empty query value is absent in every sense that matters
+      const output = await runtimeRequired().execute(await caller(), {
+        program: query._program || (body._program as string | undefined),
+        vars: { ...query, ...body },
+        files: uploaded()
+      })
+
+      return artifact(output)
+    }
+
+    case 'POST /SASjsApi/stp/trigger':
+      return {
+        status: 200,
+        body: await runtimeRequired().trigger(await caller(), {
+          program: query._program,
+          vars: { ...query },
+          expiresAfterMins: query.expiresAfterMins as unknown as number
+        })
+      }
+
+    case 'POST /SASjsApi/code/execute': {
+      const output = await runtimeRequired().execute(await caller(), {
+        code: body.code as string,
+        runTime: body.runTime as string | undefined,
+        vars: { ...query, ...body },
+        files: uploaded()
+      })
+
+      return artifact(output)
+    }
+
+    case 'POST /SASjsApi/code/trigger':
+      return {
+        status: 200,
+        body: await runtimeRequired().trigger(await caller(), {
+          code: body.code as string,
+          runTime: body.runTime as string | undefined,
+          vars: { ...query, ...body },
+          expiresAfterMins: body.expiresAfterMins as number | undefined
+        })
+      }
 
     // ------------------------------------------------------------- sessions
     case 'GET /SASjsApi/session/{sessionId}': {
@@ -594,6 +729,11 @@ export const dispatch = async (
 export const HANDLED_ROUTES: string[] = [
   'POST /SASjsApi/drive/deploy/upload',
   'DELETE /SASjsApi/drive/deploy',
+  'GET /SASjsApi/stp/execute',
+  'POST /SASjsApi/stp/execute',
+  'POST /SASjsApi/stp/trigger',
+  'POST /SASjsApi/code/execute',
+  'POST /SASjsApi/code/trigger',
   'GET /SASjsApi/session/{sessionId}',
   'GET /SASjsApi/session/{sessionId}/log',
   'GET /SASjsApi/session/{sessionId}/output',

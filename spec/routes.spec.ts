@@ -31,13 +31,13 @@ describe('route table', () => {
     expect(claimed).toEqual([...HANDLED_ROUTES].sort())
   })
 
-  it('implements the drive, the sign-in flow, the records and the route inventory', () => {
+  it('implements every tag but the ones only a host can answer', () => {
     const implemented = ROUTES.filter((route) => route.implemented).map(
       (route) => route.tag
     )
-    // the tags left out are the ones that need a runtime, a directory or a
-    // size-capped deploy: STP, Admin, Auth Config - plus, of Info, everything
-    // but the two route-inventory answers
+    // the tags left out are the ones whose every operation is the host's own
+    // fact: Admin's diagnostics and logs, Auth Config's providers and directory -
+    // plus, of Info, everything but the two route-inventory answers
     expect(new Set(implemented)).toEqual(
       new Set([
         'Drive',
@@ -49,7 +49,8 @@ describe('route table', () => {
         'Permission',
         'Client',
         'Info',
-        'Code'
+        'Code',
+        'STP'
       ])
     )
   })

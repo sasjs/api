@@ -90,9 +90,6 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
 const DIRECTORY =
   'Synchronising with an external auth provider needs a directory port, which this package does not have: a host decides which directory it holds accounts in, and answers this itself.'
 
-const RUNTIME =
-  'Starting a program needs a runtime port, which this package does not have: a host decides which languages it holds, and answers this itself until then.'
-
 const HOST_CONFIG =
   "The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
 
@@ -169,8 +166,18 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'POST /SASjsApi/client': { implemented: true },
 
   // Code - the editor's three calls, and the runtime one
-  'POST /SASjsApi/code/execute': { implemented: false, reason: RUNTIME },
-  'POST /SASjsApi/code/trigger': { implemented: false, reason: RUNTIME },
+  //
+  // The runtime routes are carried over a `SessionRunner` port: the document's
+  // `RunTimeType` is validated here, the id, the record and the refusals are
+  // decided here, and performing the work is the host's. The response body is
+  // the program's own output - the log included when `_debug` asks for it - so
+  // there is no body to annotate.
+  'POST /SASjsApi/code/execute': { implemented: true },
+  'POST /SASjsApi/code/trigger': {
+    implemented: true,
+    // `pid` is the host's, and a run time without a local process omits it
+    responses: { 200: { sessionId: '' } }
+  },
   'POST /SASjsApi/code/lint': {
     implemented: true,
     capabilities: ['identity']
@@ -289,9 +296,12 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'GET /SASjsApi/session/{sessionId}/state': { implemented: true },
 
   // STP - a stored program, on the runtime port
-  'GET /SASjsApi/stp/execute': { implemented: false, reason: RUNTIME },
-  'POST /SASjsApi/stp/execute': { implemented: false, reason: RUNTIME },
-  'POST /SASjsApi/stp/trigger': { implemented: false, reason: RUNTIME },
+  'GET /SASjsApi/stp/execute': { implemented: true },
+  'POST /SASjsApi/stp/execute': { implemented: true },
+  'POST /SASjsApi/stp/trigger': {
+    implemented: true,
+    responses: { 200: { sessionId: '' } }
+  },
 
   // User - the accounts the identity store already holds for sign-in
   // Reading accounts is open to any authenticated caller, which is what

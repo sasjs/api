@@ -102,9 +102,6 @@ const HOST_OWNED =
 const WEB_BUNDLE =
   'The host serves its own web bundle; there is no API decision here for this package to answer.'
 
-const ARCHIVE =
-  "Expanding the uploaded archive is the host's transport work - multer and a zip library on the server, `DecompressionStream` in a worker - and the host hands this package the tree it produces, which is the same tree `POST /SASjsApi/drive/deploy` takes."
-
 const success = { status: 'success' }
 
 const user = {
@@ -240,10 +237,7 @@ export const OVERLAY: Record<string, RouteOverlay> = {
       500: { status: 'failure', message: 'Deployment failed!' }
     }
   },
-  'POST /SASjsApi/drive/deploy/upload': {
-    implemented: false,
-    reason: ARCHIVE
-  },
+  'POST /SASjsApi/drive/deploy/upload': { implemented: true },
   // `404` is a pair - the registry name and the appLoc it was published from -
   // that matches no entry, and the drive's content is deliberately left alone.
   'DELETE /SASjsApi/drive/deploy': { implemented: true },

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 
+import { CODE_CORPUS } from '../src/corpus/code.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
@@ -113,9 +114,14 @@ const mismatches = (testCase: CorpusCase): string[] => {
   // A message a host sends as its body is text; the document carries it in the
   // description, which is what tsoa emits for a string return.
   if (typeof wanted === 'string') {
-    return json
-      ? ['the corpus pins a text body and the document declares JSON']
-      : []
+    // a route that returns a string may be documented either way: tsoa emits
+    // application/json with `type: string` for `Promise<string>`, and no content
+    // at all for a route that sends the body itself
+    const declared = json?.schema ? resolve(json.schema) : undefined
+    if (!json) return []
+    return declared?.type === 'string'
+      ? []
+      : ['the corpus pins a text body and the document declares JSON']
   }
 
   if (!json?.schema)
@@ -125,7 +131,12 @@ const mismatches = (testCase: CorpusCase): string[] => {
 }
 
 describe('every body the corpus pins is the body the document declares', () => {
-  const cases = [...DRIVE_CORPUS, ...IDENTITY_CORPUS, ...RECORD_CORPUS]
+  const cases = [
+    ...DRIVE_CORPUS,
+    ...CODE_CORPUS,
+    ...IDENTITY_CORPUS,
+    ...RECORD_CORPUS
+  ]
 
   it.each(cases.filter((testCase) => testCase.expect.body !== undefined))(
     '$id',

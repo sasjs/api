@@ -48,13 +48,11 @@ describe('dispatch', () => {
     // body is supplied so the required-parameter check does not answer first.
     const message = (
       (await failure(() =>
-        dispatch(services(), 'POST /SASjsApi/code/lint', {
-          body: { code: 'data _null_; run;' }
-        })
+        dispatch(services(), 'GET /SASjsApi/admin/logs')
       )) as { message: string }
     ).message
 
-    expect(message).toContain('@sasjs/lint')
+    expect(message).toContain('host owns this report')
   })
 
   it('answers 501 for a record route when the host supplies no record service', async () => {

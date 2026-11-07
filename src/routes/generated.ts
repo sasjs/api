@@ -361,6 +361,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          '"code" is required / "code" must be a string / "code" is not allowed to be empty'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -389,6 +398,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          '"code" is required / "code" must be a string / "code" is not allowed to be empty'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },

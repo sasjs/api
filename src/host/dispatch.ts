@@ -85,8 +85,13 @@ const validate = (route: Route, request: ApiRequest): void => {
       param.in === 'query'
         ? request.query?.[param.name]
         : (request.body?.[param.name] as string | undefined)
-    if (given === undefined || given === '')
+    // missing and empty are two refusals, the way the schema has them: a
+    // client that sent the field an empty value has a different bug from one
+    // that omitted it
+    if (given === undefined)
       throw new ApiError(400, `"${param.name}" is required`)
+    if (given === '')
+      throw new ApiError(400, `"${param.name}" is not allowed to be empty`)
   }
 }
 
@@ -180,7 +185,7 @@ export const dispatch = async (
           status: 200,
           body: await identity.token({
             clientId: String(body.clientId ?? ''),
-            code: String(body.code ?? '')
+            code: body.code as string
           })
         }
       case 'POST /SASjsApi/auth/refresh':
@@ -349,7 +354,7 @@ export const dispatch = async (
       return {
         status: 200,
         body: await code.lint(await caller(), {
-          code: String(body.code ?? ''),
+          code: body.code as string,
           filePath: body.filePath as string | undefined
         })
       }
@@ -362,7 +367,7 @@ export const dispatch = async (
       return {
         status: 200,
         body: await code.format(await caller(), {
-          code: String(body.code ?? ''),
+          code: body.code as string,
           filePath: body.filePath as string | undefined
         })
       }

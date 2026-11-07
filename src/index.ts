@@ -58,12 +58,6 @@ export * from './identity/routeAccess.js'
 export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
 export { createIdentityService } from './identity/service.js'
 export { createRecordService, sanitiseDisplayName } from './identity/records.js'
-export { createCodeService } from './code/service.js'
-export type {
-  CodeRequest,
-  CodeService,
-  CodeServiceOptions
-} from './code/service.js'
 export { CODE_CORPUS } from './corpus/code.js'
 export type {
   AuthorizedRoutesResponse,

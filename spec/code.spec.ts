@@ -22,10 +22,16 @@ describe('the code service', () => {
     ).rejects.toMatchObject({ status: 401, message: 'Unauthorized' })
   })
 
-  it('refuses a body with no code', async () => {
-    await expect(service.lint(caller, { code: '' })).rejects.toMatchObject({
+  it('refuses a body with no code, and one with an empty code', async () => {
+    // the two refusals the schema makes, and the two different bugs behind them
+    await expect(service.lint(caller, {} as any)).rejects.toMatchObject({
       status: 400,
       message: '"code" is required'
+    })
+
+    await expect(service.lint(caller, { code: '' })).rejects.toMatchObject({
+      status: 400,
+      message: '"code" is not allowed to be empty'
     })
   })
 

@@ -13,7 +13,6 @@ import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
 import { createIdentityService } from '../identity/service.js'
-import { createCodeService } from '../code/service.js'
 import { createRecordService } from '../identity/records.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
@@ -49,10 +48,7 @@ export const servicesFor = (testCase: CorpusCase): Services => {
         : new MemoryDriveStore(testCase.seed || {})
     ),
     identity: createIdentityService(identity),
-    records: createRecordService(identity),
-    // no lintConfig: a case lints against the linter's defaults, as an untitled
-    // buffer does, so the expectation does not depend on a host's drive
-    code: createCodeService()
+    records: createRecordService(identity)
   }
 }
 

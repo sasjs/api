@@ -48,6 +48,15 @@ export interface CorpusCase {
      * minted token is not a value a case can state.
      */
     keys?: string[]
+    /**
+     * How the body travels, where a string could be either. `json` is a JSON
+     * string on the wire - what tsoa emits for `Promise<string>` and what the
+     * server's `res.json` sends; `text` is a body the route sends itself, which
+     * the document carries in the `description` with no content. A case that
+     * names neither is read as `text` when the document declares no content and
+     * as `json` when it does.
+     */
+    encoding?: 'json' | 'text'
   }
 }
 

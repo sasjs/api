@@ -29,19 +29,34 @@ export interface CodeService {
   format(caller: Subject | undefined, body: CodeRequest): Promise<string>
 }
 
-const STRING = (body: CodeRequest, field: string): string => {
-  const value = body[field as keyof CodeRequest]
-  if (typeof value !== 'string' || value === '')
-    throw new ApiError(400, `"${field}" is required`)
+/**
+ * `code`, refused the way the server's schema refuses it.
+ *
+ * Coercing with `String(...)` defeated the refusal: `{"code": 123}` was linted as
+ * the text "123" and `{"code": ""}` answered "required" where the server says it
+ * is empty. The three messages are Joi's, because they are the ones a client
+ * written against the document already handles.
+ */
+const codeOf = (body: CodeRequest): string => {
+  const value = (body as unknown as Record<string, unknown>).code
+  if (value === undefined) throw new ApiError(400, '"code" is required')
+  if (typeof value !== 'string')
+    throw new ApiError(400, '"code" must be a string')
+  if (value === '') throw new ApiError(400, '"code" is not allowed to be empty')
   return value
 }
 
 /**
  * The two editor routes, over `@sasjs/lint`.
  *
- * The linter is a dependency because it is the same everywhere - the cli ships
- * it to browsers already - while the *rules* are the host's: which `.sasjslint`
- * applies to a path is a fact about a drive, so `lintConfig` is asked for it.
+ * The linter is a dependency because it is the same everywhere, and it is
+ * deliberately NOT reachable from the package root: `@sasjs/lint` resolves its
+ * configuration by walking the filesystem, so it cannot be bundled into the
+ * service worker the browser entry produces. A host that wants these routes
+ * imports `@sasjs/api/code`, which is Node-only, exactly like the linter.
+ *
+ * The *rules* are the host's: which `.sasjslint` applies to a path is a fact
+ * about a drive, so `lintConfig` is asked for it.
  * Neither route touches the drive or runs anything; they answer about the text
  * in the request, which is what lets an editor check unsaved changes.
  */
@@ -60,12 +75,12 @@ export const createCodeService = (
   return {
     async lint(caller, body) {
       requireCaller(caller)
-      return lintText(STRING(body, 'code'), configFor(body.filePath))
+      return lintText(codeOf(body), configFor(body.filePath))
     },
 
     async format(caller, body) {
       requireCaller(caller)
-      return formatText(STRING(body, 'code'), configFor(body.filePath))
+      return formatText(codeOf(body), configFor(body.filePath))
     }
   }
 }

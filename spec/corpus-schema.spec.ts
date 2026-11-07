@@ -114,14 +114,24 @@ const mismatches = (testCase: CorpusCase): string[] => {
   // A message a host sends as its body is text; the document carries it in the
   // description, which is what tsoa emits for a string return.
   if (typeof wanted === 'string') {
-    // a route that returns a string may be documented either way: tsoa emits
-    // application/json with `type: string` for `Promise<string>`, and no content
-    // at all for a route that sends the body itself
+    // A string body travels either as a JSON string (`Promise<string>` in tsoa,
+    // `res.json` in the server) or as raw text from a route that sends it
+    // itself, and the two are not interchangeable: a host that sends the raw
+    // text where the document says JSON is a divergence. So the encoding is
+    // decided per case - stated, or read from what the document declares.
     const declared = json?.schema ? resolve(json.schema) : undefined
-    if (!json) return []
-    return declared?.type === 'string'
-      ? []
-      : ['the corpus pins a text body and the document declares JSON']
+    const encoding = testCase.expect.encoding || (json ? 'json' : 'text')
+
+    if (encoding === 'json')
+      return json && declared?.type === 'string'
+        ? []
+        : [
+            'the corpus pins a JSON string and the document does not declare one'
+          ]
+
+    return json
+      ? ['the corpus pins a text body and the document declares JSON']
+      : []
   }
 
   if (!json?.schema)

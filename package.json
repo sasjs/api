@@ -17,6 +17,11 @@
       "types": "./build/esm/index.d.ts",
       "import": "./build/esm/index.js",
       "require": "./build/cjs/index.js"
+    },
+    "./code": {
+      "types": "./build/esm/code/index.d.ts",
+      "import": "./build/esm/code/index.js",
+      "require": "./build/cjs/code/index.js"
     }
   },
   "files": [

@@ -38,6 +38,13 @@ export const CODE_CORPUS: CorpusCase[] = [
       ]
     }
   },
+  // Two refusals are deliberately not pinned here yet: a `code` that is not a
+  // string, and one that is empty. The package answers 400 `"code" must be a
+  // string` / `"code" is not allowed to be empty` - the messages the server's
+  // schema produces - but sasjs/server's code controller carries no
+  // `@Response(400)` for these routes, so the document states 200 alone and the
+  // parity gate refuses a case answering anything else. The cases land when the
+  // decorators do.
   {
     id: 'code-format-adds-the-header',
     route: 'POST /SASjsApi/code/format',

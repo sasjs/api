@@ -33,8 +33,18 @@ export interface SessionArtifact {
   contentType?: string
 }
 
-/** What `/state` answers: whatever the host's run time reports for a session. */
-export type SessionStateResponse = Record<string, unknown>
+/**
+ * What `/state` answers: the state, and nothing else.
+ *
+ * The document's `SessionStateResponse` is `{ state }` with
+ * `additionalProperties: false`, so a host that added a `pid` or a line count to
+ * it would answer something the contract does not carry - and the memory host
+ * did exactly that, which made the corpus case for this route pass here and fail
+ * the moment it ran against `sasjs/server` (whose route answers `{ state }`).
+ * The object is a fixed shape rather than the bare enum because a Viya caller
+ * already polls `{ state: 'running' }` and one client serves both.
+ */
+export type SessionStateResponse = { state: string }
 
 /**
  * A session as the host holds it.

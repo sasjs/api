@@ -70,8 +70,7 @@ export class MemorySessionRunner
         summary.expiresAfterMins = { mins: expiresAfterMins, used: false }
 
       this.sessions[sessionId] = { owner, summary }
-      this.states[sessionId] =
-        pid === undefined ? { state: 'completed' } : { state: 'completed', pid }
+      this.states[sessionId] = { state: 'completed' }
       this.logs[sessionId] = ''
       this.outputs[sessionId] = output
     }

@@ -333,6 +333,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Invalid request: the payload is invalid, or the program could not be run'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -441,6 +450,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Invalid request: the payload is invalid, or the program could not be run'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -1453,6 +1471,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Invalid request: the query parameters are invalid, or the program could not be run'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -1481,6 +1508,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Invalid request: the payload is invalid, or the program could not be run'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -1515,6 +1551,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'Invalid request: the payload is invalid, or the program could not be run'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },

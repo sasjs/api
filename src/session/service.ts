@@ -10,7 +10,15 @@ export interface SessionSummary {
   creationTimeStamp?: string
   deathTimeStamp?: string
   failureReason?: string
-  expiresAfterMins?: number
+  /**
+   * The retention the session was triggered with, as the document states it: the
+   * minutes, and whether the retention has already been applied.
+   *
+   * The pair is the host's record, not a duration on its own - `used` marks the
+   * sweep that destroys the session as spent, and a client reading the summary
+   * expects both fields, so the number alone would be a shape nobody documented.
+   */
+  expiresAfterMins?: { mins: number; used: boolean }
 }
 
 /**

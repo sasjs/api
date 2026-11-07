@@ -119,6 +119,25 @@ export type {
 } from './session/service.js'
 export { DEFAULT_SESSIONS, MemorySessionHost } from './session/memory-host.js'
 export {
+  CODE_DEBUG,
+  DOCUMENTED_RUN_TIMES,
+  createRuntimeService
+} from './runtime/service.js'
+export type {
+  ProgramSource,
+  RunOutcome,
+  RunRequest,
+  RunnerSession,
+  RuntimeRequest,
+  RuntimeService,
+  RuntimeServiceOptions,
+  SessionRunner,
+  TriggerResponse
+} from './runtime/service.js'
+export { MemorySessionRunner } from './runtime/memory-runner.js'
+export type { MemoryRunnerOptions } from './runtime/memory-runner.js'
+export { RUNTIME_CORPUS } from './corpus/runtime.js'
+export {
   MemoryAppStreamRegistry,
   unpublishAppStream
 } from './drive/registry.js'

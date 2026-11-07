@@ -16,7 +16,8 @@ import { MemoryAppStreamRegistry } from '../drive/registry.js'
 import { createIdentityService } from '../identity/service.js'
 import { createRecordService } from '../identity/records.js'
 import { createSessionService } from '../session/service.js'
-import { MemorySessionHost } from '../session/memory-host.js'
+import { createRuntimeService } from '../runtime/service.js'
+import { MemorySessionRunner } from '../runtime/memory-runner.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -44,6 +45,15 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     testCase.identity || DEFAULT_IDENTITY
   )
 
+  // one runner, shared by the runtime routes and the session routes: a session a
+  // trigger creates has to be one the session routes can read
+  const runner = new MemorySessionRunner({
+    fail: testCase.failingRun,
+    outputs: testCase.runOutput
+      ? { [programOf(testCase)]: testCase.runOutput }
+      : undefined
+  })
+
   return {
     drive: createDriveService(
       testCase.unwritable
@@ -53,9 +63,21 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     identity: createIdentityService(identity),
     records: createRecordService(identity),
     registry: new MemoryAppStreamRegistry(),
-    session: createSessionService(identity, new MemorySessionHost())
+    session: createSessionService(identity, runner),
+    // no `runTimes` option: the default is the five the document names, so a
+    // case is never refused for a reason that belongs to one host's install
+    runtime: createRuntimeService(identity, runner)
   }
 }
+
+/** The program a case runs, keyed the way the runner is keyed by it. */
+const programOf = (testCase: CorpusCase): string =>
+  String(
+    testCase.request.query?._program ??
+      testCase.request.body?._program ??
+      testCase.request.body?.code ??
+      ''
+  )
 
 /**
  * A drive that reads but refuses every write.

@@ -734,11 +734,11 @@ export const RECORD_CORPUS: CorpusCase[] = [
 
   // ------------------------------------------------------------ permissions
   {
-    id: 'authorized-routes',
+    id: 'authorized-routes-as-admin',
     route: 'GET /SASjsApi/info/authorizedRoutes',
-    description: 'answers the routes that accept a rule, to any caller',
+    description: 'answers the route inventory to an administrator',
     identity: ADMIN_SIGNED_IN,
-    request: { token: RESTRICTED },
+    request: { token: ADMIN },
     expect: {
       status: 200,
       body: {
@@ -756,6 +756,15 @@ export const RECORD_CORPUS: CorpusCase[] = [
         ]
       }
     }
+  },
+  {
+    id: 'authorized-routes-as-user',
+    route: 'GET /SASjsApi/info/authorizedRoutes',
+    description:
+      'refuses the inventory to a caller who is not an administrator',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: RESTRICTED },
+    expect: { status: 401, error: 'Admin account required' }
   },
   {
     id: 'my-authorized-routes-as-admin',

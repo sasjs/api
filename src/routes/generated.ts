@@ -1114,6 +1114,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Administrator access is required'
       }
     ]
   },

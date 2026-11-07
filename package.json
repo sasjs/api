@@ -36,6 +36,7 @@
   "scripts": {
     "build": "rimraf build && tsc -p tsconfig.build.cjs.json && tsc -p tsconfig.build.esm.json && node scripts/postbuild.mjs && node scripts/build-browser.mjs",
     "test": "jest --coverage",
+    "coverage:comment": "node scripts/coverage-comment.mjs",
     "test:watch": "jest --watch",
     "lint": "prettier --check \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
     "lint:fix": "prettier --write \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",

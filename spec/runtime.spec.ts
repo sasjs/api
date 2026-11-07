@@ -297,6 +297,36 @@ describe('what the package hands the runner', () => {
     })
   })
 
+  it("takes the run time from a stored program's extension", async () => {
+    const runner = new RecordingRunner()
+    await dispatch(withRunner(runner), 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: { _program: '/Public/apps/demo/run.js' }
+    })
+
+    expect(runner.requests[0].program).toEqual({
+      path: '/Public/apps/demo/run.js'
+    })
+    // the server reads the extension before it looks for the file, which is a
+    // decision about the request and not about the filesystem
+    expect(runner.requests[0].runTime).toBe('js')
+  })
+
+  it('leaves the run time and the file to the host when the path names neither', async () => {
+    const runner = new RecordingRunner()
+    await dispatch(withRunner(runner), 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: { _program: '/Public/apps/demo/run' }
+    })
+
+    // the form every document example uses: the server probes `<path>.<runTime>`
+    // for each run time it holds, and only a host has a filesystem to probe
+    expect(runner.requests[0].program).toEqual({
+      path: '/Public/apps/demo/run'
+    })
+    expect(runner.requests[0].runTime).toBeUndefined()
+  })
+
   it('hands uploaded files to the runner by field name', async () => {
     const runner = new RecordingRunner()
     const services = withRunner(runner)
@@ -332,7 +362,10 @@ describe('`_debug` is normalised, as the server normalises it', () => {
   })
 
   it('leaves a number alone, and reports an absent one as absent', async () => {
-    expect((await varsFor({}))._debug).toBeUndefined()
+    const absent = await varsFor({})
+    // not merely undefined: a host that walks the entries to build a query
+    // string must not emit `_debug=undefined` for a caller who never asked
+    expect('_debug' in absent).toBe(false)
     expect((await varsFor({ _debug: '' }))._debug).toBeUndefined()
     expect(parseDebugValue(17)).toBe(17)
     // not a level: `Number()` would read these as 1000 and 16

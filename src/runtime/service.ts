@@ -92,6 +92,15 @@ export interface RunnerSession {
  *
  * A union rather than two optional fields, so a host cannot be handed a request
  * with neither and quietly run nothing.
+ *
+ * A path arrives normalised and contained, and the package has already taken the
+ * run time from its extension when it carries a recognised one. What it cannot
+ * do is *find* the file: a path with no extension is the form every document
+ * example uses, and the server answers it by probing `<path>.<runTime>` for each
+ * run time it holds - a filesystem question, so the runner resolves the file and
+ * the run time that goes with it, exactly as `getRunTimeAndFilePath` does
+ * upstream. That is the one thing a runner must do beyond opening what it is
+ * given.
  */
 export type ProgramSource = { code: string } | { path: string }
 
@@ -106,7 +115,11 @@ export interface RunRequest {
    * caller's, untouched: a session variable is whatever a client named it.
    */
   vars: Record<string, unknown>
-  /** The run time the caller named. Absent, the host's default applies. */
+  /**
+   * The run time to use: the one the caller named, or the one a stored
+   * program's extension names (`/app/run.js` is JavaScript). Absent when nothing
+   * names one, and then the run time is the host's own choice.
+   */
   runTime?: string
   /**
    * The session this run belongs to. Present for a trigger, absent for an
@@ -329,6 +342,27 @@ export const createRuntimeService = (
     return { path: resolved }
   }
 
+  /**
+   * The run time a stored program's path names, if it names one.
+   *
+   * `_program=/app/run.js` is JavaScript, and the server treats it that way
+   * before it looks for the file (`getRunTimeAndFilePath` reads the extension).
+   * Only the extension vocabulary the document states is read, so `run.sas7bdat`
+   * or `run.backup` name no run time and are left to the host.
+   */
+  const runTimeForPath = (
+    path: string,
+    request: RuntimeRequest
+  ): string | undefined => {
+    const file = path.split('/').pop() || ''
+    const dot = file.lastIndexOf('.')
+    const extension = dot > 0 ? file.slice(dot + 1).toLowerCase() : ''
+
+    if (DOCUMENTED_RUN_TIMES.includes(extension)) return extension
+
+    return runTimeOf(request)
+  }
+
   /** The run time, refused when it is absent where the document requires it, or unheld. */
   const runTimeOf = (request: RuntimeRequest): string | undefined => {
     if (request.runTime === undefined) {
@@ -396,14 +430,23 @@ export const createRuntimeService = (
 
     // the code routes force the log on, because their documented body is
     // assembled from it; a stored program's caller decides, and a keyword there
-    // means the same thing a number does
-    vars._debug = 'code' in program ? CODE_DEBUG : parseDebugValue(vars._debug)
+    // means the same thing a number does. A caller who did not ask for the log
+    // keeps no `_debug` key at all: a host that walks the entries to build a
+    // query string or a header map would otherwise emit `_debug=undefined`.
+    const debug = 'code' in program ? CODE_DEBUG : parseDebugValue(vars._debug)
+    if (debug === undefined) delete vars._debug
+    else vars._debug = debug
 
     return {
       reader,
       program,
       vars,
-      runTime: runTimeOf(request)
+      // a code route's run time is the one it named; a stored program's is the
+      // one its extension names, when it names one at all
+      runTime:
+        'code' in program
+          ? runTimeOf(request)
+          : runTimeForPath(program.path, request)
     }
   }
 

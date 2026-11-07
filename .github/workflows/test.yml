@@ -42,9 +42,9 @@ jobs:
       # then the gate stays at high - which is stricter than production-only and
       # catches the case that would matter, a high or critical appearing anywhere,
       # including in the release toolchain.
-      # The package has no runtime dependencies at all, so this is the cheapest
-      # possible way to say so: nothing ships, and the gate that proves it can
-      # never need an exemption.
+      # What ships is one dependency (@sasjs/lint) and its tree, so this is no
+      # longer vacuous: it audits a real production tree at the lowest severity.
+      # It needs no exemption today, which is the state to keep.
       - name: No advisory in what ships
         run: npm audit --omit=dev --audit-level=low
 

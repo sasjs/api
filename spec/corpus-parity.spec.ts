@@ -1,4 +1,5 @@
 import { ROUTES, routeById } from '../src/routes/index.js'
+import { CODE_CORPUS } from '../src/corpus/code.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
@@ -21,6 +22,7 @@ const corpusByRoute = () => {
 
   for (const testCase of [
     ...DRIVE_CORPUS,
+    ...CODE_CORPUS,
     ...IDENTITY_CORPUS,
     ...RECORD_CORPUS
   ]) {

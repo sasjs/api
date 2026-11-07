@@ -90,9 +90,6 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
 const DIRECTORY =
   'Synchronising with an external auth provider needs a directory port, which this package does not have: a host decides which directory it holds accounts in, and answers this itself.'
 
-const EDITOR =
-  'Linting and formatting come from @sasjs/lint, which this package does not depend on. They land with the code routes so an editor has one wiring.'
-
 const RUNTIME =
   'Starting a program needs a runtime port, which this package does not have: a host decides which languages it holds, and answers this itself until then.'
 
@@ -183,8 +180,14 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   // Code - the editor's three calls, and the runtime one
   'POST /SASjsApi/code/execute': { implemented: false, reason: RUNTIME },
   'POST /SASjsApi/code/trigger': { implemented: false, reason: RUNTIME },
-  'POST /SASjsApi/code/lint': { implemented: false, reason: EDITOR },
-  'POST /SASjsApi/code/format': { implemented: false, reason: EDITOR },
+  'POST /SASjsApi/code/lint': {
+    implemented: true,
+    capabilities: ['identity']
+  },
+  'POST /SASjsApi/code/format': {
+    implemented: true,
+    capabilities: ['identity']
+  },
 
   // Drive - the file and folder rules, and the three deploy routes
   // The body is the file itself, so there is nothing to annotate

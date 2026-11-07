@@ -16,6 +16,7 @@ import { routeById } from '../routes/index.js'
 import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
+import type { CodeService } from '../code/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
@@ -53,6 +54,8 @@ export interface ApiResponse {
 }
 
 export interface Services {
+  /** The editor routes, where the host supplies a linter. */
+  code?: CodeService
   drive: DriveService
   /**
    * Users, clients and tokens. A host without one answers 501 for the identity
@@ -82,8 +85,13 @@ const validate = (route: Route, request: ApiRequest): void => {
       param.in === 'query'
         ? request.query?.[param.name]
         : (request.body?.[param.name] as string | undefined)
-    if (given === undefined || given === '')
+    // missing and empty are two refusals, the way the schema has them: a
+    // client that sent the field an empty value has a different bug from one
+    // that omitted it
+    if (given === undefined)
       throw new ApiError(400, `"${param.name}" is required`)
+    if (given === '')
+      throw new ApiError(400, `"${param.name}" is not allowed to be empty`)
   }
 }
 
@@ -108,7 +116,7 @@ export const dispatch = async (
   const route = routeById(routeId)
   if (!route) throw new ApiError(404, `No such operation: ${routeId}`)
 
-  const { drive, identity, records } = services
+  const { drive, identity, records, code } = services
 
   // The server authenticates before its payload schema runs, so an anonymous
   // request with an incomplete body is a 401 there rather than a 400. The order
@@ -177,7 +185,7 @@ export const dispatch = async (
           status: 200,
           body: await identity.token({
             clientId: String(body.clientId ?? ''),
-            code: String(body.code ?? '')
+            code: body.code as string
           })
         }
       case 'POST /SASjsApi/auth/refresh':
@@ -337,6 +345,33 @@ export const dispatch = async (
         )
       }
 
+    case 'POST /SASjsApi/code/lint':
+      if (!code)
+        throw new ApiError(
+          501,
+          `This host has no code service, so it cannot answer ${routeId}.`
+        )
+      return {
+        status: 200,
+        body: await code.lint(await caller(), {
+          code: body.code as string,
+          filePath: body.filePath as string | undefined
+        })
+      }
+    case 'POST /SASjsApi/code/format':
+      if (!code)
+        throw new ApiError(
+          501,
+          `This host has no code service, so it cannot answer ${routeId}.`
+        )
+      return {
+        status: 200,
+        body: await code.format(await caller(), {
+          code: body.code as string,
+          filePath: body.filePath as string | undefined
+        })
+      }
+
     case 'GET /SASjsApi/info/authorizedRoutes':
       return {
         status: 200,
@@ -476,6 +511,8 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'POST /SASjsApi/code/lint',
+  'POST /SASjsApi/code/format',
   'GET /SASjsApi/info/authorizedRoutes',
   'GET /SASjsApi/info/myAuthorizedRoutes',
   'GET /SASjsApi/drive/file',

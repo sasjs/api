@@ -17,6 +17,11 @@
       "types": "./build/esm/index.d.ts",
       "import": "./build/esm/index.js",
       "require": "./build/cjs/index.js"
+    },
+    "./code": {
+      "types": "./build/esm/code/index.d.ts",
+      "import": "./build/esm/code/index.js",
+      "require": "./build/cjs/code/index.js"
     }
   },
   "files": [
@@ -60,5 +65,8 @@
     "deepmerge": "$deepmerge",
     "glob": "14.0.3",
     "minimatch": "11.0.4"
+  },
+  "dependencies": {
+    "@sasjs/lint": "5.0.0"
   }
 }

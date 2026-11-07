@@ -35,9 +35,9 @@ describe('route table', () => {
     const implemented = ROUTES.filter((route) => route.implemented).map(
       (route) => route.tag
     )
-    // the tags left out are the ones that need a runtime, an editor, a
-    // directory or a size-capped deploy: Code, STP, Admin, Auth Config - and
-    // Info, of which only the two route-inventory answers are carried
+    // the tags left out are the ones that need a runtime, a directory or a
+    // size-capped deploy: STP, Admin, Auth Config - plus, of Info, everything
+    // but the two route-inventory answers
     expect(new Set(implemented)).toEqual(
       new Set([
         'Drive',
@@ -48,7 +48,8 @@ describe('route table', () => {
         'Group',
         'Permission',
         'Client',
-        'Info'
+        'Info',
+        'Code'
       ])
     )
   })

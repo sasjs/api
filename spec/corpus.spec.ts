@@ -6,14 +6,17 @@
  * disagrees with sasjs/server or a case that names the wrong behaviour, and both
  * are worth stopping on.
  */
+import { CODE_CORPUS } from '../src/corpus/code.js'
+import { createCodeService } from '../src/code/service.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
 import { RECORD_CORPUS } from '../src/corpus/records.js'
-import { runCase } from '../src/corpus/runner.js'
+import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 
 const CORPORA: Array<[string, CorpusCase[]]> = [
   ['drive corpus', DRIVE_CORPUS],
+  ['code corpus', CODE_CORPUS],
   ['identity corpus', IDENTITY_CORPUS],
   ['record corpus', RECORD_CORPUS]
 ]
@@ -21,7 +24,12 @@ const CORPORA: Array<[string, CorpusCase[]]> = [
 describe.each(CORPORA)('%s', (_name, corpus) => {
   for (const testCase of corpus) {
     it(`${testCase.id}: ${testCase.description}`, async () => {
-      const actual = await runCase(testCase)
+      const actual = await runCase(
+        testCase,
+        // the code service is not part of the browser-safe core, so a host (and
+        // this suite) supplies it
+        { ...servicesFor(testCase), code: createCodeService() }
+      )
 
       expect({ case: testCase.id, status: actual.status }).toEqual({
         case: testCase.id,

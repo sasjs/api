@@ -65,7 +65,9 @@ export class MemorySessionRunner
 
       if (pid !== undefined) summary.pid = pid
       if (expiresAfterMins !== undefined)
-        summary.expiresAfterMins = expiresAfterMins
+        // the record answers `{mins, used}`, not the number the caller sent: an
+        // interactive client reads this straight off the summary route
+        summary.expiresAfterMins = { mins: expiresAfterMins, used: false }
 
       this.sessions[sessionId] = { owner, summary }
       this.states[sessionId] =

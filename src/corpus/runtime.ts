@@ -167,18 +167,17 @@ export const RUNTIME_CORPUS: CorpusCase[] = [
     expect: { status: 200, contents: 'NOTE: mock run' }
   },
   {
-    id: 'code-execute-unheld-runtime',
-    route: 'POST /SASjsApi/code/execute',
-    description: 'refuses a run time the host does not hold',
-    request: { subject: ADMIN, body: { code: CODE, runTime: 'r' } },
-    expect: { status: 400, error: '"runTime" must be one of [sas, js]' }
-  },
-  {
+    // The refusal's *message* is not pinned here: it names the run times the
+    // host holds, which is deployment data - `r` is a valid request where R is
+    // configured and a 400 where it is not - so a corpus that stated a list
+    // would be asserting one host's install. `spec/runtime.spec.ts` pins the
+    // wording against an explicit list; this states the status every host sends
+    // for a name no host holds.
     id: 'code-execute-unknown-runtime',
     route: 'POST /SASjsApi/code/execute',
     description: 'refuses a run time the document does not name',
     request: { subject: ADMIN, body: { code: CODE, runTime: 'cobol' } },
-    expect: { status: 400, error: '"runTime" must be one of [sas, js]' }
+    expect: { status: 400 }
   },
   {
     id: 'code-execute-missing-code',

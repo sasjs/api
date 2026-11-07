@@ -64,18 +64,11 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     records: createRecordService(identity),
     registry: new MemoryAppStreamRegistry(),
     session: createSessionService(identity, runner),
-    runtime: createRuntimeService(identity, runner, {
-      runTimes: MOCK_RUN_TIMES
-    })
+    // no `runTimes` option: the default is the five the document names, so a
+    // case is never refused for a reason that belongs to one host's install
+    runtime: createRuntimeService(identity, runner)
   }
 }
-
-/**
- * The run times the mock holds: the browser build runs JavaScript, a server runs
- * JavaScript and SAS - so a case naming `r` is refused, which is the only way
- * the refusal is expressible at all.
- */
-const MOCK_RUN_TIMES = ['sas', 'js']
 
 /** The program a case runs, keyed the way the runner is keyed by it. */
 const programOf = (testCase: CorpusCase): string =>

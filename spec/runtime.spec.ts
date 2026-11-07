@@ -12,7 +12,10 @@ import { servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
-import { createRuntimeService } from '../src/runtime/service.js'
+import {
+  createRuntimeService,
+  parseDebugValue
+} from '../src/runtime/service.js'
 import type { RunRequest, SessionRunner } from '../src/runtime/service.js'
 import { MemorySessionRunner } from '../src/runtime/memory-runner.js'
 import { createSessionService } from '../src/session/service.js'
@@ -195,7 +198,9 @@ describe('a trigger creates a session the session routes can read', () => {
       'GET /SASjsApi/session/{sessionId}',
       { subject: ADMIN, params: { sessionId } }
     )
-    expect(summary.body).toMatchObject({ expiresAfterMins: 15 })
+    expect(summary.body).toMatchObject({
+      expiresAfterMins: { mins: 15, used: false }
+    })
   })
 })
 
@@ -215,7 +220,10 @@ describe('what the package hands the runner', () => {
     })
     // the stored-program routes pass the request's own parameters through, so a
     // caller's `_debug` is the value the program sees
-    expect(runner.requests[0].vars).toMatchObject({ _debug: '131' })
+    // `_debug` is normalised here, not passed through: a keyword means the log,
+    // integer text is a level, and a host handed '131' as text would fail the
+    // macros' numeric comparison and answer without a log
+    expect(runner.requests[0].vars).toMatchObject({ _debug: 131 })
     // an execute waits for the program, so there is no session to record
     expect(runner.requests[0].session).toBeUndefined()
   })
@@ -254,6 +262,41 @@ describe('what the package hands the runner', () => {
     expect(runner.requests[0].session?.sessionId).toMatch(/^\d{14}-\d+-\d+$/)
   })
 
+  it('refuses a program path that leaves the drive, before the runner sees it', async () => {
+    const runner = new RecordingRunner()
+    const services = withRunner(runner)
+
+    const response = await dispatch(services, 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: { _program: '../../etc/passwd' }
+    }).catch((error) => error)
+
+    // the same 400 a program that is not there answers: whether the path was
+    // rejected or merely absent is the host's filesystem, and not the caller's
+    // business
+    expect(response.status).toBe(400)
+    expect(response.body).toEqual({
+      status: 'failure',
+      message: 'Job execution failed.',
+      error: 'The Program at (../../etc/passwd) does not exist.'
+    })
+    expect(runner.requests).toEqual([])
+  })
+
+  it('resolves a relative program path against the drive root', async () => {
+    const runner = new RecordingRunner()
+    const services = withRunner(runner)
+
+    await dispatch(services, 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: { _program: 'Public/apps/./demo//run.sas' }
+    })
+
+    expect(runner.requests[0].program).toEqual({
+      path: '/Public/apps/demo/run.sas'
+    })
+  })
+
   it('hands uploaded files to the runner by field name', async () => {
     const runner = new RecordingRunner()
     const services = withRunner(runner)
@@ -265,6 +308,36 @@ describe('what the package hands the runner', () => {
     })
 
     expect(runner.requests[0].files).toEqual({ 'dataset.csv': 'a,b\n1,2\n' })
+  })
+})
+
+describe('`_debug` is normalised, as the server normalises it', () => {
+  const varsFor = async (query: Record<string, string>) => {
+    const runner = new RecordingRunner()
+    await dispatch(withRunner(runner), 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: { _program: '/Public/apps/demo/run.sas', ...query }
+    })
+    return runner.requests[0].vars
+  }
+
+  it('reads a keyword as "return the log"', async () => {
+    expect((await varsFor({ _debug: 'log' }))._debug).toBe(131)
+    expect((await varsFor({ _debug: 'LOG' }))._debug).toBe(131)
+  })
+
+  it('reads integer text as the level it names', async () => {
+    expect((await varsFor({ _debug: '131' }))._debug).toBe(131)
+    expect((await varsFor({ _debug: '17' }))._debug).toBe(17)
+  })
+
+  it('leaves a number alone, and reports an absent one as absent', async () => {
+    expect((await varsFor({}))._debug).toBeUndefined()
+    expect((await varsFor({ _debug: '' }))._debug).toBeUndefined()
+    expect(parseDebugValue(17)).toBe(17)
+    // not a level: `Number()` would read these as 1000 and 16
+    expect(parseDebugValue('1e3')).toBe(131)
+    expect(parseDebugValue('0x10')).toBe(131)
   })
 })
 
@@ -285,6 +358,29 @@ describe('what a run answers', () => {
 
     expect(response.status).toBe(200)
     expect(response.contents).toBe('hello')
+  })
+
+  it('does not validate a retention on an execute, which never uses one', async () => {
+    // the query schema for these routes tolerates extra parameters, so a
+    // retention in the query is a session variable - and the server answers 200
+    const services = servicesForCase({
+      request: {
+        subject: ADMIN,
+        query: { _program: '/Public/apps/demo/run.sas' }
+      },
+      runOutput: { contents: 'ok' }
+    })
+
+    const response = await dispatch(services, 'GET /SASjsApi/stp/execute', {
+      subject: ADMIN,
+      query: {
+        _program: '/Public/apps/demo/run.sas',
+        expiresAfterMins: '0'
+      }
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.contents).toBe('ok')
   })
 
   it('answers an empty body for a program that wrote nothing', async () => {

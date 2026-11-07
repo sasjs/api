@@ -422,7 +422,7 @@ export const dispatch = async (
         body: await runtimeRequired().trigger(await caller(), {
           program: query._program,
           vars: { ...query },
-          expiresAfterMins: query.expiresAfterMins as unknown as number
+          expiresAfterMins: query.expiresAfterMins
         })
       }
 
@@ -444,7 +444,7 @@ export const dispatch = async (
           code: body.code as string,
           runTime: body.runTime as string | undefined,
           vars: { ...query, ...body },
-          expiresAfterMins: body.expiresAfterMins as number | undefined
+          expiresAfterMins: body.expiresAfterMins as number | string | undefined
         })
       }
 

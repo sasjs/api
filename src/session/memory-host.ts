@@ -22,7 +22,7 @@ export const DEFAULT_SESSIONS: Record<string, HostSession> = {
       pid: 4242,
       creationTimeStamp: '2026-11-07T09:00:00.000Z',
       deathTimeStamp: '2026-11-07T09:00:04.000Z',
-      expiresAfterMins: 60
+      expiresAfterMins: { mins: 60, used: false }
     }
   },
   'sess-restricted': {

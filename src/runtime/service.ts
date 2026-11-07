@@ -18,6 +18,7 @@
 import { ApiError } from '../types.js'
 import type { IdentityUserRecord, Subject } from '../identity/types.js'
 import type { CallerDirectory, SessionArtifact } from '../session/service.js'
+import { normaliseDrivePath } from '../drive/paths.js'
 
 /**
  * The value that asks for the session log.
@@ -38,6 +39,31 @@ export const CODE_DEBUG = 131
 
 /** The run times the published document states, and a host may hold fewer. */
 export const DOCUMENTED_RUN_TIMES = ['sas', 'js', 'py', 'r', 'sasviya']
+
+/**
+ * `_debug`, normalised the way sasjs/server's `parseDebugValue` normalises it.
+ *
+ * The parameter's one effect is whether the log comes back, and the macros test
+ * it numerically (`%if &_debug ge 131`), so a keyword cannot be handed to a
+ * program as text: `_debug=log` would arrive as the string `log`, the comparison
+ * would fail, and the caller would receive a body without the log section the
+ * same request gets from a server. Integer text is a level; any other non-empty
+ * value means "the log, please"; absent or empty means it was not asked for.
+ *
+ * `1e3` and `0x10` are text, not levels - `Number()` would read them as 1000 and
+ * 16, neither of which the macros' comparison treats as the log.
+ */
+export const parseDebugValue = (value: unknown): number | undefined => {
+  if (value === undefined || value === null || value === '') return undefined
+
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : undefined
+
+  const text = String(value).trim()
+  if (!text) return undefined
+
+  return /^[+-]?\d+$/.test(text) ? Number(text) : CODE_DEBUG
+}
 
 /**
  * A session a trigger created.
@@ -74,9 +100,10 @@ export interface RunRequest {
   program: ProgramSource
   /**
    * The variables the program sees: the request's query and body as the caller
-   * sent them, plus `_debug` on the routes that force it. The package does not
-   * reshape them - a session variable is whatever a client named it, and the
-   * server hands the query through untouched.
+   * sent them, with `_debug` normalised the way the server's own handlers
+   * normalise it - a number stays one, integer text becomes a number, and any
+   * other non-empty value means "return the log" (131). Everything else is the
+   * caller's, untouched: a session variable is whatever a client named it.
    */
   vars: Record<string, unknown>
   /** The run time the caller named. Absent, the host's default applies. */
@@ -203,6 +230,10 @@ const timestamp = (now: Date): string =>
 const newSessionId = (now: Date): string =>
   `${timestamp(now)}-${Math.round(Math.random() * 100000)}-${now.getTime()}`
 
+/** The refusal a program that cannot be found answers, as the server words it. */
+const notThere = (programPath: string): string =>
+  `The Program at (${programPath}) does not exist.`
+
 /**
  * The failure a run that could not be performed answers.
  *
@@ -250,14 +281,29 @@ export const createRuntimeService = (
     return reader
   }
 
-  /** The program a request names, refused in the schema's own words. */
+  /**
+   * The program a request names, refused in the schema's own words.
+   *
+   * `_program` is caller-controlled and names a file under the host's drive, so
+   * it is resolved against the drive root before a runner sees it: a path that
+   * climbs out with `..` would otherwise let a caller run any file the service
+   * account can read, which is why sasjs/server resolves it with
+   * `resolveWithinDrive` before looking for the program. A path that leaves the
+   * drive is refused the way a program that is not there is refused - the same
+   * `400`, because saying "your path was rejected but existed" would say
+   * something about the host's filesystem.
+   */
   const programOf = (request: RuntimeRequest): ProgramSource => {
     if (request.program !== undefined) {
       if (typeof request.program !== 'string')
         throw new ApiError(400, '"_program" must be a string')
       if (request.program === '')
         throw new ApiError(400, '"_program" is not allowed to be empty')
-      return { path: request.program }
+
+      const resolved = normaliseDrivePath(request.program)
+      if (resolved === null) return failedRun(notThere(request.program))
+
+      return { path: resolved }
     }
 
     if (request.code === undefined)
@@ -290,11 +336,16 @@ export const createRuntimeService = (
   /**
    * Retention, refused when it is not a positive number of minutes.
    *
-   * A query string carries text, and the server's schema coerces it - `?expiresAfterMins=15`
-   * is the same request as `"expiresAfterMins": 15` - so the coercion is part of
-   * the contract rather than a convenience. Only an integer-shaped string is read
-   * as a number: `15abc` and `1e3` are refused, because Joi refuses the first and
-   * the second is a float-formatting question a retention does not have.
+   * A query string carries text, and the server's schema coerces it -
+   * `?expiresAfterMins=15` is the same request as `"expiresAfterMins": 15` - so
+   * the coercion is part of the contract rather than a convenience. Only a
+   * number, or text shaped like one, is read: `15abc` and `1e3` are refused (the
+   * first is not a number to Joi either, the second is not the shape a client
+   * sends), while `1.5` is accepted because `number().greater(0)` takes decimals.
+   *
+   * Retention belongs to a trigger and only to a trigger: an execute waits for
+   * the program, so an `expiresAfterMins` on its request is a session variable
+   * like any other, and validating one would refuse a request the server answers.
    */
   const expiryOf = (request: RuntimeRequest): number | undefined => {
     const value = request.expiresAfterMins
@@ -323,18 +374,18 @@ export const createRuntimeService = (
   ) => {
     const reader = await callerOf(caller)
     const program = programOf(request)
+    const vars = { ...(request.vars || {}) }
+
+    // the code routes force the log on, because their documented body is
+    // assembled from it; a stored program's caller decides, and a keyword there
+    // means the same thing a number does
+    vars._debug = 'code' in program ? CODE_DEBUG : parseDebugValue(vars._debug)
 
     return {
       reader,
       program,
-      // the code routes force the log on; a stored program's caller decides
-      // whether they want it, and `_debug` stays what they sent
-      vars:
-        'code' in program
-          ? { ...(request.vars || {}), _debug: CODE_DEBUG }
-          : request.vars || {},
-      runTime: runTimeOf(request),
-      expiresAfterMins: expiryOf(request)
+      vars,
+      runTime: runTimeOf(request)
     }
   }
 
@@ -361,6 +412,7 @@ export const createRuntimeService = (
 
     async trigger(caller, request) {
       const prepared = await prepare(caller, request)
+      const expiresAfterMins = expiryOf(request)
 
       const session: RunnerSession = {
         sessionId: newSessionId(new Date()),
@@ -368,9 +420,7 @@ export const createRuntimeService = (
         ...(prepared.runTime === undefined
           ? {}
           : { runTime: prepared.runTime }),
-        ...(prepared.expiresAfterMins === undefined
-          ? {}
-          : { expiresAfterMins: prepared.expiresAfterMins })
+        ...(expiresAfterMins === undefined ? {} : { expiresAfterMins })
       }
 
       let outcome: RunOutcome

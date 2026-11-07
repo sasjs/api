@@ -138,10 +138,9 @@ export const SESSION_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/session/{sessionId}/state',
     description: "answers the run time's state for this session",
     request: { subject: RESTRICTED, params: { sessionId: 'sess-restricted' } },
-    expect: {
-      status: 200,
-      body: { state: 'running', pid: 4243, lineCount: 3 }
-    }
+    // the state alone: the document's SessionStateResponse permits no other
+    // property, and `sasjs/server` answers exactly this object
+    expect: { status: 200, body: { state: 'running' } }
   },
   {
     id: 'session-state-unauthenticated',

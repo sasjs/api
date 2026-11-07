@@ -46,8 +46,11 @@ export const DEFAULT_SESSIONS: Record<string, HostSession> = {
 }
 
 const STATES: Record<string, SessionStateResponse> = {
-  'sess-admin': { state: 'completed', pid: 4242, lineCount: 12 },
-  'sess-restricted': { state: 'running', pid: 4243, lineCount: 3 }
+  // `state` alone: the document's SessionStateResponse allows no other property,
+  // and a mock that answered `pid` or a line count would let a case pass here
+  // and fail against a server that answers the shape the document states
+  'sess-admin': { state: 'completed' },
+  'sess-restricted': { state: 'running' }
 }
 
 const LOGS: Record<string, string> = {

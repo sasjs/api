@@ -1218,8 +1218,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     requestBodies: [],
     responses: [
       {
-        status: 204,
-        description: 'No content'
+        status: 200,
+        description: 'Permission Deleted!'
       },
       {
         status: 401,
@@ -1562,8 +1562,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     requestBodies: ['application/json'],
     responses: [
       {
-        status: 204,
-        description: 'No content'
+        status: 200,
+        description: 'Account Deleted!'
       },
       {
         status: 401,
@@ -1703,8 +1703,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     requestBodies: ['application/json'],
     responses: [
       {
-        status: 204,
-        description: 'No content'
+        status: 200,
+        description: 'Account Deleted!'
       },
       {
         status: 401,

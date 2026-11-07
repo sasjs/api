@@ -292,13 +292,6 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'POST /SASjsApi/permission': { implemented: true },
   'PATCH /SASjsApi/permission/{uid}': { implemented: true },
-  // The three deletes answer 204 here and 200 on the wire: the server's route
-  // handlers send `res.status(200).send('Account Deleted!')` and
-  // `'Permission Deleted!'`, while tsoa emitted 204 for a void handler, so the
-  // document understates the status. Correcting it is a decorator in
-  // sasjs/server (`@SuccessResponse('200', ...)`), and this package follows the
-  // document until that release lands - a local 200 would fail the schema check
-  // that keeps this table honest.
   'DELETE /SASjsApi/permission/{uid}': { implemented: true },
 
   // Session - the caller's own session, then the record behind a triggered one

@@ -91,7 +91,7 @@ export interface RecordService {
     caller: Subject | undefined,
     by: { uid?: string; username?: string },
     body: { password?: string }
-  ): Promise<void>
+  ): Promise<string>
 
   listGroups(caller: Subject | undefined): Promise<GroupResponse[]>
   getGroup(
@@ -130,7 +130,7 @@ export interface RecordService {
     uid: string,
     body: { setting: string }
   ): Promise<PermissionResponse>
-  deletePermission(caller: Subject | undefined, uid: string): Promise<void>
+  deletePermission(caller: Subject | undefined, uid: string): Promise<string>
 
   listClients(caller: Subject | undefined): Promise<IdentityClientRecord[]>
   createClient(
@@ -408,6 +408,10 @@ export const createRecordService = (store: IdentityStore): RecordService => {
       }
 
       await store.deleteUser(current.uid)
+
+      // the server's route sends this string itself; the document carries it as
+      // the 200 description, so it is the answer and not an extra
+      return 'Account Deleted!'
     },
 
     async listGroups(caller) {
@@ -595,6 +599,8 @@ export const createRecordService = (store: IdentityStore): RecordService => {
       if (!(await store.permissionById(uid)))
         throw new ApiError(404, 'Permission not found.')
       await store.deletePermission(uid)
+
+      return 'Permission Deleted!'
     },
 
     async listClients(caller) {

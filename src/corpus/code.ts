@@ -38,13 +38,52 @@ export const CODE_CORPUS: CorpusCase[] = [
       ]
     }
   },
-  // Two refusals are deliberately not pinned here yet: a `code` that is not a
-  // string, and one that is empty. The package answers 400 `"code" must be a
-  // string` / `"code" is not allowed to be empty` - the messages the server's
-  // schema produces - but sasjs/server's code controller carries no
-  // `@Response(400)` for these routes, so the document states 200 alone and the
-  // parity gate refuses a case answering anything else. The cases land when the
-  // decorators do.
+  {
+    id: 'code-lint-unauthenticated',
+    route: 'POST /SASjsApi/code/lint',
+    description: 'refuses a caller with no token',
+    request: { body: { code: 'data _null_; run;' } },
+    expect: { status: 401, error: 'Unauthorized' }
+  },
+  {
+    id: 'code-lint-non-string',
+    route: 'POST /SASjsApi/code/lint',
+    description:
+      'refuses a code value that is not a string, rather than coercing it',
+    request: {
+      subject: { userId: 'user-admin', clientId: 'web_app' },
+      body: { code: 123 }
+    },
+    expect: { status: 400, error: '"code" must be a string' }
+  },
+  {
+    id: 'code-lint-empty',
+    route: 'POST /SASjsApi/code/lint',
+    description:
+      'refuses an empty buffer, which is not the same as a missing one',
+    request: {
+      subject: { userId: 'user-admin', clientId: 'web_app' },
+      body: { code: '' }
+    },
+    expect: { status: 400, error: '"code" is not allowed to be empty' }
+  },
+  {
+    id: 'code-format-unauthenticated',
+    route: 'POST /SASjsApi/code/format',
+    description: 'refuses a caller with no token',
+    request: { body: { code: 'data _null_; run;' } },
+    expect: { status: 401, error: 'Unauthorized' }
+  },
+  {
+    id: 'code-format-non-string',
+    route: 'POST /SASjsApi/code/format',
+    description: 'refuses a code value that is not a string',
+    request: {
+      subject: { userId: 'user-admin', clientId: 'web_app' },
+      body: { code: 123 }
+    },
+    expect: { status: 400, error: '"code" must be a string' }
+  },
   {
     id: 'code-format-adds-the-header',
     route: 'POST /SASjsApi/code/format',

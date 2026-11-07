@@ -34,6 +34,10 @@ const reportWith = (
   via: { source: number; severity: string; title: string }[],
   pkg = 'glob'
 ) => ({
+  auditReportVersion: 2,
+  metadata: {
+    vulnerabilities: { moderate: via.length, total: via.length }
+  },
   vulnerabilities: {
     [pkg]: { severity: 'moderate', via }
   }
@@ -90,5 +94,39 @@ describe('the advisory gate', () => {
 
     expect(status).toBe(0)
     expect(output).toContain('stale: minimatch 1244623')
+  })
+})
+
+describe('the advisory gate, when the audit did not run', () => {
+  it('fails rather than passing on a report that carries an error', () => {
+    // `npm audit` with no lockfile answers {"error":{"code":"ENOLOCK",...}} and
+    // no vulnerabilities map, which used to print a clean gate that audited
+    // nothing
+    const { status, output } = run({
+      error: {
+        code: 'ENOLOCK',
+        summary: 'This command requires an existing lockfile.'
+      }
+    })
+
+    expect(status).toBe(2)
+    expect(output).toContain('audit gate could not run')
+    expect(output).toContain('ENOLOCK')
+  })
+
+  it('fails on a report that is not an audit result', () => {
+    const { status, output } = run({ vulnerabilities: {} })
+
+    expect(status).toBe(2)
+    expect(output).toContain('no metadata or auditReportVersion')
+  })
+
+  it('treats a registry failure as a failure, not as a clean tree', () => {
+    const { status, output } = run({
+      error: { summary: 'registry returned 503' }
+    })
+
+    expect(status).toBe(2)
+    expect(output).toContain('registry returned 503')
   })
 })

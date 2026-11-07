@@ -11,8 +11,17 @@
  * moves under us, and a list that fails when a fix lands would be deleted rather
  * than kept current.
  *
+ * An audit that could not run is neither of those - it is a failure. A report
+ * carrying `error` (no lockfile, a registry that refused) has no `vulnerabilities`
+ * map at all, so treating it as a result would show a green gate that audited
+ * nothing.
+ *
  *     node scripts/audit.mjs                     # run npm audit, then judge
  *     node scripts/audit.mjs --report audit.json # judge a saved report
+ *
+ * Exit 0: nothing above the floor outside the allowlist.
+ * Exit 1: an advisory at or above the floor, or one whose severity was raised.
+ * Exit 2: the audit could not run, or did not produce a report.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -27,25 +36,66 @@ const arg = (name, fallback) => {
   return at === -1 ? fallback : process.argv[at + 1]
 }
 
-const allowlistPath = arg('allowlist', join(here, 'audit-allowlist.json'))
-const floor = arg('floor', 'moderate')
-if (!SEVERITY.includes(floor))
-  throw new Error(`--floor must be one of ${SEVERITY.join(', ')}`)
+/** A report that cannot be judged is not a clean report. */
+const readable = (report) => {
+  if (report?.error) {
+    const { code, summary, detail } = report.error
+    throw new Error(
+      `npm audit reported an error instead of a result: ${[
+        code,
+        summary || detail
+      ]
+        .filter(Boolean)
+        .join(' ')}`
+    )
+  }
 
-/** `npm audit --json` exits 1 when anything is found, which is not an error. */
+  if (!report || !report.metadata || report.auditReportVersion === undefined)
+    throw new Error(
+      'this is not an npm audit report: no metadata or auditReportVersion'
+    )
+
+  return report
+}
+
+/**
+ * `npm audit --json` exits 1 when it finds something, which is the report we
+ * asked for; any other status, or a 1 with nothing parsable, means the audit did
+ * not run. stderr is kept so the log says why rather than showing a clean gate.
+ */
 const auditReport = () => {
-  const report = arg('report')
-  if (report) return JSON.parse(readFileSync(report, 'utf8'))
+  const saved = arg('report')
+  if (saved) return readable(JSON.parse(readFileSync(saved, 'utf8')))
 
-  const json = execFileSync(
-    'sh',
-    ['-c', 'npm audit --json 2>/dev/null || true'],
-    {
+  let stdout = ''
+  let stderr = ''
+  let status = 0
+
+  try {
+    stdout = execFileSync('npm', ['audit', '--json'], {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024
-    }
-  )
-  return JSON.parse(json)
+    })
+  } catch (error) {
+    status = error.status
+    stdout = error.stdout ? String(error.stdout) : ''
+    stderr = error.stderr ? String(error.stderr) : ''
+
+    if (status !== 1 || !stdout.trim())
+      throw new Error(
+        `npm audit exited ${status} without a report${stderr.trim() ? `:\n${stderr.trim()}` : ''}`
+      )
+  }
+
+  try {
+    return readable(JSON.parse(stdout))
+  } catch (error) {
+    if (error instanceof SyntaxError)
+      throw new Error(
+        `npm audit exited ${status} without a parsable report${stderr.trim() ? `:\n${stderr.trim()}` : ''}`
+      )
+    throw error
+  }
 }
 
 /**
@@ -67,40 +117,54 @@ const advisoriesIn = (report) => {
   return [...seen.values()]
 }
 
-const report = auditReport()
-const allowlist = JSON.parse(readFileSync(allowlistPath, 'utf8'))
-const advisories = advisoriesIn(report)
-const allowed = new Map(allowlist.map((entry) => [`${entry.source}`, entry]))
-const atOrAbove = (entry) =>
-  SEVERITY.indexOf(entry.severity) >= SEVERITY.indexOf(floor)
+const main = () => {
+  const allowlistPath = arg('allowlist', join(here, 'audit-allowlist.json'))
+  const floor = arg('floor', 'moderate')
+  if (!SEVERITY.includes(floor))
+    throw new Error(`--floor must be one of ${SEVERITY.join(', ')}`)
 
-// The severity is part of the match: an advisory we carry as a moderate that is
-// re-rated as a high is news, not something the old reason still covers.
-const refused = advisories.filter((a) => {
-  const entry = allowed.get(`${a.source}`)
-  return atOrAbove(a) && (!entry || entry.severity !== a.severity)
-})
-const stale = allowlist.filter(
-  (entry) => !advisories.some((a) => `${a.source}` === `${entry.source}`)
-)
+  const report = auditReport()
+  const allowlist = JSON.parse(readFileSync(allowlistPath, 'utf8'))
+  const advisories = advisoriesIn(report)
+  const allowed = new Map(allowlist.map((entry) => [`${entry.source}`, entry]))
+  const atOrAbove = (entry) =>
+    SEVERITY.indexOf(entry.severity) >= SEVERITY.indexOf(floor)
 
-console.log(
-  `${advisories.length} distinct advisory/advisories, ${allowlist.length} allowlisted, floor ${floor}`
-)
-for (const entry of stale)
-  console.log(
-    `  stale: ${entry.package} ${entry.source} "${entry.title}" - ${entry.reason}`
+  // The severity is part of the match: an advisory we carry as a moderate that is
+  // re-rated as a high is news, not something the old reason still covers.
+  const refused = advisories.filter((a) => {
+    const entry = allowed.get(`${a.source}`)
+    return atOrAbove(a) && (!entry || entry.severity !== a.severity)
+  })
+  const stale = allowlist.filter(
+    (entry) => !advisories.some((a) => `${a.source}` === `${entry.source}`)
   )
 
-if (refused.length) {
-  for (const entry of refused)
+  console.log(
+    `${advisories.length} distinct advisory/advisories, ${allowlist.length} allowlisted, floor ${floor}`
+  )
+  for (const entry of stale)
     console.log(
-      `  REFUSED ${entry.severity}: ${entry.package} ${entry.source} "${entry.title}"`
+      `  stale: ${entry.package} ${entry.source} "${entry.title}" - ${entry.reason}`
     )
-  console.log(
-    'A new advisory at or above the floor. Fix it, or add it to scripts/audit-allowlist.json with the reason it cannot be fixed.'
-  )
-  process.exit(1)
+
+  if (refused.length) {
+    for (const entry of refused)
+      console.log(
+        `  REFUSED ${entry.severity}: ${entry.package} ${entry.source} "${entry.title}"`
+      )
+    console.log(
+      'A new advisory at or above the floor. Fix it, or add it to scripts/audit-allowlist.json with the reason it cannot be fixed.'
+    )
+    process.exit(1)
+  }
+
+  console.log('no advisory above the floor outside the allowlist')
 }
 
-console.log('no advisory above the floor outside the allowlist')
+try {
+  main()
+} catch (error) {
+  console.error(`audit gate could not run: ${error.message}`)
+  process.exit(2)
+}

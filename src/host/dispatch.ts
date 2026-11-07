@@ -319,19 +319,23 @@ export const dispatch = async (
         )
       }
     case 'DELETE /SASjsApi/user/{uid}':
-      await required().deleteUser(
-        await caller(),
-        { uid: String(params.uid ?? '') },
-        { password: body.password as string | undefined }
-      )
-      return { status: 204 }
+      return {
+        status: 200,
+        body: await required().deleteUser(
+          await caller(),
+          { uid: String(params.uid ?? '') },
+          { password: body.password as string | undefined }
+        )
+      }
     case 'DELETE /SASjsApi/user/by/username/{username}':
-      await required().deleteUser(
-        await caller(),
-        { username: String(params.username ?? '') },
-        { password: body.password as string | undefined }
-      )
-      return { status: 204 }
+      return {
+        status: 200,
+        body: await required().deleteUser(
+          await caller(),
+          { username: String(params.username ?? '') },
+          { password: body.password as string | undefined }
+        )
+      }
 
     case 'GET /SASjsApi/group':
       return { status: 200, body: await required().listGroups(await caller()) }
@@ -408,11 +412,13 @@ export const dispatch = async (
         )
       }
     case 'DELETE /SASjsApi/permission/{uid}':
-      await required().deletePermission(
-        await caller(),
-        String(params.uid ?? '')
-      )
-      return { status: 204 }
+      return {
+        status: 200,
+        body: await required().deletePermission(
+          await caller(),
+          String(params.uid ?? '')
+        )
+      }
 
     case 'GET /SASjsApi/client':
       return { status: 200, body: await required().listClients(await caller()) }

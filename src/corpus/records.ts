@@ -392,7 +392,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     description: 'deletes an account as an administrator, without a password',
     identity: ADMIN_SIGNED_IN,
     request: { token: ADMIN, params: { uid: RESTRICTED_UID }, body: {} },
-    expect: { status: 204 }
+    expect: { status: 200, body: 'Account Deleted!' }
   },
   {
     id: 'delete-user-not-admin',
@@ -420,7 +420,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
       params: { username: 'user2' },
       body: {}
     },
-    expect: { status: 204 }
+    expect: { status: 200, body: 'Account Deleted!' }
   },
   {
     id: 'delete-user-by-username-wrong-password',
@@ -1071,7 +1071,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     description: 'deletes a rule',
     identity: ADMIN_SIGNED_IN,
     request: { token: ADMIN, params: { uid: 'rule-code' } },
-    expect: { status: 204 }
+    expect: { status: 200, body: 'Permission Deleted!' }
   },
   {
     id: 'delete-permission-not-admin',

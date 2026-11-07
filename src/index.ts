@@ -116,6 +116,7 @@ export type {
   SessionHost,
   SessionService,
   SessionStateResponse,
+  SessionStateValue,
   SessionSummary
 } from './session/service.js'
 export { DEFAULT_SESSIONS, MemorySessionHost } from './session/memory-host.js'

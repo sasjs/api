@@ -14,6 +14,13 @@
  * the server sends.
  */
 import { ApiError } from '../types.js'
+import {
+  ALWAYS_VISIBLE_ROUTES,
+  DEFAULT_GRANTABLE_ROUTES,
+  isRouteGranted,
+  topLevelRouteFor
+} from './routeAccess.js'
+import type { RouteRules } from './routeAccess.js'
 import type {
   IdentityClientRecord,
   IdentityGroupRecord,
@@ -67,6 +74,11 @@ export interface PermissionResponse {
   user?: string
   /** The uid of the group the rule is assigned to, when it is a group's. */
   group?: string
+}
+
+/** What `authorizedRoutes` and `myAuthorizedRoutes` answer. */
+export interface AuthorizedRoutesResponse {
+  paths: string[]
 }
 
 export interface RecordService {
@@ -124,6 +136,19 @@ export interface RecordService {
     groupUid: string,
     userUid: string
   ): Promise<GroupDetailsResponse>
+
+  /**
+   * The routes that accept a rule. Any authenticated caller may read it: it is
+   * the inventory, not a statement about what this caller holds.
+   */
+  listAuthorizedRoutes(
+    caller: Subject | undefined
+  ): Promise<AuthorizedRoutesResponse>
+
+  /** The routes this caller may use, from the rules that bear on them. */
+  myAuthorizedRoutes(
+    caller: Subject | undefined
+  ): Promise<AuthorizedRoutesResponse>
 
   listPermissions(caller: Subject | undefined): Promise<PermissionResponse[]>
   createPermission(
@@ -239,7 +264,21 @@ const asGroup = (group: IdentityGroupRecord): GroupResponse => ({
   description: group.description
 })
 
-export const createRecordService = (store: IdentityStore): RecordService => {
+export interface RecordServiceOptions {
+  /**
+   * The routes that accept a permission rule. Defaults to the ones this package
+   * knows; a host that streams applications adds `/AppStream/<app>` for each,
+   * because that set is the host's configuration and not a fact about the API.
+   */
+  grantableRoutes?: string[]
+}
+
+export const createRecordService = (
+  store: IdentityStore,
+  options: RecordServiceOptions = {}
+): RecordService => {
+  const grantableRoutes = options.grantableRoutes || DEFAULT_GRANTABLE_ROUTES
+
   const groupDetails = async (
     group: IdentityGroupRecord
   ): Promise<GroupDetailsResponse> => {
@@ -506,6 +545,57 @@ export const createRecordService = (store: IdentityStore): RecordService => {
       const updated = await store.removeFromGroup(groupUid, userUid)
       if (!updated) throw new ApiError(400, 'Unable to update group.')
       return groupDetails(updated)
+    },
+
+    async listAuthorizedRoutes(caller) {
+      // an identity is required because the route is about a caller's access,
+      // even though what it returns is the whole inventory
+      await requireCaller(store, caller)
+      return { paths: [...grantableRoutes] }
+    },
+
+    async myAuthorizedRoutes(caller) {
+      const reader = await requireCaller(store, caller)
+
+      // an administrator holds every route, and the always-visible ones are
+      // visible whatever the rules say
+      if (reader.isAdmin) return { paths: [...grantableRoutes] }
+
+      const rules = await store.permissions()
+      const mine: RouteRules = {
+        user: rules
+          .filter((rule) => rule.user === reader.uid)
+          .map((rule) => ({ path: rule.path, setting: rule.setting })),
+        group: rules
+          .filter(
+            (rule) =>
+              rule.group !== undefined && reader.groups.includes(rule.group)
+          )
+          .map((rule) => ({ path: rule.path, setting: rule.setting }))
+      }
+
+      // a grant on the reserved public group admits any caller, and it is
+      // checked before the rules so no user or group rule can take it away
+      const publicGroup = (await store.groups()).find(
+        (group) => group.name === 'public'
+      )
+      const publicGrants = publicGroup
+        ? rules
+            .filter(
+              (rule) =>
+                rule.group === publicGroup.uid && rule.setting === 'Grant'
+            )
+            .map((rule) => rule.path)
+        : []
+
+      return {
+        paths: grantableRoutes.filter(
+          (path) =>
+            ALWAYS_VISIBLE_ROUTES.includes(path) ||
+            publicGrants.includes(path) ||
+            isRouteGranted(mine, path, topLevelRouteFor(path))
+        )
+      }
     },
 
     async listPermissions(caller) {

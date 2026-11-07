@@ -337,6 +337,17 @@ export const dispatch = async (
         )
       }
 
+    case 'GET /SASjsApi/info/authorizedRoutes':
+      return {
+        status: 200,
+        body: await required().listAuthorizedRoutes(await caller())
+      }
+    case 'GET /SASjsApi/info/myAuthorizedRoutes':
+      return {
+        status: 200,
+        body: await required().myAuthorizedRoutes(await caller())
+      }
+
     case 'GET /SASjsApi/group':
       return { status: 200, body: await required().listGroups(await caller()) }
     case 'GET /SASjsApi/group/{uid}':
@@ -465,6 +476,8 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'GET /SASjsApi/info/authorizedRoutes',
+  'GET /SASjsApi/info/myAuthorizedRoutes',
   'GET /SASjsApi/drive/file',
   'POST /SASjsApi/drive/file',
   'PATCH /SASjsApi/drive/file',

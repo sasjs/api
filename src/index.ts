@@ -52,13 +52,18 @@ export type { RouteMatch } from './routes/index.js'
 export { OVERLAY, TAG_CAPABILITIES } from './routes/overlay.js'
 export type { RouteOverlay } from './routes/overlay.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
+
+// a host gating its own middleware reads the same decision the inventory reports
+export * from './identity/routeAccess.js'
 export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
 export { createIdentityService } from './identity/service.js'
 export { createRecordService, sanitiseDisplayName } from './identity/records.js'
 export type {
+  AuthorizedRoutesResponse,
   GroupDetailsResponse,
   GroupResponse,
   PermissionResponse,
+  RecordServiceOptions,
   RecordService,
   UserDetailsResponse,
   UserResponse

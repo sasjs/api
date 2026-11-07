@@ -734,6 +734,70 @@ export const RECORD_CORPUS: CorpusCase[] = [
 
   // ------------------------------------------------------------ permissions
   {
+    id: 'authorized-routes',
+    route: 'GET /SASjsApi/info/authorizedRoutes',
+    description: 'answers the routes that accept a rule, to any caller',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: RESTRICTED },
+    expect: {
+      status: 200,
+      body: {
+        paths: [
+          '/AppStream',
+          '/SASjsApi',
+          '/SASjsApi/code/execute',
+          '/SASjsApi/stp/execute',
+          '/SASjsApi/drive/deploy',
+          '/SASjsApi/drive/deploy/upload',
+          '/SASjsApi/drive/file',
+          '/SASjsApi/drive/folder',
+          '/SASjsApi/drive/fileTree',
+          '/SASjsApi/drive/rename'
+        ]
+      }
+    }
+  },
+  {
+    id: 'my-authorized-routes-as-admin',
+    route: 'GET /SASjsApi/info/myAuthorizedRoutes',
+    description: 'answers every route to an administrator',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: ADMIN },
+    expect: {
+      status: 200,
+      body: {
+        paths: [
+          '/AppStream',
+          '/SASjsApi',
+          '/SASjsApi/code/execute',
+          '/SASjsApi/stp/execute',
+          '/SASjsApi/drive/deploy',
+          '/SASjsApi/drive/deploy/upload',
+          '/SASjsApi/drive/file',
+          '/SASjsApi/drive/folder',
+          '/SASjsApi/drive/fileTree',
+          '/SASjsApi/drive/rename'
+        ]
+      }
+    }
+  },
+  {
+    id: 'my-authorized-routes-as-user',
+    route: 'GET /SASjsApi/info/myAuthorizedRoutes',
+    description: 'answers a caller only the routes its rules grant',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: RESTRICTED },
+    expect: {
+      status: 200,
+      // /AppStream is visible whatever the rules say; the two grants come from
+      // DCGroup; /SASjsApi/code/execute is denied to this user by a user rule,
+      // and nothing grants the rest
+      body: {
+        paths: ['/AppStream', '/SASjsApi/stp/execute', '/SASjsApi/drive/file']
+      }
+    }
+  },
+  {
     id: 'list-permissions-as-admin',
     route: 'GET /SASjsApi/permission',
     description: 'returns every rule to an administrator',

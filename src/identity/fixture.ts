@@ -132,7 +132,7 @@ export const DEFAULT_IDENTITY: IdentityFixture = {
   permissions: [
     {
       uid: 'rule-routes',
-      path: '/SASjsApi/info',
+      path: '/SASjsApi/drive/file',
       type: 'Route',
       setting: 'Grant',
       group: 'group-data-controller'

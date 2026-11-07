@@ -49,13 +49,24 @@ export interface GroupDetailsResponse extends GroupResponse {
   users: UserResponse[]
 }
 
+/**
+ * A permission rule as the routes report one.
+ *
+ * The principal is the identifier, not the whole account: a rule is a row in a
+ * table, and a host on any database can produce `user` or `group` as a uid
+ * without a join or a populate step. A client that wants the name asks for the
+ * account it names, which it can do whether the store is Mongo, a browser's
+ * IndexedDB or a file.
+ */
 export interface PermissionResponse {
   uid: string
   path: string
   type: string
   setting: string
-  user?: UserResponse
-  group?: GroupDetailsResponse
+  /** The uid of the account the rule is assigned to, when it is a user's. */
+  user?: string
+  /** The uid of the group the rule is assigned to, when it is a group's. */
+  group?: string
 }
 
 export interface RecordService {
@@ -269,23 +280,14 @@ export const createRecordService = (store: IdentityStore): RecordService => {
 
   const permissionDetails = async (
     permission: IdentityPermissionRecord
-  ): Promise<PermissionResponse> => {
-    const response: PermissionResponse = {
-      uid: permission.uid,
-      path: permission.path,
-      type: permission.type,
-      setting: permission.setting
-    }
-    if (permission.user) {
-      const user = await store.userById(permission.user)
-      if (user) response.user = asUser(user)
-    }
-    if (permission.group) {
-      const group = await store.groupById(permission.group)
-      if (group) response.group = await groupDetails(group)
-    }
-    return response
-  }
+  ): Promise<PermissionResponse> => ({
+    uid: permission.uid,
+    path: permission.path,
+    type: permission.type,
+    setting: permission.setting,
+    ...(permission.user ? { user: permission.user } : {}),
+    ...(permission.group ? { group: permission.group } : {})
+  })
 
   return {
     async listUsers(caller) {

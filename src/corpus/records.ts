@@ -430,7 +430,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: RESTRICTED,
       params: { username: 'user2' },
-      body: { password: 'wrong' }
+      body: { password: 'wrong123' }
     },
     expect: { status: 401, error: 'Invalid password.' }
   },
@@ -744,55 +744,24 @@ export const RECORD_CORPUS: CorpusCase[] = [
       body: [
         {
           uid: 'rule-routes',
-          path: '/SASjsApi/info',
+          path: '/SASjsApi/drive/file',
           type: 'Route',
           setting: 'Grant',
-          group: {
-            uid: 'group-data-controller',
-            name: 'DCGroup',
-            description: 'Data Controller users',
-            isActive: true,
-            users: [
-              {
-                uid: RESTRICTED_UID,
-                username: 'user2',
-                displayName: 'Demo User',
-                isAdmin: false
-              }
-            ]
-          }
+          group: 'group-data-controller'
         },
         {
           uid: 'rule-execute',
           path: '/SASjsApi/stp/execute',
           type: 'Route',
           setting: 'Grant',
-          group: {
-            uid: 'group-data-controller',
-            name: 'DCGroup',
-            description: 'Data Controller users',
-            isActive: true,
-            users: [
-              {
-                uid: RESTRICTED_UID,
-                username: 'user2',
-                displayName: 'Demo User',
-                isAdmin: false
-              }
-            ]
-          }
+          group: 'group-data-controller'
         },
         {
           uid: 'rule-code',
           path: '/SASjsApi/code/execute',
           type: 'Route',
           setting: 'Deny',
-          user: {
-            uid: RESTRICTED_UID,
-            username: 'user2',
-            displayName: 'Demo User',
-            isAdmin: false
-          }
+          user: RESTRICTED_UID
         }
       ]
     }
@@ -808,55 +777,24 @@ export const RECORD_CORPUS: CorpusCase[] = [
       body: [
         {
           uid: 'rule-routes',
-          path: '/SASjsApi/info',
+          path: '/SASjsApi/drive/file',
           type: 'Route',
           setting: 'Grant',
-          group: {
-            uid: 'group-data-controller',
-            name: 'DCGroup',
-            description: 'Data Controller users',
-            isActive: true,
-            users: [
-              {
-                uid: RESTRICTED_UID,
-                username: 'user2',
-                displayName: 'Demo User',
-                isAdmin: false
-              }
-            ]
-          }
+          group: 'group-data-controller'
         },
         {
           uid: 'rule-execute',
           path: '/SASjsApi/stp/execute',
           type: 'Route',
           setting: 'Grant',
-          group: {
-            uid: 'group-data-controller',
-            name: 'DCGroup',
-            description: 'Data Controller users',
-            isActive: true,
-            users: [
-              {
-                uid: RESTRICTED_UID,
-                username: 'user2',
-                displayName: 'Demo User',
-                isAdmin: false
-              }
-            ]
-          }
+          group: 'group-data-controller'
         },
         {
           uid: 'rule-code',
           path: '/SASjsApi/code/execute',
           type: 'Route',
           setting: 'Deny',
-          user: {
-            uid: RESTRICTED_UID,
-            username: 'user2',
-            displayName: 'Demo User',
-            isAdmin: false
-          }
+          user: RESTRICTED_UID
         }
       ]
     }
@@ -877,7 +815,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/folder',
         type: 'Route',
         setting: 'Grant',
         principalType: 'user',
@@ -886,7 +824,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     },
     expect: {
       status: 200,
-      partial: { path: '/SASjsApi/code/lint', setting: 'Grant' }
+      partial: { path: '/SASjsApi/drive/folder', setting: 'Grant' }
     }
   },
   {
@@ -897,7 +835,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/rename',
         type: 'Route',
         setting: 'Grant',
         principalType: 'group',
@@ -907,9 +845,9 @@ export const RECORD_CORPUS: CorpusCase[] = [
     expect: {
       status: 200,
       partial: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/rename',
         setting: 'Grant',
-        group: { uid: 'group-data-controller', name: 'DCGroup' }
+        group: 'group-data-controller'
       }
     }
   },
@@ -921,7 +859,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/deploy',
         type: 'Route',
         setting: 'Grant',
         principalType: 'role',
@@ -941,7 +879,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/folder',
         type: 'Route',
         setting: 'Grant',
         principalType: 'user',
@@ -961,7 +899,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: RESTRICTED,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/folder',
         type: 'Route',
         setting: 'Grant',
         principalType: 'user',
@@ -978,7 +916,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/code/lint',
+        path: '/SASjsApi/drive/rename',
         type: 'Route',
         setting: 'Grant',
         principalType: 'group',
@@ -995,7 +933,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       body: {
-        path: '/SASjsApi/info',
+        path: '/SASjsApi/drive/file',
         type: 'Route',
         setting: 'Grant',
         principalType: 'group',

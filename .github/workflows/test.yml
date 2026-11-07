@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-# Least privilege: the workflow reads the tree and nothing else.
+# Least privilege: the workflow reads the tree, and writes one comment - the
+# coverage report - on a pull request.
 permissions:
   contents: read
 
@@ -21,6 +22,12 @@ jobs:
       fail-fast: false
       matrix:
         node: [22, 24]
+    # Job-level grant for the coverage comment below. A pull request from a fork
+    # still receives a read-only token, so that step also guards on the head
+    # repository rather than relying on this block alone.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -65,6 +72,49 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # Rendered from the summary this run just wrote, so the comment cannot
+      # disagree with the gate. One leg posts it: two would race on the same
+      # comment, and the numbers are the same either way.
+      - name: Render the coverage comment
+        if: github.event_name == 'pull_request' && matrix.node == 22
+        run: node scripts/coverage-comment.mjs --out coverage-comment.md
+
+      - name: Post the coverage comment
+        if: github.event_name == 'pull_request' && matrix.node == 22 && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const fs = require('node:fs')
+            // the marker is how the next run finds this comment again, so a
+            // rebased or amended head updates one comment instead of stacking
+            const marker = '<!-- coverage-report -->'
+            const body =
+              marker + '\n' + fs.readFileSync('coverage-comment.md', 'utf8')
+            const { owner, repo } = context.repo
+            const issue_number = context.payload.pull_request.number
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            )
+            const existing = comments.find(
+              (comment) => comment.body && comment.body.includes(marker)
+            )
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              })
+            }
 
       - name: Build
         run: npm run build

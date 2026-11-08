@@ -207,4 +207,48 @@ describe('findRoute', () => {
     expect(findRoute('GET', '/SASjsApi/nope')).toBeUndefined()
     expect(findRoute('PUT', '/SASjsApi/drive/file')).toBeUndefined()
   })
+
+  it('matches a static path whatever its casing, as the host does', () => {
+    // express's `case sensitive routing` is off by default and sasjs/server
+    // never turns it on, so the server answers any casing the caller sends.
+    // A matcher that compared the strings answered 404 where the server did
+    // not - and the server's own front end asks for `fileTree`, a capital T
+    // the document spells `filetree`.
+    expect(findRoute('GET', '/SASjsApi/drive/fileTree')?.route.id).toBe(
+      'GET /SASjsApi/drive/filetree'
+    )
+    expect(findRoute('GET', '/SASjsApi/drive/filetree')?.route.id).toBe(
+      'GET /SASjsApi/drive/filetree'
+    )
+    expect(findRoute('GET', '/SASJSAPI/INFO')?.route.id).toBe(
+      'GET /SASjsApi/info'
+    )
+  })
+
+  it('captures a parameter without changing the case it was sent with', () => {
+    // the static segments ignore case; the value does not - a host looks the
+    // user or the file up by the name the client named.
+    expect(
+      findRoute('GET', '/SASjsApi/user/by/username/SasDemo')?.params
+    ).toEqual({ username: 'SasDemo' })
+    expect(findRoute('GET', '/SASjsApi/USER/AbC')?.params).toEqual({
+      uid: 'AbC'
+    })
+  })
+
+  it('holds no two paths that differ only by case', () => {
+    // a case-insensitive matcher cannot tell such a pair apart, and the exact
+    // map would keep whichever was inserted last - so the table must not
+    // contain one
+    const seen = new Map<string, string>()
+
+    for (const route of ROUTES) {
+      const key = route.method + ' ' + route.path.toLowerCase()
+      expect({ key, clash: seen.get(key) }).toEqual({
+        key,
+        clash: undefined
+      })
+      seen.set(key, route.id)
+    }
+  })
 })

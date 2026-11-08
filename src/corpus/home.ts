@@ -6,9 +6,10 @@ import type { WebPage } from '../home/service.js'
  *
  * A bundle reference the stamping rule must rewrite, a second reference that
  * already carries a query string (left alone, which is what makes the transform
- * idempotent), and the bundle's name in prose (left as prose). The page a real
- * host reads looks like this; the values are a fixture so a case can pin the
- * exact bytes.
+ * idempotent), a stylesheet whose name merely begins with the bundle's (left
+ * alone, which is where this rule differs from sasjs/server's `includes`), and
+ * the bundle's name in prose (left as prose). The page a real host reads looks
+ * like this; the values are a fixture so a case can pin the exact bytes.
  */
 export const CORPUS_WEB_PAGE: WebPage = {
   version: '4a26a3d1b2c3',
@@ -19,6 +20,9 @@ export const CORPUS_WEB_PAGE: WebPage = {
     '  <script src="./index.bundle.js"></script>',
     '  <script src="./vendor.js?v=keepme"></script>',
     '  <link rel="stylesheet" href="./index.bundle.css" />',
+    // a name that merely begins with the bundle's: stamped by an `includes`
+    // match, left alone here - see BUNDLE_REFERENCE
+    '  <link rel="stylesheet" href="./index.bundle.js.css" />',
     '</head>',
     '<body>',
     '  <p>The page loads index.bundle.js from the folder beside it.</p>',

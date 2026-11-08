@@ -121,7 +121,10 @@ describe('the home service', () => {
 })
 
 describe('the home route', () => {
-  it('is carried, and annotated with the body the document states', () => {
+  it('is carried, public, and states the status the document states', () => {
+    // no body annotation: the usual 200 is the host's own page, and the fallback
+    // is NO_WEB_BUILD - neither is a value a client keys on
+
     const route = routeById('GET /')
 
     expect(route?.implemented).toBe(true)

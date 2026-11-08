@@ -33,15 +33,15 @@
  */
 export interface InfoResponse {
   /**
-   * Which mode the host runs in, from `MODE` - `server` or `desktop` on
-   * sasjs/server. Typed as a string because that is what the published document
-   * states: sasjs/server#593 types it as the enum so tsoa publishes one, and the
-   * refusal below tightens to the two words when that release is vendored here.
+   * Which mode the host runs in, from `MODE` - and the two words the document
+   * states, `ModeType` (`server`, `desktop`). Typed as a string because that is
+   * the JSON type; the service refuses anything outside the enum, and a spec
+   * reads the enum out of `spec/swagger.yaml` so the two cannot drift.
    */
   mode: string
   /**
-   * The host's CORS setting, from `CORS`. The server passes the variable
-   * through, so it is read as a string until sasjs/server#593 states the enum.
+   * The host's CORS setting, from `CORS` - the document's `CorsType` (`enable`,
+   * `disable`), enforced the same way.
    */
   cors: string
   /** The plain HTTP listener's port, or `null` when it is disabled. */
@@ -109,6 +109,15 @@ const FIELDS = [
 
 /** The properties the document makes required; `oidcProviderName` is not one. */
 const REQUIRED_FIELDS = FIELDS.filter((field) => field !== 'oidcProviderName')
+
+/**
+ * The two enums the document states for this body, from the `ModeType` and
+ * `CorsType` schemas sasjs/server publishes (v4.16.2). `spec/info.spec.ts`
+ * reads them back out of `spec/swagger.yaml` and fails if these lists and the
+ * document disagree in either direction.
+ */
+export const MODES = ['server', 'desktop']
+export const CORS_VALUES = ['enable', 'disable']
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0
@@ -179,18 +188,15 @@ export const normaliseInfo = (config: InfoResponse): InfoResponse => {
       )
 
   const mode = (config as InfoResponse).mode
-  if (!isNonEmptyString(mode) || mode.trim() === '')
+  if (!MODES.includes(mode))
     throw new Error(
-      `The info configuration states mode as ${JSON.stringify(mode)}; the document states which mode the host runs in.`
+      `The info configuration states mode as ${JSON.stringify(mode)}; the document states the ModeType enum - ${MODES.map((value) => `\`${value}\``).join(' or ')}.`
     )
 
-  // the document states `cors` as a string and the server passes `CORS` through
-  // verbatim, so any word is accepted here. sasjs/server#593 types both as
-  // enums; the refusal tightens with the release that publishes them.
   const cors = (config as InfoResponse).cors
-  if (!isNonEmptyString(cors) || cors.trim() === '')
+  if (!CORS_VALUES.includes(cors))
     throw new Error(
-      `The info configuration states cors as ${JSON.stringify(cors)}; the document states the host's CORS setting.`
+      `The info configuration states cors as ${JSON.stringify(cors)}; the document states the CorsType enum - ${CORS_VALUES.map((value) => `\`${value}\``).join(' or ')}.`
     )
 
   const version = (config as InfoResponse).version

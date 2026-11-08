@@ -8,8 +8,13 @@
  * worker answered `{ mode, cors, whiteList, protocol, runTimes }` while the
  * document states eight required properties and no `whiteList`.
  */
+import fs from 'node:fs'
+import path from 'node:path'
+import { parse as parseYaml } from 'yaml'
 import {
   BROWSER_INFO,
+  CORS_VALUES,
+  MODES,
   createInfoService,
   normaliseInfo
 } from '../src/info/service.js'
@@ -117,42 +122,52 @@ describe('the info service', () => {
     expect((await service.info()).runTimes).toEqual(['sas', 'js', 'py'])
   })
 
-  it('answers `cors` and `mode` as the document states them - strings, verbatim', async () => {
-    // the server passes `CORS` and `MODE` through, and the document states both
-    // as `{type: string}`, so a host whose environment says `disabled` is
-    // answered rather than refused. sasjs/server#593 types both as enums and
-    // publishes them; the refusal tightens when that release is vendored here.
-    const info = await createInfoService({
-      ...serverInfo(),
-      mode: 'banana',
-      cors: 'disabled'
-    }).info()
-
-    expect({ mode: info.mode, cors: info.cors }).toEqual({
-      mode: 'banana',
-      cors: 'disabled'
-    })
+  it('refuses a `mode` or `cors` outside the enum the document states', () => {
+    // the server passes `MODE` and `CORS` through, but `verifyEnvVariables`
+    // refuses the process at startup unless they are one of two words, and
+    // sasjs/server v4.16.2 publishes both as enums
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), mode: 'banana' as never }))
+    ).toContain('the document states the ModeType enum')
+    expect(
+      refusal(() =>
+        normaliseInfo({ ...serverInfo(), cors: 'disabled' as never })
+      )
+    ).toContain('the document states the CorsType enum')
   })
 
-  it('refuses a `mode`, `cors` or `version` that is empty or not a string', () => {
-    for (const field of ['mode', 'cors', 'version'] as const) {
-      expect({
-        field,
-        empty: refusal(() => normaliseInfo({ ...serverInfo(), [field]: '' }))
-      }).toEqual({
-        field,
-        empty: expect.stringContaining(`states ${field} as ""`)
-      })
-      expect({
-        field,
-        wrong: refusal(() =>
-          normaliseInfo({ ...serverInfo(), [field]: 7 as never })
-        )
-      }).toEqual({
-        field,
-        wrong: expect.stringContaining(`states ${field} as 7`)
-      })
+  it('refuses the empty value the schema also refuses', () => {
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), mode: '' as never }))
+    ).toContain('states mode as ""')
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), cors: '' as never }))
+    ).toContain('states cors as ""')
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), mode: 7 as never }))
+    ).toContain('states mode as 7')
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), version: '' }))
+    ).toContain('states version as ""')
+    expect(
+      refusal(() => normaliseInfo({ ...serverInfo(), version: 7 as never }))
+    ).toContain('states version as 7')
+  })
+
+  it('states the same enums as the vendored document, in both directions', () => {
+    // the service hard-codes the two lists because the route table does not
+    // carry body enums; this is what keeps the copy honest
+    const document = parseYaml(
+      fs.readFileSync(
+        path.join(__dirname, '..', 'spec', 'swagger.yaml'),
+        'utf8'
+      )
+    ) as {
+      components: { schemas: Record<string, { enum?: string[] }> }
     }
+
+    expect(document.components.schemas.ModeType.enum).toEqual(MODES)
+    expect(document.components.schemas.CorsType.enum).toEqual(CORS_VALUES)
   })
 
   it('refuses a property the document does not state, because the route is public', () => {
@@ -217,12 +232,6 @@ describe('the info service', () => {
   })
 
   it("refuses an answer that is not the document's types", () => {
-    expect(
-      refusal(() => normaliseInfo({ ...serverInfo(), mode: '' }))
-    ).toContain('which mode the host runs in')
-    expect(
-      refusal(() => normaliseInfo({ ...serverInfo(), mode: 3 as never }))
-    ).toContain('which mode the host runs in')
     expect(
       refusal(() =>
         normaliseInfo({ ...serverInfo(), runTimes: 'sas' as never })

@@ -63,6 +63,14 @@ export { INFO_CORPUS } from './corpus/info.js'
 export { ADMIN_CORPUS } from './corpus/admin.js'
 export { AUTH_CONFIG_CORPUS } from './corpus/authconfig.js'
 export { DIRECTORY_CORPUS } from './corpus/directory.js'
+export { HOME_CORPUS } from './corpus/home.js'
+export {
+  BUNDLE_NAME,
+  NO_WEB_BUILD,
+  createHomeService,
+  withBundleVersion
+} from './home/service.js'
+export type { HomeService, WebPage } from './home/service.js'
 export {
   BROWSER_INFO,
   createInfoService,

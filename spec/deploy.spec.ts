@@ -66,6 +66,18 @@ describe('the deploy cap', () => {
     expect(checkDeployTree(tree, limits)).toBeNull()
   })
 
+  it('measures a program in UTF-8 bytes, including an astral character', () => {
+    // the cap is on the bytes a host stores, not on JavaScript's code units:
+    // e-acute is 2 bytes, the euro sign 3, and an emoji outside the BMP 4
+    const tree = [service('s', 'a\u00e9\u20ac\u{1F600}')]
+
+    expect(measureDeployTree(tree)).toEqual({
+      entries: 1,
+      totalBytes: 10,
+      largest: { path: 's.sas', bytes: 10 }
+    })
+  })
+
   it('refuses one entry past the cap, naming the figure and the limit', () => {
     const tree = [
       folder('app', [

@@ -2,7 +2,7 @@
  * The dispatcher's own edges: the answers that are about the API rather than
  * about the drive.
  */
-import { dispatch } from '../src/host/dispatch.js'
+import { dispatch, noHandler } from '../src/host/dispatch.js'
 import { createRecordService } from '../src/identity/records.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
@@ -30,28 +30,23 @@ const recordsOnly = (): ReturnType<typeof createRecordService> =>
   createRecordService(new MemoryIdentityStore({ ...DEFAULT_IDENTITY }))
 
 describe('dispatch', () => {
-  it('answers 501 for an operation this package has no handler for, naming it and what it waits on', async () => {
-    // The reason comes from src/routes/overlay.ts, so the refusal says what the
-    // operation depends on rather than only that it is missing.
-    expect(await failure(() => dispatch(services(), 'GET /'))).toEqual({
+  it('refuses an operation the table states but no case answers', () => {
+    // unreachable while every operation has a handler; exported so the safety
+    // net is itself tested rather than trusted
+    const error = noHandler('GET /SASjsApi/nope')
+
+    expect({ status: error.status, message: error.message }).toEqual({
       status: 501,
-      message:
-        'This package has no handler for GET /. The host serves its own web bundle; there is no API decision here for this package to answer.'
+      message: 'This package has no handler for GET /SASjsApi/nope.'
     })
   })
 
-  it('names a reason for every operation it refuses', async () => {
-    // covered in spec/routes.spec.ts against the table; this is the transport
-    // half - the reason reaches the caller rather than staying in the source. A
-    // body is supplied so the required-parameter check does not answer first.
-    // the only operation left without a handler, and its reason travels
-    const message = (
-      (await failure(() => dispatch(services(), 'GET /'))) as {
-        message: string
-      }
-    ).message
-
-    expect(message).toContain('serves its own web bundle')
+  it('answers 404 for an operation the API does not have', async () => {
+    // every operation in the table has a handler now, so the refusal a caller
+    // can still reach is a path that is not in the document at all
+    expect(
+      await failure(() => dispatch(services(), 'GET /SASjsApi/nope'))
+    ).toEqual({ status: 404, message: 'No such operation: GET /SASjsApi/nope' })
   })
 
   it('answers 501 for a record route when the host supplies no record service', async () => {
@@ -125,6 +120,17 @@ describe('dispatch', () => {
       status: 501,
       message:
         'This host has no identity service, so it cannot answer POST /SASLogon/login.'
+    })
+  })
+
+  it('refuses an operation the table states but no case answers', () => {
+    // unreachable while every operation has a handler; exported so the safety
+    // net is itself tested rather than trusted
+    const error = noHandler('GET /SASjsApi/nope')
+
+    expect({ status: error.status, message: error.message }).toEqual({
+      status: 501,
+      message: 'This package has no handler for GET /SASjsApi/nope.'
     })
   })
 

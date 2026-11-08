@@ -11,6 +11,7 @@ import { INFO_CORPUS } from '../src/corpus/info.js'
 import { ADMIN_CORPUS } from '../src/corpus/admin.js'
 import { AUTH_CONFIG_CORPUS } from '../src/corpus/authconfig.js'
 import { DIRECTORY_CORPUS } from '../src/corpus/directory.js'
+import { HOME_CORPUS } from '../src/corpus/home.js'
 import { createCodeService } from '../src/code/service.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
@@ -26,6 +27,7 @@ const CORPORA: Array<[string, CorpusCase[]]> = [
   ['deploy corpus', DEPLOY_CORPUS],
   ['code corpus', CODE_CORPUS],
   ['info corpus', INFO_CORPUS],
+  ['home corpus', HOME_CORPUS],
   ['admin corpus', ADMIN_CORPUS],
   ['auth-config corpus', AUTH_CONFIG_CORPUS],
   ['directory corpus', DIRECTORY_CORPUS],

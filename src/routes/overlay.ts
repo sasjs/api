@@ -87,9 +87,6 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
  * operation waits on, and thirty copies of the same sentence would say the same
  * thing thirty times.
  */
-const WEB_BUNDLE =
-  'The host serves its own web bundle; there is no API decision here for this package to answer.'
-
 const success = { status: 'success' }
 
 const user = {
@@ -101,8 +98,17 @@ const user = {
 }
 
 export const OVERLAY: Record<string, RouteOverlay> = {
-  // Web - the sign-in pages the identity service answers, and the bundle itself
-  'GET /': { implemented: false, reason: WEB_BUNDLE },
+  // Web - the sign-in pages the identity service answers, and the shell itself.
+  // The page is the host's file; the stamping rule that keeps a cached shell
+  // from pinning an old bundle is the package's.
+  'GET /': {
+    implemented: true,
+    // public: the shell is what an unauthenticated browser asks for first
+    capabilities: [],
+    responses: {
+      200: '<html><head></head><body>Web Build is not present</body></html>'
+    }
+  },
   'POST /SASLogon/login': {
     implemented: true,
     // The lockout and the provider failure are answered before the package is

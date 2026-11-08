@@ -25,6 +25,8 @@ import { createDirectoryService } from '../directory/service.js'
 import { CORPUS_AUTH_CONFIG } from './authconfig.js'
 import { CORPUS_DIAGNOSTICS, CORPUS_LOG, CORPUS_LOG_TAIL } from './admin.js'
 import { CORPUS_DIRECTORY } from './directory.js'
+import { createHomeService } from '../home/service.js'
+import { CORPUS_WEB_PAGE } from './home.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -68,6 +70,7 @@ export const servicesFor = (testCase: CorpusCase): Services => {
         : new MemoryDriveStore(testCase.seed || {})
     ),
     info: createInfoService(BROWSER_INFO),
+    home: createHomeService(async () => CORPUS_WEB_PAGE),
     authConfig: createAuthConfigService(CORPUS_AUTH_CONFIG),
     admin: createAdminService({
       diagnostics: async () => CORPUS_DIAGNOSTICS,

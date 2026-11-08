@@ -25,6 +25,7 @@ import type { InfoService } from '../info/service.js'
 import type { AuthConfigService } from '../authconfig/service.js'
 import type { AdminService } from '../admin/service.js'
 import type { DirectoryService } from '../directory/service.js'
+import type { HomeService } from '../home/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
@@ -108,6 +109,11 @@ export interface Services {
    * the connection is the host's.
    */
   directory?: DirectoryService
+  /**
+   * The web interface's shell. Absent, `GET /` answers 501: the page is a file
+   * only the host holds.
+   */
+  home?: HomeService
   drive: DriveService
   /**
    * Users, clients and tokens. A host without one answers 501 for the identity
@@ -342,6 +348,19 @@ export const dispatch = async (
   }
 
   switch (routeId) {
+    // The shell is a body, not JSON: an HTML page served with the content type
+    // the document states, as it came from the host (stamped, if it references
+    // a bundle).
+    case 'GET /': {
+      if (!services.home)
+        throw new ApiError(
+          501,
+          `This host has no home service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, contents: await services.home.home() }
+    }
+
     // The one answer a host states rather than derives: public, pre-auth, and
     // read by the login screen before anything else.
     case 'GET /SASjsApi/info': {
@@ -815,22 +834,34 @@ export const dispatch = async (
       })
       return { status: 204 }
 
-    default: {
-      // The reason the table carries travels with the refusal: a host developer
-      // reading a 501 wants to know what the operation waits on, not only that
-      // it is missing.
-      const reason = routeById(routeId)?.reason
-
-      throw new ApiError(
-        501,
-        `This package has no handler for ${routeId}.${reason ? ` ${reason}` : ''}`
-      )
-    }
+    default:
+      throw noHandler(routeId)
   }
+}
+
+/**
+ * The refusal for an operation the table states and this file does not answer.
+ *
+ * Unreachable while every operation has a handler - `spec/routes.spec` asserts
+ * that the table's `implemented` set and `HANDLED_ROUTES` are the same list - but
+ * it is kept as the answer a future operation gets if it reaches the document
+ * before it reaches the dispatcher, rather than a promise that resolves
+ * `undefined`. The reason the table carries travels with it: a host developer
+ * reading a 501 wants to know what the operation waits on, not only that it is
+ * missing.
+ */
+export const noHandler = (routeId: string): ApiError => {
+  const reason = routeById(routeId)?.reason
+
+  return new ApiError(
+    501,
+    `This package has no handler for ${routeId}.${reason ? ` ${reason}` : ''}`
+  )
 }
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'GET /',
   'GET /SASjsApi/info',
   'GET /SASjsApi/admin/diagnostics',
   'GET /SASjsApi/admin/logs',

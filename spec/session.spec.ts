@@ -110,7 +110,7 @@ describe('the session service', () => {
       new MemorySessionHost({
         ...DEFAULT_SESSIONS,
         'sess-by-name': {
-          owner: 'admin',
+          owner: 'sasjsadmin',
           summary: { sessionId: 'sess-by-name', state: 'completed' }
         }
       })

@@ -195,7 +195,10 @@ describe('the schema comparison itself', () => {
     // which is only true if the ref was resolved
     expect(
       differences(
-        { uid: 'rule-1', user: { uid: 'user-restricted', username: 'user2' } },
+        {
+          uid: 'rule-1',
+          user: { uid: 'user-restricted', username: 'sasjsuser' }
+        },
         schemaOf.PermissionDetailsResponse,
         ''
       )

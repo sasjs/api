@@ -28,8 +28,9 @@
  */
 import type {
   IdentityGroupRecord,
-  IdentityStore,
-  IdentityUserRecord
+  IdentityUserRecord,
+  NewGroup,
+  NewUser
 } from '../identity/types.js'
 
 export interface DirectoryUser {
@@ -43,6 +44,26 @@ export interface DirectoryGroup {
   name: string
   /** Members the directory says this group holds, by username. */
   members?: string[]
+}
+
+/**
+ * The five store methods a directory import needs.
+ *
+ * Narrower than `IdentityStore` on purpose: importing accounts has nothing to do
+ * with issuing tokens or spending authorization codes, and a host that wants to
+ * import a directory should not have to implement an identity service to do it.
+ * `IdentityStore` satisfies this structurally, so a host that already has one
+ * passes it unchanged.
+ */
+export interface DirectoryStore {
+  users(): Promise<IdentityUserRecord[]>
+  createUser(input: NewUser): Promise<IdentityUserRecord>
+  groups(): Promise<IdentityGroupRecord[]>
+  createGroup(input: NewGroup): Promise<IdentityGroupRecord>
+  addToGroup(
+    groupUid: string,
+    userUid: string
+  ): Promise<IdentityGroupRecord | undefined>
 }
 
 /** One look at the directory, as the host read it. */
@@ -131,13 +152,15 @@ const groupsOf = (groups: DirectoryGroup[]): DirectoryGroup[] => {
 /**
  * The import, over the host's store.
  *
- * `IdentityStore` is the port rather than `RecordService`, because the records
+ * `DirectoryStore` is the port rather than `RecordService`, because the records
  * routes require a password (a local account has one to set) and a
  * provider-managed account does not: the host's directory is where it
- * authenticates, and `passwordMatches` answers for it.
+ * authenticates. It is narrower than `IdentityStore` for the same reason - an
+ * import is not a sign-in, and a host should not implement token storage to run
+ * one.
  */
 export const createDirectoryService = (
-  store: IdentityStore,
+  store: DirectoryStore,
   source: DirectorySource,
   options: DirectoryServiceOptions = {}
 ): DirectoryService => {

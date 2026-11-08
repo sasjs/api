@@ -6,8 +6,8 @@
  * answer that omits `localLoginEnabled` locks a user out of a form the server
  * would have accepted. It is also the route both hosts answered differently:
  * sasjs/server sends `mode, cors, httpPort, httpsPort, runTimes, authProviders,
- * oidcProviderName?, localLoginEnabled`, while the browser build's service
- * worker sent `mode, cors, whiteList, protocol, runTimes` - missing three
+ * oidcProviderName?, localLoginEnabled, version`, while the browser build's service
+ * worker sent `mode, cors, whiteList, protocol, runTimes` - missing four
  * fields the document requires and carrying two it forbids. A client written
  * against the document could read neither answer portably.
  *
@@ -32,9 +32,17 @@
  * of a public answer - would be served to every anonymous caller.
  */
 export interface InfoResponse {
-  /** `server` or `desktop`; sasjs/server states which, so the screen can adapt. */
+  /**
+   * Which mode the host runs in, from `MODE` - `server` or `desktop` on
+   * sasjs/server. Typed as a string because that is what the published document
+   * states: sasjs/server#593 types it as the enum so tsoa publishes one, and the
+   * refusal below tightens to the two words when that release is vendored here.
+   */
   mode: string
-  /** `enable` or `disable` - the server's two words, not a boolean. */
+  /**
+   * The host's CORS setting, from `CORS`. The server passes the variable
+   * through, so it is read as a string until sasjs/server#593 states the enum.
+   */
   cors: string
   /** The plain HTTP listener's port, or `null` when it is disabled. */
   httpPort: number | null
@@ -48,6 +56,16 @@ export interface InfoResponse {
   oidcProviderName?: string
   /** Whether password sign-in for local accounts is switched on. */
   localLoginEnabled: boolean
+  /**
+   * What produced the running build, as `v3.2.2 (4a26a3d)`.
+   *
+   * The browser build's answer names whatever built the site; this package's
+   * own fixture says `dev`, the same fallback `sasjs/server` uses when it has no
+   * build stamp. Not optional: the document requires it, and a client that
+   * stamps the version in a corner of every screen - the login screen included -
+   * reads it before anyone has signed in.
+   */
+  version: string
 }
 
 export interface InfoService {
@@ -72,7 +90,8 @@ export const BROWSER_INFO: InfoResponse = {
   httpsPort: null,
   runTimes: ['js'],
   authProviders: [],
-  localLoginEnabled: false
+  localLoginEnabled: false,
+  version: 'dev'
 }
 
 /** The properties the document gives `InfoResponse`, and no others. */
@@ -84,14 +103,12 @@ const FIELDS = [
   'runTimes',
   'authProviders',
   'oidcProviderName',
-  'localLoginEnabled'
+  'localLoginEnabled',
+  'version'
 ]
 
 /** The properties the document makes required; `oidcProviderName` is not one. */
 const REQUIRED_FIELDS = FIELDS.filter((field) => field !== 'oidcProviderName')
-
-/** The two words `cors` carries, as sasjs/server answers it. */
-const CORS_VALUES = ['enable', 'disable']
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0
@@ -164,13 +181,22 @@ export const normaliseInfo = (config: InfoResponse): InfoResponse => {
   const mode = (config as InfoResponse).mode
   if (!isNonEmptyString(mode) || mode.trim() === '')
     throw new Error(
-      `The info configuration states mode as ${JSON.stringify(mode)}; the document states which mode the host runs in - \`server\` or \`desktop\`.`
+      `The info configuration states mode as ${JSON.stringify(mode)}; the document states which mode the host runs in.`
     )
 
+  // the document states `cors` as a string and the server passes `CORS` through
+  // verbatim, so any word is accepted here. sasjs/server#593 types both as
+  // enums; the refusal tightens with the release that publishes them.
   const cors = (config as InfoResponse).cors
-  if (!CORS_VALUES.includes(cors))
+  if (!isNonEmptyString(cors) || cors.trim() === '')
     throw new Error(
-      `The info configuration states cors as ${JSON.stringify(cors)}; the server answers \`enable\` or \`disable\`.`
+      `The info configuration states cors as ${JSON.stringify(cors)}; the document states the host's CORS setting.`
+    )
+
+  const version = (config as InfoResponse).version
+  if (!isNonEmptyString(version) || version.trim() === '')
+    throw new Error(
+      `The info configuration states version as ${JSON.stringify(version)}; the document states the release that produced the build, such as \`v3.2.2 (4a26a3d)\`.`
     )
 
   const authProviders = namesOf(config.authProviders, 'authProviders')
@@ -204,7 +230,8 @@ export const normaliseInfo = (config: InfoResponse): InfoResponse => {
     runTimes,
     authProviders,
     ...(oidcProviderName === undefined ? {} : { oidcProviderName }),
-    localLoginEnabled: config.localLoginEnabled
+    localLoginEnabled: config.localLoginEnabled,
+    version
   }
 }
 

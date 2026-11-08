@@ -273,7 +273,8 @@ export const OVERLAY: Record<string, RouteOverlay> = {
         httpsPort: 443,
         runTimes: ['sas', 'js'],
         authProviders: [],
-        localLoginEnabled: true
+        localLoginEnabled: true,
+        version: 'v3.2.2 (4a26a3d)'
       }
     }
   },

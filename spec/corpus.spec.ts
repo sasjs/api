@@ -63,6 +63,18 @@ describe.each(CORPORA)('%s', (_name, corpus) => {
         expect(Object.keys(actual.body as object).sort()).toEqual(
           testCase.expect.keys.slice().sort()
         )
+
+      if (testCase.expect.shape !== undefined) {
+        const { required, optional = [] } = testCase.expect.shape
+        const present = Object.keys(actual.body as object)
+        const allowed = [...required, ...optional]
+
+        expect({
+          case: testCase.id,
+          missing: required.filter((key) => !present.includes(key)),
+          unexpected: present.filter((key) => !allowed.includes(key))
+        }).toEqual({ case: testCase.id, missing: [], unexpected: [] })
+      }
     })
   }
 })

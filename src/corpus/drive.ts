@@ -59,6 +59,20 @@ export interface CorpusCase {
      */
     keys?: string[]
     /**
+     * The body's shape, where every value is the host's.
+     *
+     * `required` must all be present and every property the body carries must be
+     * named in `required` or `optional` - the document's `additionalProperties:
+     * false` stated as an assertion. A case that pins `body` or `keys` on such a
+     * route pins one host's values into the contract, which the live server then
+     * fails: `GET /SASjsApi/info` answers a mode, ports and a version that differ
+     * per host while every host answers the same shape.
+     */
+    shape?: {
+      required: string[]
+      optional?: string[]
+    }
+    /**
      * How the body travels, where a string could be either. `json` is a JSON
      * string on the wire - what tsoa emits for `Promise<string>` and what the
      * server's `res.json` sends; `text` is a body the route sends itself, which

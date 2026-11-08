@@ -28,7 +28,8 @@ const serverInfo = (): InfoResponse => ({
   httpsPort: 443,
   runTimes: ['sas', 'js'],
   authProviders: [],
-  localLoginEnabled: true
+  localLoginEnabled: true,
+  version: 'v4.16.1 (1a784eb)'
 })
 
 const refusal = (run: () => unknown): string => {
@@ -54,7 +55,8 @@ describe('the info service', () => {
       'httpsPort',
       'runTimes',
       'authProviders',
-      'localLoginEnabled'
+      'localLoginEnabled',
+      'version'
     ])
   })
 
@@ -70,7 +72,8 @@ describe('the info service', () => {
       httpsPort: null,
       runTimes: ['js'],
       authProviders: [],
-      localLoginEnabled: false
+      localLoginEnabled: false,
+      version: 'dev'
     })
   })
 
@@ -114,12 +117,42 @@ describe('the info service', () => {
     expect((await service.info()).runTimes).toEqual(['sas', 'js', 'py'])
   })
 
-  it("refuses the browser build's old `cors` word, by name", () => {
-    // `disabled` is what the service worker answered; the server answers
-    // `enable`/`disable`, and a client comparing the two saw two features
-    expect(
-      refusal(() => normaliseInfo({ ...serverInfo(), cors: 'disabled' }))
-    ).toContain('the server answers `enable` or `disable`')
+  it('answers `cors` and `mode` as the document states them - strings, verbatim', async () => {
+    // the server passes `CORS` and `MODE` through, and the document states both
+    // as `{type: string}`, so a host whose environment says `disabled` is
+    // answered rather than refused. sasjs/server#593 types both as enums and
+    // publishes them; the refusal tightens when that release is vendored here.
+    const info = await createInfoService({
+      ...serverInfo(),
+      mode: 'banana',
+      cors: 'disabled'
+    }).info()
+
+    expect({ mode: info.mode, cors: info.cors }).toEqual({
+      mode: 'banana',
+      cors: 'disabled'
+    })
+  })
+
+  it('refuses a `mode`, `cors` or `version` that is empty or not a string', () => {
+    for (const field of ['mode', 'cors', 'version'] as const) {
+      expect({
+        field,
+        empty: refusal(() => normaliseInfo({ ...serverInfo(), [field]: '' }))
+      }).toEqual({
+        field,
+        empty: expect.stringContaining(`states ${field} as ""`)
+      })
+      expect({
+        field,
+        wrong: refusal(() =>
+          normaliseInfo({ ...serverInfo(), [field]: 7 as never })
+        )
+      }).toEqual({
+        field,
+        wrong: expect.stringContaining(`states ${field} as 7`)
+      })
+    }
   })
 
   it('refuses a property the document does not state, because the route is public', () => {
@@ -149,7 +182,8 @@ describe('the info service', () => {
       'httpsPort',
       'runTimes',
       'authProviders',
-      'localLoginEnabled'
+      'localLoginEnabled',
+      'version'
     ]) {
       const config = { ...serverInfo() } as Record<string, unknown>
       delete config[field]
@@ -233,7 +267,8 @@ describe('the info route', () => {
           httpsPort: 443,
           runTimes: ['sas', 'js'],
           authProviders: [],
-          localLoginEnabled: true
+          localLoginEnabled: true,
+          version: 'v3.2.2 (4a26a3d)'
         }
       }
     ])

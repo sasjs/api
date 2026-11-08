@@ -19,7 +19,8 @@ describe('route table', () => {
     expect(
       ROUTES.filter((route) => route.capabilities.length === 0).map((r) => r.id)
     ).toEqual([
-      // public information and the health routes genuinely need nothing
+      // public information, and the shell an unauthenticated browser asks for
+      'GET /',
       'GET /SASjsApi/info'
     ])
   })
@@ -31,28 +32,13 @@ describe('route table', () => {
     expect(claimed).toEqual([...HANDLED_ROUTES].sort())
   })
 
-  it('implements every tag but the ones only a host can answer', () => {
-    const implemented = ROUTES.filter((route) => route.implemented).map(
-      (route) => route.tag
-    )
-    // every tag but Web, whose one operation - the bundle itself - is the
-    // host's: serving files is not an API decision
-    expect(new Set(implemented)).toEqual(
-      new Set([
-        'Drive',
-        'Auth',
-        'Web',
-        'Session',
-        'User',
-        'Group',
-        'Permission',
-        'Client',
-        'Info',
-        'Code',
-        'STP',
-        'Admin',
-        'Auth Config'
-      ])
+  it('implements every operation in the document', () => {
+    // there is nothing left a host has to answer instead: the web bundle was
+    // the last one, and its decision - stamping the bundle reference - is the
+    // package's, with the host supplying the page and the digest
+    expect(ROUTES.filter((route) => !route.implemented)).toEqual([])
+    expect(new Set(ROUTES.map((route) => route.tag))).toEqual(
+      new Set(ROUTES.filter((route) => route.implemented).map((r) => r.tag))
     )
   })
 

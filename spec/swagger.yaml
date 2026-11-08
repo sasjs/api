@@ -1,4 +1,4 @@
-# Vendored from sasjs/server: api/public/swagger.yaml at v4.16.3 (the released tag)
+# Vendored from sasjs/server: api/public/swagger.yaml at v4.16.4 (the released tag)
 # Regenerate in that repo with `npm run swagger` (tsoa spec), then copy the body
 # here, KEEPING this header, and run `npm run sync:routes`. The route table is
 # derived from this file, so a difference between the two is a failing build
@@ -2947,7 +2947,7 @@ paths:
                 '200':
                     description: Ok
                     content:
-                        application/json:
+                        text/html:
                             schema:
                                 type: string
             description: "Serves the web interface's `index.html`, with the current bundle version\nappended so a returning browser loads the updated bundle."

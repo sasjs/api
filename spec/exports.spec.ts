@@ -10,7 +10,13 @@
  * and it was reachable only by path, so `sasjs/server` could not name the shape
  * its own host method answers with.
  */
+import fs from 'node:fs'
+import path from 'node:path'
 import type {
+  AdminReports,
+  AuthConfig,
+  DirectoryStore,
+  WebPage,
   CallerDirectory,
   DriveStore,
   HostSession,
@@ -29,6 +35,7 @@ import type {
   InfoResponse,
   InfoService
 } from '../src/index.js'
+import * as api from '../src/index.js'
 import { BROWSER_INFO, createInfoService, isApiError } from '../src/index.js'
 
 describe('the entry point exports the types a host implements', () => {
@@ -110,5 +117,94 @@ describe('the entry point exports the types a host implements', () => {
     }
 
     expect(store).toBeDefined()
+  })
+})
+
+const SRC = path.join(__dirname, '..', 'src')
+
+/**
+ * The factories the tree defines, read out of `src/<module>/service.ts`.
+ *
+ * Derived rather than listed: a hand-maintained list is the thing this guard was
+ * written to replace, and it cannot see the case it exists for - a new
+ * `create*Service` that nobody adds to the entry point. `src/code` is the one
+ * deliberate exception: the editor's service pulls in `@sasjs/lint`, which reads
+ * the filesystem, so it is reachable at `@sasjs/api/code` and never from the
+ * root - a host that wants it imports the subpath.
+ */
+const factoriesInTree = (): string[] => {
+  const names: string[] = []
+
+  for (const entry of fs.readdirSync(SRC, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === 'code') continue
+
+    const file = path.join(SRC, entry.name, 'service.ts')
+    if (!fs.existsSync(file)) continue
+
+    for (const match of fs
+      .readFileSync(file, 'utf8')
+      .matchAll(/export const (create[A-Za-z]+Service)\b/g))
+      names.push(match[1])
+  }
+
+  return names
+}
+
+/** The corpora the tree defines, from every `src/corpus/*.ts`. */
+const corporaInTree = (): string[] => {
+  const folder = path.join(SRC, 'corpus')
+
+  return fs
+    .readdirSync(folder)
+    .filter((name) => name.endsWith('.ts'))
+    .flatMap((name) =>
+      [
+        ...fs
+          .readFileSync(path.join(folder, name), 'utf8')
+          .matchAll(/export const ([A-Z_]+_CORPUS)\b/g)
+      ].map((match) => match[1])
+    )
+}
+
+describe('the entry point exports every service a host needs', () => {
+  it('exports every factory the tree defines', () => {
+    const factories = factoriesInTree()
+
+    // the scanner has to have found something, or the assertion below passes on
+    // an empty list for ever
+    expect(factories).toEqual(expect.arrayContaining(['createDriveService']))
+
+    expect(
+      factories.filter(
+        (name) => typeof (api as Record<string, unknown>)[name] !== 'function'
+      )
+    ).toEqual([])
+  })
+
+  it('exports every corpus the tree defines', () => {
+    const corpora = corporaInTree()
+
+    expect(corpora).toEqual(expect.arrayContaining(['DRIVE_CORPUS']))
+
+    expect(
+      corpora.filter(
+        (name) => !Array.isArray((api as Record<string, unknown>)[name])
+      )
+    ).toEqual([])
+  })
+
+  it('and the types a host states its configuration with', () => {
+    // compile-time proof: these imports fail the suite if the entry point stops
+    // exporting them, which is the only way a type export can be asserted
+    const authConfig: AuthConfig = {}
+    const reports: AdminReports = {
+      diagnostics: async () => ({}) as never,
+      logs: async () => [],
+      logTail: async () => undefined
+    }
+    const store: DirectoryStore = {} as DirectoryStore
+    const page: WebPage = { html: '', version: '' }
+
+    expect([authConfig, reports, store, page]).toHaveLength(4)
   })
 })

@@ -19,6 +19,7 @@ import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { isApiError } from '../src/types.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 import { createDirectoryService as createDirectory } from '../src/directory/service.js'
+import type { DirectoryStore } from '../src/directory/service.js'
 
 const source = (
   users: DirectoryUser[],
@@ -275,6 +276,69 @@ describe('the directory import', () => {
         expect((error as { status: number }).status).toBe(501)
         expect((error as Error).message).toContain('has no directory service')
       }
+    })
+  })
+
+  describe('the port a host implements', () => {
+    it('is the five methods an import needs, and nothing about tokens', async () => {
+      // the point of the narrow port: a host imports a directory without an
+      // identity service. This object has no token, code or client method.
+      const users: Array<{
+        uid: string
+        username: string
+        displayName: string
+      }> = []
+      const groups: Array<{
+        uid: string
+        name: string
+        description: string
+        isActive: boolean
+        users: string[]
+      }> = []
+
+      const store: DirectoryStore = {
+        users: async () => users as never,
+        createUser: async (input) => {
+          const created = {
+            uid: `u-${users.length}`,
+            username: input.username,
+            displayName: input.displayName,
+            isAdmin: input.isAdmin,
+            isActive: input.isActive,
+            needsToUpdatePassword: false
+          }
+          users.push(created)
+          return created as never
+        },
+        groups: async () => groups as never,
+        createGroup: async (input) => {
+          const created = {
+            uid: `g-${groups.length}`,
+            name: input.name,
+            description: input.description,
+            isActive: input.isActive,
+            users: []
+          }
+          groups.push(created)
+          return created as never
+        },
+        addToGroup: async (groupUid, userUid) => {
+          const group = groups.find((candidate) => candidate.uid === groupUid)
+          if (group && !group.users.includes(userUid)) group.users.push(userUid)
+          return group as never
+        }
+      }
+
+      const result = await createDirectory(
+        store,
+        source(
+          [{ username: 'alice', displayName: 'Alice' }],
+          [{ name: 'analysts', members: ['alice'] }]
+        )
+      ).synchronise()
+
+      expect(result).toEqual({ userCount: 1, groupCount: 1 })
+      expect(groups[0].users).toEqual(['u-0'])
     })
   })
 })

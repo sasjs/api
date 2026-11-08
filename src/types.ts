@@ -134,7 +134,20 @@ export interface DriveStore {
   read(path: string): Promise<string | Uint8Array>
   write(path: string, contents: string | Uint8Array): Promise<void>
   exists(path: string): Promise<boolean>
-  stat(path: string): Promise<{ directory: boolean; size: number }>
+  /**
+   * What is at a path, as a host can report it.
+   *
+   * `modified` and `created` are ISO timestamps and optional: a store with no
+   * clock behind it (a Map seeded from a fixture) omits them rather than
+   * inventing a date. A host that has them - a filesystem, a browser's file
+   * metadata - states them, and they travel to the client on the drive tree.
+   */
+  stat(path: string): Promise<{
+    directory: boolean
+    size: number
+    modified?: string
+    created?: string
+  }>
   list(path: string): Promise<{ files: string[]; folders: string[] }>
   mkdirp(path: string): Promise<void>
   /** Removes a file, or a folder with everything under it. */
@@ -146,5 +159,9 @@ export interface TreeNode {
   name: string
   relativePath: string
   isFolder: boolean
+  /** ISO timestamp of the last write, when the host can report one. */
+  modified?: string
+  /** ISO timestamp of creation, when the host can report one. */
+  created?: string
   children: TreeNode[]
 }

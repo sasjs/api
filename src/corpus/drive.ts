@@ -377,7 +377,10 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     request: { query: { _folderPath: '/data' } },
     expect: {
       status: 200,
-      body: {
+      // Partial, because a file's `created` and `modified` are the host's
+      // clock rather than the contract: the shape is asserted, the timestamps
+      // are whatever the host that ran the case says they are.
+      partial: {
         status: 'success',
         tree: {
           name: 'data',

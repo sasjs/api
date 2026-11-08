@@ -16,6 +16,14 @@ type Entry = string | Uint8Array
 export class MemoryDriveStore implements DriveStore {
   private files = new Map<string, Entry>()
   private folders = new Set<string>(['/'])
+  /**
+   * When each entry was first written and last written, ISO strings.
+   *
+   * A Map has no clock of its own, so the store keeps one: a seeded drive is
+   * created when the store is, and a write moves `modified` while `created`
+   * stays. A host with real file metadata reports its own instead.
+   */
+  private times = new Map<string, { created: string; modified: string }>()
 
   constructor(seed: Record<string, Entry> = {}) {
     for (const [path, contents] of Object.entries(seed)) {
@@ -36,6 +44,14 @@ export class MemoryDriveStore implements DriveStore {
       path,
       typeof contents === 'string' ? contents : contents.slice()
     )
+
+    const now = new Date().toISOString()
+    const existing = this.times.get(path)
+
+    this.times.set(path, {
+      created: existing?.created ?? now,
+      modified: now
+    })
   }
 
   private mkdirpSync(path: string): void {
@@ -78,14 +94,24 @@ export class MemoryDriveStore implements DriveStore {
     return this.files.has(path) || this.folders.has(path)
   }
 
-  async stat(path: string): Promise<{ directory: boolean; size: number }> {
+  async stat(path: string): Promise<{
+    directory: boolean
+    size: number
+    modified?: string
+    created?: string
+  }> {
     if (this.folders.has(path) && !this.files.has(path))
       return { directory: true, size: 0 }
+
     const contents = this.files.get(path)
     if (contents === undefined) throw new ApiError(404, `File doesn't exist.`)
+
+    const times = this.times.get(path)
+
     return {
       directory: false,
-      size: typeof contents === 'string' ? contents.length : contents.length
+      size: typeof contents === 'string' ? contents.length : contents.length,
+      ...(times ? { modified: times.modified, created: times.created } : {})
     }
   }
 

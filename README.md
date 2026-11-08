@@ -112,6 +112,16 @@ Refreshing the API surface: regenerate `api/public/swagger.yaml` in `sasjs/serve
 
 Re-vendoring is a two-repository change and the server half merges first: the document is only true once the controllers it is generated from answer what it states, so a copy taken from an unmerged server branch describes a server that does not exist yet. Take the copy from a released tag of `sasjs/server` rather than from its `main`, and the document and the code a host runs cannot disagree.
 
+### The coverage ratchet
+
+`jest.config.js` carries a floor, and a floor only moves when somebody remembers to move it - so it passes a pull request that drops two points as long as it stays above the number. The ratchet is the other half:
+
+- `.github/workflows/coverage-baseline.yml` publishes `coverage/coverage-summary.json` for every push to `main` (90-day artifact);
+- a pull request downloads the summary published for its base commit - or for the newest commit the base commit descends from, named in the comment - and `.github/scripts/coverage-ratchet.mjs` fails when any of statements / branches / functions / lines is more than 0.05pt below it;
+- the same comparison is appended to the coverage comment, so "did this go backwards" is answered on the pull request rather than inferred from a total.
+
+A deliberate drop is a change to `coverageThreshold` in `jest.config.js` in that same pull request, where a reviewer sees it. The script's own cases run with `node --test .github/scripts/coverage-ratchet.test.mjs`; prove it locally by pointing `--head` and `--base` at the same summary (exit 0) and then at a copy with its totals raised a point (exit 1).
+
 ## Licence
 
 MIT. See `LICENCE.md`.

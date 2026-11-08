@@ -91,7 +91,7 @@ const DIRECTORY =
   'Synchronising with an external auth provider needs a directory port, which this package does not have: a host decides which directory it holds accounts in, and answers this itself.'
 
 const HOST_CONFIG =
-  "The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
+  "The body is the host's own provider configuration - the directory URL, bind DN and which secrets are set - which a mock states for itself and this package cannot know."
 
 const HOST_OWNED =
   "The host owns this report: it describes the host's own process and files, which a browser build has no equivalent of."
@@ -259,7 +259,24 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'DELETE /SASjsApi/group/{uid}': { implemented: true },
 
   // Info - what the host is, and what this caller may use
-  'GET /SASjsApi/info': { implemented: false, reason: HOST_CONFIG },
+  'GET /SASjsApi/info': {
+    implemented: true,
+    // The values are the host's; the shape is the document's, and the service
+    // refuses a configuration that adds a property it does not state (the
+    // browser build used to answer `whiteList` and `protocol`) or omits one it
+    // requires (`httpPort`, `httpsPort`, `localLoginEnabled`).
+    responses: {
+      200: {
+        mode: 'server',
+        cors: 'disable',
+        httpPort: 5000,
+        httpsPort: 443,
+        runTimes: ['sas', 'js'],
+        authProviders: [],
+        localLoginEnabled: true
+      }
+    }
+  },
   'GET /SASjsApi/info/authorizedRoutes': {
     implemented: true,
     capabilities: ['identity']

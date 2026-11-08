@@ -59,6 +59,13 @@ export type { ApiRequest, ApiResponse, Services } from './host/dispatch.js'
 export { createIdentityService } from './identity/service.js'
 export { createRecordService, sanitiseDisplayName } from './identity/records.js'
 export { CODE_CORPUS } from './corpus/code.js'
+export { INFO_CORPUS } from './corpus/info.js'
+export {
+  BROWSER_INFO,
+  createInfoService,
+  normaliseInfo
+} from './info/service.js'
+export type { InfoResponse, InfoService } from './info/service.js'
 export type {
   AuthorizedRoutesResponse,
   GroupDetailsResponse,

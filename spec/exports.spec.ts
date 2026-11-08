@@ -25,9 +25,11 @@ import type {
   SessionRunner,
   RuntimeRequest,
   RuntimeService,
-  TriggerResponse
+  TriggerResponse,
+  InfoResponse,
+  InfoService
 } from '../src/index.js'
-import { isApiError } from '../src/index.js'
+import { BROWSER_INFO, createInfoService, isApiError } from '../src/index.js'
 
 describe('the entry point exports the types a host implements', () => {
   it('the session port, including the artefact it answers with', () => {
@@ -83,6 +85,16 @@ describe('the entry point exports the types a host implements', () => {
     // the refusal predicate is a value export, and a host that catches an
     // ApiError needs it by name rather than by marker
     expect(typeof isApiError).toBe('function')
+  })
+
+  it('the info service and the answer it states', async () => {
+    // the host implements the configuration and the package implements the
+    // shape, so both halves have to be nameable from the entry point
+    const service: InfoService = createInfoService(BROWSER_INFO)
+    const answer: InfoResponse = await service.info()
+
+    expect(answer.runTimes).toEqual(['js'])
+    expect(answer.httpPort).toBeNull()
   })
 
   it('the drive port', () => {

@@ -36,8 +36,8 @@ describe('route table', () => {
       (route) => route.tag
     )
     // the tags left out are the ones whose every operation is the host's own
-    // fact: Admin's diagnostics and logs, Auth Config's providers and directory -
-    // plus, of Info, everything but the two route-inventory answers
+    // fact: Admin's diagnostics and logs, and Auth Config's providers and
+    // directory
     expect(new Set(implemented)).toEqual(
       new Set([
         'Drive',

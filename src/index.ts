@@ -60,6 +60,9 @@ export { createIdentityService } from './identity/service.js'
 export { createRecordService, sanitiseDisplayName } from './identity/records.js'
 export { CODE_CORPUS } from './corpus/code.js'
 export { INFO_CORPUS } from './corpus/info.js'
+export { ADMIN_CORPUS } from './corpus/admin.js'
+export { AUTH_CONFIG_CORPUS } from './corpus/authconfig.js'
+export { DIRECTORY_CORPUS } from './corpus/directory.js'
 export {
   BROWSER_INFO,
   createInfoService,

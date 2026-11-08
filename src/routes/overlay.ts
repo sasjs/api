@@ -87,15 +87,6 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
  * operation waits on, and thirty copies of the same sentence would say the same
  * thing thirty times.
  */
-const DIRECTORY =
-  'Synchronising with an external auth provider needs a directory port, which this package does not have: a host decides which directory it holds accounts in, and answers this itself.'
-
-const HOST_CONFIG =
-  "The body is the host's own provider configuration - the directory URL, bind DN and which secrets are set - which a mock states for itself and this package cannot know."
-
-const HOST_OWNED =
-  "The host owns this report: it describes the host's own process and files, which a browser build has no equivalent of."
-
 const WEB_BUNDLE =
   'The host serves its own web bundle; there is no API decision here for this package to answer.'
 
@@ -129,12 +120,71 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     responses: { 200: 'OK!' }
   },
 
-  // Admin - the host's own process and files
-  'GET /SASjsApi/admin/diagnostics': { implemented: false, reason: HOST_OWNED },
-  'GET /SASjsApi/admin/logs': { implemented: false, reason: HOST_OWNED },
+  // Admin - the host's own process and files, over the reports it supplies.
+  // The administrator check is the host's mount point (sasjs/server puts
+  // authenticateAccessToken and verifyAdmin in front of all three), so its 401
+  // - and the 500 a genuine failure answers - are host-only statuses.
+  'GET /SASjsApi/admin/diagnostics': {
+    implemented: true,
+    hostResponses: [401, 500],
+    responses: {
+      200: {
+        build: { version: '', gitHash: '', buildDate: null },
+        server: {
+          mode: 'desktop',
+          uptimeSeconds: 0,
+          startedAt: '',
+          pid: 0,
+          nodeVersion: '',
+          platform: '',
+          arch: '',
+          cpuCount: 0,
+          cpuModel: '',
+          loadAverage: [],
+          runTimes: [],
+          sasjsRoot: ''
+        },
+        memory: {
+          rssBytes: 0,
+          heapTotalBytes: 0,
+          heapUsedBytes: 0,
+          externalBytes: 0,
+          systemTotalBytes: 0,
+          systemFreeBytes: 0
+        },
+        filesystem: null,
+        folders: [],
+        logs: {
+          folder: '',
+          fileCount: 0,
+          totalBytes: 0,
+          newestFile: null,
+          newestModified: null
+        }
+      }
+    }
+  },
+  'GET /SASjsApi/admin/logs': {
+    implemented: true,
+    hostResponses: [401, 500],
+    responses: { 200: { files: [] } }
+  },
   'GET /SASjsApi/admin/logs/{fileName}': {
-    implemented: false,
-    reason: HOST_OWNED
+    implemented: true,
+    // 400 and 404 are the name rule's, and this package answers them before the
+    // host is asked for anything
+    hostResponses: [401, 500],
+    responses: {
+      200: {
+        fileName: '',
+        lines: 0,
+        bytesRead: 0,
+        truncated: false,
+        content: ''
+      },
+      400: 'Invalid log file name.',
+      404: 'Log file not found.'
+    }
   },
 
   // Auth - the token flow, plus a password change the identity store cannot write
@@ -154,11 +204,29 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     hostResponses: [404]
   },
 
-  // Auth Config - the providers a host was started with, and an LDAP import
-  'GET /SASjsApi/authConfig': { implemented: false, reason: HOST_CONFIG },
+  // Auth Config - the providers a host was started with, and an LDAP import.
+  // Both are administrator routes at the host's mount point, so 401 and the
+  // host's own 500 are host-only statuses; the package answers the body, and
+  // refuses a secret that a host tries to hand it.
+  'GET /SASjsApi/authConfig': {
+    implemented: true,
+    hostResponses: [401, 403, 500],
+    responses: {
+      200: {
+        ldap: {
+          LDAP_URL: '',
+          LDAP_BIND_DN: '',
+          LDAP_USERS_BASE_DN: '',
+          LDAP_GROUPS_BASE_DN: '',
+          LDAP_BIND_PASSWORD_SET: true
+        }
+      }
+    }
+  },
   'POST /SASjsApi/authConfig/synchroniseWithLDAP': {
-    implemented: false,
-    reason: DIRECTORY
+    implemented: true,
+    hostResponses: [401, 403, 500],
+    responses: { 200: { userCount: 0, groupCount: 0 } }
   },
 
   // Client - the OAuth clients the identity store already holds for sign-in

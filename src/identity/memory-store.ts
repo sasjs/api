@@ -409,7 +409,10 @@ export class MemoryIdentityStore implements IdentityStore {
       name: input.name,
       description: input.description,
       isActive: input.isActive,
-      users: []
+      users: [],
+      ...(input.authProvider === undefined
+        ? {}
+        : { authProvider: input.authProvider })
     }
     this.groupList.set(group.uid, group)
     return group

@@ -39,6 +39,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description:
+          'Unauthorized, or an administrator account is required. The mount point in routes/api/index.ts applies both checks before this handler runs.'
+      },
+      {
+        status: 500,
+        description: 'The diagnostics could not be read'
       }
     ]
   },
@@ -54,6 +63,15 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description:
+          'Unauthorized, or an administrator account is required. The mount point in routes/api/index.ts applies both checks before this handler runs.'
+      },
+      {
+        status: 500,
+        description: 'The log folder could not be listed'
       }
     ]
   },
@@ -82,6 +100,23 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description: 'Invalid log file name.'
+      },
+      {
+        status: 401,
+        description:
+          'Unauthorized, or an administrator account is required. The mount point in routes/api/index.ts applies both checks before this handler runs.'
+      },
+      {
+        status: 404,
+        description: 'Log file not found.'
+      },
+      {
+        status: 500,
+        description: 'The log file could not be read'
       }
     ]
   },
@@ -223,6 +258,19 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description:
+          'Unauthorized, or an administrator account is required. The mount point in routes/api/index.ts applies both checks before this handler runs.'
+      },
+      {
+        status: 403,
+        description: 'Not Allowed while in Desktop Mode.'
+      },
+      {
+        status: 500,
+        description: 'The provider configuration could not be read'
       }
     ]
   },
@@ -238,6 +286,19 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description:
+          'Unauthorized, or an administrator account is required. The mount point in routes/api/index.ts applies both checks before this handler runs.'
+      },
+      {
+        status: 403,
+        description: 'Not Allowed while in Desktop Mode.'
+      },
+      {
+        status: 500,
+        description: 'The directory could not be synchronised'
       }
     ]
   },

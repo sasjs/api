@@ -203,6 +203,11 @@ export interface NewGroup {
   name: string
   description: string
   isActive: boolean
+  /**
+   * Set when an external provider manages the group - the directory import
+   * marks the groups it creates, so a host can tell them apart from local ones.
+   */
+  authProvider?: string
 }
 
 export interface NewPermission {

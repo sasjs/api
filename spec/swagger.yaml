@@ -1,4 +1,4 @@
-# Vendored from sasjs/server: api/public/swagger.yaml at v4.16.4 (the released tag)
+# Vendored from sasjs/server: api/public/swagger.yaml at v4.20.0 (the released tag)
 # Regenerate in that repo with `npm run swagger` (tsoa spec), then copy the body
 # here, KEEPING this header, and run `npm run sync:routes`. The route table is
 # derived from this file, so a difference between the two is a failing build
@@ -315,6 +315,69 @@ components:
             required:
                 - currentPassword
                 - newPassword
+            type: object
+            additionalProperties: false
+        AuthConfigLdapDetail:
+            description: "The provider blocks this route answers, declared here so the document can state\nthem.\n\ntsoa generates schemas from declarations it can see, and the package's\n`AuthConfigResponse` lives in `@sasjs/api`'s build output - importing the type\nmakes `npm run swagger` fail with `No declarations found for referenced type`.\nSo the host states the shape it promises and the check below keeps it honest:\nif the package's type gains or loses a field, this stops compiling."
+            properties:
+                LDAP_URL:
+                    type: string
+                LDAP_BIND_DN:
+                    type: string
+                LDAP_USERS_BASE_DN:
+                    type: string
+                LDAP_GROUPS_BASE_DN:
+                    type: string
+                LDAP_BIND_PASSWORD_SET:
+                    type: boolean
+                    description: 'Whether a bind password is configured. The value itself is never sent.'
+            required:
+                - LDAP_URL
+                - LDAP_BIND_DN
+                - LDAP_USERS_BASE_DN
+                - LDAP_GROUPS_BASE_DN
+                - LDAP_BIND_PASSWORD_SET
+            type: object
+            additionalProperties: false
+        AuthConfigOidcDetail:
+            properties:
+                OIDC_PROVIDER_NAME:
+                    type: string
+                OIDC_ISSUER_URL:
+                    type: string
+                OIDC_CLIENT_ID:
+                    type: string
+                OIDC_REDIRECT_URI:
+                    type: string
+                OIDC_SCOPE:
+                    type: string
+                OIDC_SIGNING_ALG:
+                    type: string
+                OIDC_USERNAME_CLAIM:
+                    type: string
+                OIDC_JIT_PROVISION:
+                    type: string
+                OIDC_CLIENT_SECRET_SET:
+                    type: boolean
+                    description: 'Whether a client secret is configured. The value itself is never sent.'
+            required:
+                - OIDC_PROVIDER_NAME
+                - OIDC_ISSUER_URL
+                - OIDC_CLIENT_ID
+                - OIDC_REDIRECT_URI
+                - OIDC_SCOPE
+                - OIDC_SIGNING_ALG
+                - OIDC_USERNAME_CLAIM
+                - OIDC_JIT_PROVISION
+                - OIDC_CLIENT_SECRET_SET
+            type: object
+            additionalProperties: false
+        AuthConfigDetail:
+            properties:
+                ldap:
+                    $ref: '#/components/schemas/AuthConfigLdapDetail'
+                oidc:
+                    $ref: '#/components/schemas/AuthConfigOidcDetail'
             type: object
             additionalProperties: false
         ClientPayload:
@@ -712,15 +775,21 @@ components:
             properties:
                 displayName:
                     type: string
-                    description: 'Display name for user'
+                    description: "Display name for user\n\nAt least six characters: `utils/validation.ts` refuses a shorter one with a\n`400`, so the document states the bound a client can check for itself."
                     example: 'John Snow'
+                    minLength: 6
                 username:
                     type: string
-                    description: 'Username for user'
+                    description: "Username for user\n\nLowercased and stored that way, 3 to 16 characters, letters and digits only\n(`utils/validation.ts`). A name outside that is refused with a `400` before\nthe account is looked at, so a client can validate the field itself."
                     example: johnSnow01
+                    minLength: 3
+                    maxLength: 16
+                    pattern: '^[a-z0-9]+$'
                 password:
                     type: string
-                    description: 'Password for user'
+                    description: "Password for user\n\nSix characters at least, and 1024 at most - the schema in\n`utils/validation.ts`. The minimum matters to a client: a shorter password is\na `400` before the account is looked at, not an authentication failure."
+                    minLength: 6
+                    maxLength: 1024
                 isAdmin:
                     type: boolean
                     description: 'Account should be admin or not, defaults to false'
@@ -765,8 +834,11 @@ components:
             properties:
                 name:
                     type: string
-                    description: 'Name of the group'
+                    description: "Name of the group\n\nUnlike a username this is a label, so it is stored as it was given - but\nthe same 3-to-16 alphanumeric rule applies and a name outside it is refused\nwith a `400` (`utils/validation.ts`)."
                     example: DCGroup
+                    minLength: 3
+                    maxLength: 16
+                    pattern: '^[A-Za-z0-9]+$'
                 description:
                     type: string
                     description: 'Description of the group'
@@ -1315,7 +1387,8 @@ paths:
                     description: Ok
                     content:
                         application/json:
-                            schema: {}
+                            schema:
+                                $ref: '#/components/schemas/AuthConfigDetail'
                             examples:
                                 'Example 1':
                                     value: {ldap: {LDAP_URL: 'ldaps://my.ldap.server:636', LDAP_BIND_DN: 'cn=admin,ou=system,dc=cloudron', LDAP_USERS_BASE_DN: 'ou=users,dc=cloudron', LDAP_GROUPS_BASE_DN: 'ou=groups,dc=cloudron', LDAP_BIND_PASSWORD_SET: true}}

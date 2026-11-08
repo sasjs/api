@@ -7,6 +7,7 @@
  * are worth stopping on.
  */
 import { CODE_CORPUS } from '../src/corpus/code.js'
+import { INFO_CORPUS } from '../src/corpus/info.js'
 import { createCodeService } from '../src/code/service.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
@@ -21,6 +22,7 @@ const CORPORA: Array<[string, CorpusCase[]]> = [
   ['drive corpus', DRIVE_CORPUS],
   ['deploy corpus', DEPLOY_CORPUS],
   ['code corpus', CODE_CORPUS],
+  ['info corpus', INFO_CORPUS],
   ['identity corpus', IDENTITY_CORPUS],
   ['record corpus', RECORD_CORPUS],
   ['session corpus', SESSION_CORPUS],
@@ -61,6 +63,18 @@ describe.each(CORPORA)('%s', (_name, corpus) => {
         expect(Object.keys(actual.body as object).sort()).toEqual(
           testCase.expect.keys.slice().sort()
         )
+
+      if (testCase.expect.shape !== undefined) {
+        const { required, optional = [] } = testCase.expect.shape
+        const present = Object.keys(actual.body as object)
+        const allowed = [...required, ...optional]
+
+        expect({
+          case: testCase.id,
+          missing: required.filter((key) => !present.includes(key)),
+          unexpected: present.filter((key) => !allowed.includes(key))
+        }).toEqual({ case: testCase.id, missing: [], unexpected: [] })
+      }
     })
   }
 })

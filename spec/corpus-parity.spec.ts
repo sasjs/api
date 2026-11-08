@@ -1,5 +1,6 @@
 import { ROUTES, routeById } from '../src/routes/index.js'
 import { CODE_CORPUS } from '../src/corpus/code.js'
+import { INFO_CORPUS } from '../src/corpus/info.js'
 import { DRIVE_CORPUS } from '../src/corpus/drive.js'
 import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { IDENTITY_CORPUS } from '../src/corpus/identity.js'
@@ -27,6 +28,7 @@ const corpusByRoute = () => {
     ...DRIVE_CORPUS,
     ...DEPLOY_CORPUS,
     ...CODE_CORPUS,
+    ...INFO_CORPUS,
     ...IDENTITY_CORPUS,
     ...RECORD_CORPUS,
     ...SESSION_CORPUS,

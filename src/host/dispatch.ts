@@ -21,6 +21,7 @@ import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamRegistry } from '../drive/registry.js'
 import { unpublishAppStream } from '../drive/registry.js'
 import type { CodeService } from '../code/service.js'
+import type { InfoService } from '../info/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
@@ -83,6 +84,12 @@ export interface ApiResponse {
 export interface Services {
   /** The editor routes, where the host supplies a linter. */
   code?: CodeService
+  /**
+   * What this host is - mode, listeners, run times, providers. Absent, `GET
+   * /SASjsApi/info` answers 501: the package knows the shape of the answer and
+   * the host is the only one that knows its values.
+   */
+  info?: InfoService
   drive: DriveService
   /**
    * Users, clients and tokens. A host without one answers 501 for the identity
@@ -317,6 +324,18 @@ export const dispatch = async (
   }
 
   switch (routeId) {
+    // The one answer a host states rather than derives: public, pre-auth, and
+    // read by the login screen before anything else.
+    case 'GET /SASjsApi/info': {
+      if (!services.info)
+        throw new ApiError(
+          501,
+          `This host has no info service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, body: await services.info.info() }
+    }
+
     case 'GET /SASjsApi/drive/file': {
       const file = await drive.read(String(query._filePath || ''))
       return { status: 200, contents: file.contents }
@@ -732,6 +751,7 @@ export const dispatch = async (
 
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
+  'GET /SASjsApi/info',
   'POST /SASjsApi/drive/deploy/upload',
   'DELETE /SASjsApi/drive/deploy',
   'GET /SASjsApi/stp/execute',

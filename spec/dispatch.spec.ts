@@ -34,11 +34,11 @@ describe('dispatch', () => {
     // The reason comes from src/routes/overlay.ts, so the refusal says what the
     // operation depends on rather than only that it is missing.
     expect(
-      await failure(() => dispatch(services(), 'GET /SASjsApi/info'))
+      await failure(() => dispatch(services(), 'GET /SASjsApi/authConfig'))
     ).toEqual({
       status: 501,
       message:
-        "This package has no handler for GET /SASjsApi/info. The body is the host's own configuration - ports, run times and providers - which a mock states for itself and this package cannot know."
+        "This package has no handler for GET /SASjsApi/authConfig. The body is the host's own provider configuration - the directory URL, bind DN and which secrets are set - which a mock states for itself and this package cannot know."
     })
   })
 

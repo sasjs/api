@@ -18,6 +18,7 @@ import { createRecordService } from '../identity/records.js'
 import { createSessionService } from '../session/service.js'
 import { createRuntimeService } from '../runtime/service.js'
 import { MemorySessionRunner } from '../runtime/memory-runner.js'
+import { BROWSER_INFO, createInfoService } from '../info/service.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -60,6 +61,7 @@ export const servicesFor = (testCase: CorpusCase): Services => {
         ? new RefusingDriveStore(testCase.seed || {})
         : new MemoryDriveStore(testCase.seed || {})
     ),
+    info: createInfoService(BROWSER_INFO),
     identity: createIdentityService(identity),
     records: createRecordService(identity),
     registry: new MemoryAppStreamRegistry(),

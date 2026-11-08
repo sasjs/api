@@ -96,6 +96,17 @@ const escape = (segment: string) =>
  * Compiles a documented path into a matcher. The table is static, so this runs
  * once at import; `findRoute` then tests exact paths first (most of the API is
  * static) and only falls through to the templates for `{uid}`-style paths.
+ *
+ * Both matchers ignore case in the path's static segments, because the host
+ * does: express's `case sensitive routing` is off unless a server turns it on,
+ * and `sasjs/server` does not, so `/SASjsApi/drive/fileTree` reaches the
+ * handler documented as `filetree`. A matcher that compared the strings would
+ * answer 404 for a request the server serves - and did: the server's own front
+ * end calls the route with a capital T.
+ *
+ * The `i` flag applies to the static segments and to the parameter pattern; a
+ * captured value keeps the case it was sent with, which is what a host needs to
+ * look a user or a file up.
  */
 const compiled = ROUTES.filter((route) => route.path.includes('{')).map(
   (route) => {
@@ -110,14 +121,14 @@ const compiled = ROUTES.filter((route) => route.path.includes('{')).map(
         return escape(segment)
       })
       .join('/')
-    return { route, keys, regex: new RegExp('^' + pattern + '/?$') }
+    return { route, keys, regex: new RegExp('^' + pattern + '/?$', 'i') }
   }
 )
 
 const exact = new Map<string, Route>()
 for (const route of ROUTES)
   if (!route.path.includes('{'))
-    exact.set(route.method + ' ' + route.path, route)
+    exact.set(route.method + ' ' + route.path.toLowerCase(), route)
 
 /**
  * The route a request names, or undefined when the API has no such operation.
@@ -133,7 +144,7 @@ export const findRoute = (
   const verb = method.toUpperCase()
   const clean = path.split('?')[0].replace(/\/+$/, '') || '/'
 
-  const hit = exact.get(verb + ' ' + clean)
+  const hit = exact.get(verb + ' ' + clean.toLowerCase())
   if (hit) return { route: hit, params: {} }
 
   for (const candidate of compiled) {

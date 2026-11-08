@@ -91,10 +91,17 @@ export const createDriveService = (store: DriveStore): DriveService => {
       )
     }
     for (const file of listing.files) {
+      const relativePath = path === '/' ? '/' + file : path + '/' + file
+      // One stat per file: the dates a client sorts or shows are the host's,
+      // and a store that reports none simply omits them.
+      const stat = await store.stat(relativePath)
+
       children.push({
         name: file,
-        relativePath: path === '/' ? '/' + file : path + '/' + file,
+        relativePath,
         isFolder: false,
+        ...(stat.modified ? { modified: stat.modified } : {}),
+        ...(stat.created ? { created: stat.created } : {}),
         children: []
       })
     }

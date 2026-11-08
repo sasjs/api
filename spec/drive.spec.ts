@@ -35,10 +35,18 @@ describe('memory drive store', () => {
     const drive = new MemoryDriveStore({ '/data/a.csv': 'abc' })
 
     expect(await drive.stat('/data')).toEqual({ directory: true, size: 0 })
-    expect(await drive.stat('/data/a.csv')).toEqual({
+    // A file carries the clock the store keeps: created and last written when
+    // it was seeded, since nothing has written it since.
+    expect(await drive.stat('/data/a.csv')).toMatchObject({
       directory: false,
       size: 3
     })
+    expect(await drive.stat('/data/a.csv')).toEqual(
+      expect.objectContaining({
+        created: expect.any(String),
+        modified: expect.any(String)
+      })
+    )
   })
 
   it('puts the bytes it is given, not a reference to them', async () => {
@@ -145,5 +153,46 @@ describe('drive service over the memory store', () => {
     expect(tree.status).toBe('success')
     expect(tree.tree.isFolder).toBe(true)
     expect(tree.tree.children.map((child) => child.name)).toEqual(['data'])
+  })
+
+  it('carries the dates the store reports, and omits what it cannot', async () => {
+    const drive = service({ '/data/a.csv': 'a' })
+
+    const withDates = await drive.tree()
+    const folder = withDates.tree.children[0]
+    const file = folder.children[0]
+
+    // The memory store keeps a clock: created when the entry was seeded,
+    // modified when it was last written.
+    expect(new Date(file.created!).toISOString()).toBe(file.created)
+    expect(new Date(file.modified!).toISOString()).toBe(file.modified)
+
+    // A folder states none: its dates are its children's business.
+    expect(folder.modified).toBeUndefined()
+
+    // A store that reports no clock is not invented for: the fields are simply
+    // absent, so a client can tell "no date" from "a date it did not expect".
+    const base = new MemoryDriveStore({ '/data/a.csv': 'a' })
+    const statless = createDriveService({
+      read: (path: string) => base.read(path),
+      write: (path: string, contents: string | Uint8Array) =>
+        base.write(path, contents),
+      exists: (path: string) => base.exists(path),
+      list: (path: string) => base.list(path),
+      mkdirp: (path: string) => base.mkdirp(path),
+      remove: (path: string) => base.remove(path),
+      move: (from: string, to: string) => base.move(from, to),
+      // Folders still answer as folders; only the file's dates are dropped.
+      stat: async (path: string) =>
+        path.endsWith('.csv')
+          ? { directory: false, size: 1 }
+          : { directory: true, size: 0 }
+    })
+
+    const without = await statless.tree()
+    const statlessFile = without.tree.children[0].children[0]
+
+    expect(statlessFile.modified).toBeUndefined()
+    expect(statlessFile.created).toBeUndefined()
   })
 })

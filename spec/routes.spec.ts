@@ -35,9 +35,8 @@ describe('route table', () => {
     const implemented = ROUTES.filter((route) => route.implemented).map(
       (route) => route.tag
     )
-    // the tags left out are the ones whose every operation is the host's own
-    // fact: Admin's diagnostics and logs, and Auth Config's providers and
-    // directory
+    // every tag but Web, whose one operation - the bundle itself - is the
+    // host's: serving files is not an API decision
     expect(new Set(implemented)).toEqual(
       new Set([
         'Drive',
@@ -50,7 +49,9 @@ describe('route table', () => {
         'Client',
         'Info',
         'Code',
-        'STP'
+        'STP',
+        'Admin',
+        'Auth Config'
       ])
     )
   })

@@ -19,6 +19,12 @@ import { createSessionService } from '../session/service.js'
 import { createRuntimeService } from '../runtime/service.js'
 import { MemorySessionRunner } from '../runtime/memory-runner.js'
 import { BROWSER_INFO, createInfoService } from '../info/service.js'
+import { createAuthConfigService } from '../authconfig/service.js'
+import { createAdminService } from '../admin/service.js'
+import { createDirectoryService } from '../directory/service.js'
+import { CORPUS_AUTH_CONFIG } from './authconfig.js'
+import { CORPUS_DIAGNOSTICS, CORPUS_LOG, CORPUS_LOG_TAIL } from './admin.js'
+import { CORPUS_DIRECTORY } from './directory.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
@@ -62,6 +68,14 @@ export const servicesFor = (testCase: CorpusCase): Services => {
         : new MemoryDriveStore(testCase.seed || {})
     ),
     info: createInfoService(BROWSER_INFO),
+    authConfig: createAuthConfigService(CORPUS_AUTH_CONFIG),
+    admin: createAdminService({
+      diagnostics: async () => CORPUS_DIAGNOSTICS,
+      logs: async () => [CORPUS_LOG],
+      logTail: async (fileName: string) =>
+        fileName === CORPUS_LOG.name ? CORPUS_LOG_TAIL : undefined
+    }),
+    directory: createDirectoryService(identity, CORPUS_DIRECTORY),
     identity: createIdentityService(identity),
     records: createRecordService(identity),
     registry: new MemoryAppStreamRegistry(),

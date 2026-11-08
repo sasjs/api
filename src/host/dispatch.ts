@@ -22,6 +22,9 @@ import type { AppStreamRegistry } from '../drive/registry.js'
 import { unpublishAppStream } from '../drive/registry.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
+import type { AuthConfigService } from '../authconfig/service.js'
+import type { AdminService } from '../admin/service.js'
+import type { DirectoryService } from '../directory/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
@@ -90,6 +93,21 @@ export interface Services {
    * the host is the only one that knows its values.
    */
   info?: InfoService
+  /**
+   * The provider configuration an administrator may read. Absent, `GET
+   * /SASjsApi/authConfig` answers 501: the values are the host's environment.
+   */
+  authConfig?: AuthConfigService
+  /**
+   * What the host is doing - diagnostics, log files, log tails. Absent, the
+   * three Admin reports answer 501: a browser build has no process to describe.
+   */
+  admin?: AdminService
+  /**
+   * A directory to import accounts from. Absent, the LDAP import answers 501:
+   * the connection is the host's.
+   */
+  directory?: DirectoryService
   drive: DriveService
   /**
    * Users, clients and tokens. A host without one answers 501 for the identity
@@ -334,6 +352,68 @@ export const dispatch = async (
         )
 
       return { status: 200, body: await services.info.info() }
+    }
+
+    // ------------------------------------------------- a host's own reports
+    //
+    // The administrator middleware is the host's (sasjs/server mounts
+    // authenticateAccessToken and verifyAdmin ahead of all of these), which is
+    // why their 401 is marked host-only in the overlay. The package answers a
+    // body, and for a log tail the refusals that belong to the name rule.
+    case 'GET /SASjsApi/admin/diagnostics': {
+      if (!services.admin)
+        throw new ApiError(
+          501,
+          `This host has no admin service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, body: await services.admin.diagnostics() }
+    }
+
+    case 'GET /SASjsApi/admin/logs': {
+      if (!services.admin)
+        throw new ApiError(
+          501,
+          `This host has no admin service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, body: { files: await services.admin.logs() } }
+    }
+
+    case 'GET /SASjsApi/admin/logs/{fileName}': {
+      if (!services.admin)
+        throw new ApiError(
+          501,
+          `This host has no admin service, so it cannot answer ${routeId}.`
+        )
+
+      return {
+        status: 200,
+        body: await services.admin.logTail(
+          String(params.fileName ?? ''),
+          query.lines as number | undefined
+        )
+      }
+    }
+
+    case 'GET /SASjsApi/authConfig': {
+      if (!services.authConfig)
+        throw new ApiError(
+          501,
+          `This host has no auth-config service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, body: await services.authConfig.authConfig() }
+    }
+
+    case 'POST /SASjsApi/authConfig/synchroniseWithLDAP': {
+      if (!services.directory)
+        throw new ApiError(
+          501,
+          `This host has no directory service, so it cannot answer ${routeId}.`
+        )
+
+      return { status: 200, body: await services.directory.synchronise() }
     }
 
     case 'GET /SASjsApi/drive/file': {
@@ -752,6 +832,11 @@ export const dispatch = async (
 /** Whether a route is one `dispatch` can answer today. */
 export const HANDLED_ROUTES: string[] = [
   'GET /SASjsApi/info',
+  'GET /SASjsApi/admin/diagnostics',
+  'GET /SASjsApi/admin/logs',
+  'GET /SASjsApi/admin/logs/{fileName}',
+  'GET /SASjsApi/authConfig',
+  'POST /SASjsApi/authConfig/synchroniseWithLDAP',
   'POST /SASjsApi/drive/deploy/upload',
   'DELETE /SASjsApi/drive/deploy',
   'GET /SASjsApi/stp/execute',

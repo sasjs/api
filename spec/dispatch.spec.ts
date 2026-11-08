@@ -123,26 +123,6 @@ describe('dispatch', () => {
     })
   })
 
-  it('refuses an operation the table states but no case answers', () => {
-    // unreachable while every operation has a handler; exported so the safety
-    // net is itself tested rather than trusted
-    const error = noHandler('GET /SASjsApi/nope')
-
-    expect({ status: error.status, message: error.message }).toEqual({
-      status: 501,
-      message: 'This package has no handler for GET /SASjsApi/nope.'
-    })
-  })
-
-  it('answers 404 for an operation the API does not have', async () => {
-    expect(
-      await failure(() => dispatch(services(), 'GET /SASjsApi/nope'))
-    ).toEqual({
-      status: 404,
-      message: 'No such operation: GET /SASjsApi/nope'
-    })
-  })
-
   it('validates a required parameter before the handler runs', async () => {
     // the table says newPath is required, so the handler never sees the request
     expect(

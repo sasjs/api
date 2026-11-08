@@ -107,9 +107,16 @@ const pageOf = (page: WebPage): string => {
       'The web page states no html, so there is nothing to serve. Answer `undefined` from the port when the host has no build.'
     )
 
-  if (!isNonEmptyString(page.version) || /[\s?#]/.test(page.version))
+  // a token, not text: the value is written into a quoted attribute, so a
+  // quote closes it early and serves a broken reference - the failure this
+  // check exists to stop. A digest is `[0-9a-f]`, so the set below is strict
+  // enough to be safe and wide enough for any host's chosen encoding
+  if (
+    !isNonEmptyString(page.version) ||
+    !/^[A-Za-z0-9._-]+$/.test(page.version)
+  )
     throw new Error(
-      `The web page states version as ${JSON.stringify(page.version)}; it is the bundle's cache token, so it is a non-empty string with no whitespace, "?" or "#".`
+      `The web page states version as ${JSON.stringify(page.version)}; it is the bundle's cache token, so it may contain only letters, digits, ".", "_" and "-" - anything else, a quote above all, would end the attribute it is written into.`
     )
 
   return withBundleVersion(page.html, page.version)

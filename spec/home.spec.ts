@@ -92,7 +92,17 @@ describe('the home service', () => {
       )
     ).toContain('states no html')
 
-    for (const version of ['', 'has space', 'q?mark', 'hash#mark']) {
+    for (const version of [
+      '',
+      'has space',
+      'q?mark',
+      'hash#mark',
+      // a quote would close the attribute the token is written into
+      'a"b',
+      "a'b",
+      'amp&ersand',
+      'slash/here'
+    ]) {
       expect({
         version,
         message: await refusal(() =>

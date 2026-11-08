@@ -15,26 +15,30 @@ export const SIGNED_IN: IdentityFixture = {
   ...DEFAULT_IDENTITY,
   tokens: [
     {
-      username: 'user2',
+      username: 'sasjsuser',
       clientId: 'web_app',
       accessToken: 'seed-access',
       refreshToken: 'seed-refresh'
     },
     {
-      username: 'admin',
+      username: 'sasjsadmin',
       clientId: 'removed_client',
       accessToken: 'seed-access-orphan',
       refreshToken: 'seed-refresh-orphan'
     }
   ],
   codes: [
-    { code: 'seed-code', username: 'user2', clientId: 'web_app' },
-    { code: 'seed-orphan-code', username: 'user2', clientId: 'removed_client' },
+    { code: 'seed-code', username: 'sasjsuser', clientId: 'web_app' },
+    {
+      code: 'seed-orphan-code',
+      username: 'sasjsuser',
+      clientId: 'removed_client'
+    },
     // the same shape with a pair already issued: the exchange must still refuse,
     // rather than handing back tokens that belong to a client that is gone
     {
       code: 'seed-orphan-pair-code',
-      username: 'admin',
+      username: 'sasjsadmin',
       clientId: 'removed_client'
     }
   ]
@@ -44,13 +48,13 @@ export const SIGNED_IN: IdentityFixture = {
 export const DEACTIVATED: IdentityFixture = {
   ...SIGNED_IN,
   users: SIGNED_IN.users.map((user) =>
-    user.username === 'user2' ? { ...user, isActive: false } : user
+    user.username === 'sasjsuser' ? { ...user, isActive: false } : user
   )
 }
 
 /** The user the seeded session belongs to, without the host's own identifier. */
 const user2 = {
-  username: 'user2',
+  username: 'sasjsuser',
   displayName: 'Demo User',
   isAdmin: false,
   needsToUpdatePassword: false
@@ -61,13 +65,13 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     id: 'login',
     route: 'POST /SASLogon/login',
     description: 'signs a seeded user in',
-    request: { body: { username: 'admin', password: 'admin123' } },
+    request: { body: { username: 'sasjsadmin', password: 'Orion123' } },
     expect: {
       status: 200,
       partial: {
         loggedIn: true,
         user: {
-          username: 'admin',
+          username: 'sasjsadmin',
           displayName: 'Demo Admin',
           isAdmin: true,
           needsToUpdatePassword: false
@@ -79,7 +83,7 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     id: 'login-missing-username',
     route: 'POST /SASLogon/login',
     description: 'refuses a sign-in with no username as 400, naming the field',
-    request: { body: { password: 'admin123' } },
+    request: { body: { password: 'Orion123' } },
     expect: { status: 400, error: '"username" is required' }
   },
   {
@@ -87,21 +91,21 @@ export const IDENTITY_CORPUS: CorpusCase[] = [
     route: 'POST /SASLogon/login',
     description: 'refuses a deactivated account, naming it',
     identity: DEACTIVATED,
-    request: { body: { username: 'user2', password: 'user123' } },
+    request: { body: { username: 'sasjsuser', password: 'Orion123' } },
     expect: { status: 401, error: 'This account is not active.' }
   },
   {
     id: 'login-wrong-password',
     route: 'POST /SASLogon/login',
     description: 'refuses a wrong password as 401, naming it',
-    request: { body: { username: 'admin', password: 'wrong123' } },
+    request: { body: { username: 'sasjsadmin', password: 'wrong123' } },
     expect: { status: 401, error: 'Invalid Password.' }
   },
   {
     id: 'login-unknown-user',
     route: 'POST /SASLogon/login',
     description: 'refuses an unknown username as 401, naming it',
-    request: { body: { username: 'nobody', password: 'admin123' } },
+    request: { body: { username: 'nobody', password: 'Orion123' } },
     expect: { status: 401, error: 'Username is not found.' }
   },
   {

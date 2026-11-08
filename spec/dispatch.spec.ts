@@ -113,7 +113,7 @@ describe('dispatch', () => {
     expect(
       await failure(() =>
         dispatch(services(), 'POST /SASLogon/login', {
-          body: { username: 'admin', password: 'admin123' }
+          body: { username: 'sasjsadmin', password: 'Orion123' }
         })
       )
     ).toEqual({

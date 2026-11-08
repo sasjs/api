@@ -94,20 +94,20 @@ export const DEFAULT_IDENTITY: IdentityFixture = {
   users: [
     {
       uid: 'user-admin',
-      username: 'admin',
+      username: 'sasjsadmin',
       displayName: 'Demo Admin',
       // long enough to pass the API's own password rule (six characters), so a
       // demo can sign in against a real server as well as a mock
-      password: 'admin123',
+      password: 'Orion123',
       isAdmin: true,
       isActive: true,
       needsToUpdatePassword: false
     },
     {
       uid: 'user-restricted',
-      username: 'user2',
+      username: 'sasjsuser',
       displayName: 'Demo User',
-      password: 'user123',
+      password: 'Orion123',
       isAdmin: false,
       isActive: true,
       needsToUpdatePassword: false
@@ -119,14 +119,14 @@ export const DEFAULT_IDENTITY: IdentityFixture = {
       name: 'DCGroup',
       description: 'Data Controller users',
       isActive: true,
-      users: ['user2']
+      users: ['sasjsuser']
     },
     {
       uid: 'group-admins',
       name: 'Admins',
       description: 'Everything the API offers',
       isActive: true,
-      users: ['admin']
+      users: ['sasjsadmin']
     }
   ],
   permissions: [

@@ -251,14 +251,14 @@ describe('deactivated accounts', () => {
       new MemoryIdentityStore({
         ...SIGNED_IN,
         users: SIGNED_IN.users.map((user) =>
-          user.username === 'user2' ? { ...user, isActive: false } : user
+          user.username === 'sasjsuser' ? { ...user, isActive: false } : user
         )
       })
     )
 
     expect(
       await failure(() =>
-        deactivated.login({ username: 'user2', password: 'user123' })
+        deactivated.login({ username: 'sasjsuser', password: 'Orion123' })
       )
     ).toEqual({ status: 401, message: 'This account is not active.' })
     expect(await deactivated.authenticate('seed-access')).toBeUndefined()
@@ -273,7 +273,7 @@ describe('deactivated accounts', () => {
     new MemoryIdentityStore({
       ...SIGNED_IN,
       users: SIGNED_IN.users.map((user) =>
-        user.username === 'user2' ? { ...user, isActive: false } : user
+        user.username === 'sasjsuser' ? { ...user, isActive: false } : user
       )
     })
 
@@ -330,9 +330,11 @@ describe('identity fixture', () => {
     expect(() =>
       parseIdentity({
         ...DEFAULT_IDENTITY,
-        tokens: [{ username: 'user2', clientId: 'web_app', accessToken: 'a' }]
+        tokens: [
+          { username: 'sasjsuser', clientId: 'web_app', accessToken: 'a' }
+        ]
       })
-    ).toThrow(/half pair for user2\/web_app/)
+    ).toThrow(/half pair for sasjsuser\/web_app/)
   })
 
   it('refuses a fixture missing a collection, naming it', () => {
@@ -354,8 +356,8 @@ describe('what the store refuses', () => {
 
   it('refuses a seeded token that is only half a pair', () => {
     for (const half of [
-      { username: 'admin', clientId: 'web_app', accessToken: 'only-this' },
-      { username: 'admin', clientId: 'web_app', refreshToken: 'only-this' }
+      { username: 'sasjsadmin', clientId: 'web_app', accessToken: 'only-this' },
+      { username: 'sasjsadmin', clientId: 'web_app', refreshToken: 'only-this' }
     ])
       expect(() =>
         parseIdentity({ ...DEFAULT_IDENTITY, tokens: [half] })
@@ -409,7 +411,11 @@ describe('the record service, where the store disagrees', () => {
         records.updateUser(
           caller,
           { uid: 'user-restricted' },
-          { displayName: 'Renamed', username: 'user2', password: 'user123' }
+          {
+            displayName: 'Renamed',
+            username: 'sasjsuser',
+            password: 'Orion123'
+          }
         )
       )
     ).toEqual({
@@ -426,7 +432,7 @@ describe('a password change', () => {
 
     await records.updatePassword(
       { userId: 'user-restricted', clientId: 'web_app' },
-      { currentPassword: 'user123', newPassword: 'changed123' }
+      { currentPassword: 'Orion123', newPassword: 'changed123' }
     )
 
     // sasjs/server refuses every other call while this stands, so it has to reach

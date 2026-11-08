@@ -57,10 +57,10 @@ describe('the directory import', () => {
 
     const users = await identity.users()
     expect(users.map((user) => user.username).sort()).toEqual([
-      'admin',
       'alice',
       'bob',
-      'user2'
+      'sasjsadmin',
+      'sasjsuser'
     ])
     expect(users.find((user) => user.username === 'alice')?.authProvider).toBe(
       'ldap'
@@ -89,7 +89,7 @@ describe('the directory import', () => {
         [
           // a renamed display name must not overwrite what the API already holds
           { username: 'alice', displayName: 'Alice Renamed' },
-          { username: 'admin', displayName: 'Directory Admin' }
+          { username: 'sasjsadmin', displayName: 'Directory Admin' }
         ],
         [{ name: 'analysts' }, { name: 'admins' }]
       )
@@ -101,9 +101,9 @@ describe('the directory import', () => {
     expect(users.find((user) => user.username === 'alice')?.displayName).toBe(
       'Alice'
     )
-    expect(users.find((user) => user.username === 'admin')?.authProvider).toBe(
-      undefined
-    )
+    expect(
+      users.find((user) => user.username === 'sasjsadmin')?.authProvider
+    ).toBe(undefined)
   })
 
   it('applies membership from both directions in the answer', async () => {
@@ -117,7 +117,7 @@ describe('the directory import', () => {
           { username: 'bob', displayName: 'Bob' }
         ],
         [
-          { name: 'analysts', members: ['bob', 'admin', 'nobody'] },
+          { name: 'analysts', members: ['bob', 'sasjsadmin', 'nobody'] },
           { name: 'readers', members: ['alice'] }
         ]
       )
@@ -133,7 +133,7 @@ describe('the directory import', () => {
     // alice from her own groups list, bob from the group's members, and admin
     // because the account already existed
     expect(new Set(analysts?.users)).toEqual(
-      new Set([uid('alice'), uid('bob'), uid('admin')])
+      new Set([uid('alice'), uid('bob'), uid('sasjsadmin')])
     )
     // `nobody` is not an account this API holds, so it is not invented
     expect(analysts?.users).not.toContain(undefined)

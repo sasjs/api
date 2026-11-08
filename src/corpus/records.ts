@@ -22,13 +22,13 @@ import {
 /** The admin and the restricted user, signed in. */
 const SIGNED_IN_TOKENS: IdentityFixtureToken[] = [
   {
-    username: 'admin',
+    username: 'sasjsadmin',
     clientId: 'web_app',
     accessToken: 'admin-access',
     refreshToken: 'admin-refresh'
   },
   {
-    username: 'user2',
+    username: 'sasjsuser',
     clientId: 'web_app',
     accessToken: 'user-access',
     refreshToken: 'user-refresh'
@@ -107,13 +107,13 @@ export const RECORD_CORPUS: CorpusCase[] = [
       body: [
         {
           uid: ADMIN_UID,
-          username: 'admin',
+          username: 'sasjsadmin',
           displayName: 'Demo Admin',
           isAdmin: true
         },
         {
           uid: RESTRICTED_UID,
-          username: 'user2',
+          username: 'sasjsuser',
           displayName: 'Demo User',
           isAdmin: false
         }
@@ -131,7 +131,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
       status: 200,
       partial: {
         uid: RESTRICTED_UID,
-        username: 'user2',
+        username: 'sasjsuser',
         isActive: true,
         isAdmin: false,
         autoExec: ''
@@ -159,10 +159,10 @@ export const RECORD_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/user/by/username/{username}',
     description: 'finds an account by username',
     identity: ADMIN_SIGNED_IN,
-    request: { token: ADMIN, params: { username: 'user2' } },
+    request: { token: ADMIN, params: { username: 'sasjsuser' } },
     expect: {
       status: 200,
-      partial: { uid: RESTRICTED_UID, username: 'user2', isAdmin: false }
+      partial: { uid: RESTRICTED_UID, username: 'sasjsuser', isAdmin: false }
     }
   },
   {
@@ -170,7 +170,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/user/by/username/{username}',
     description: 'refuses the by-username read with no caller',
     identity: ADMIN_SIGNED_IN,
-    request: { params: { username: 'user2' } },
+    request: { params: { username: 'sasjsuser' } },
     expect: { status: 401, error: 'Unauthorized' }
   },
   {
@@ -236,7 +236,11 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: ADMIN,
-      body: { username: 'user2', displayName: 'Another', password: 'newpass' }
+      body: {
+        username: 'sasjsuser',
+        displayName: 'Another',
+        password: 'newpass'
+      }
     },
     expect: { status: 409, error: 'Username already exists.' }
   },
@@ -251,8 +255,8 @@ export const RECORD_CORPUS: CorpusCase[] = [
       params: { uid: RESTRICTED_UID },
       body: {
         displayName: 'Renamed User',
-        username: 'user2',
-        password: 'user123'
+        username: 'sasjsuser',
+        password: 'Orion123'
       }
     },
     expect: {
@@ -268,7 +272,11 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: RESTRICTED,
       params: { uid: ADMIN_UID },
-      body: { displayName: 'Hijacked', username: 'admin', password: 'admin123' }
+      body: {
+        displayName: 'Hijacked',
+        username: 'sasjsadmin',
+        password: 'Orion123'
+      }
     },
     expect: { status: 401, error: 'Admin account required' }
   },
@@ -312,7 +320,11 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: ADMIN,
       params: { uid: RESTRICTED_UID },
-      body: { username: 'admin', displayName: 'Demo User', password: 'user123' }
+      body: {
+        username: 'sasjsadmin',
+        displayName: 'Demo User',
+        password: 'Orion123'
+      }
     },
     expect: { status: 409, error: 'Username already exists.' }
   },
@@ -323,15 +335,15 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: ADMIN,
-      params: { username: 'user2' },
+      params: { username: 'sasjsuser' },
       body: {
         isActive: false,
-        username: 'user2',
+        username: 'sasjsuser',
         displayName: 'Demo User',
-        password: 'user123'
+        password: 'Orion123'
       }
     },
-    expect: { status: 200, partial: { username: 'user2', isActive: false } }
+    expect: { status: 200, partial: { username: 'sasjsuser', isActive: false } }
   },
   {
     id: 'update-user-by-username-not-admin',
@@ -340,8 +352,12 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: RESTRICTED,
-      params: { username: 'admin' },
-      body: { displayName: 'Hijacked', username: 'admin', password: 'admin123' }
+      params: { username: 'sasjsadmin' },
+      body: {
+        displayName: 'Hijacked',
+        username: 'sasjsadmin',
+        password: 'Orion123'
+      }
     },
     expect: { status: 401, error: 'Admin account required' }
   },
@@ -380,8 +396,12 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: ADMIN,
-      params: { username: 'user2' },
-      body: { username: 'admin', displayName: 'Demo User', password: 'user123' }
+      params: { username: 'sasjsuser' },
+      body: {
+        username: 'sasjsadmin',
+        displayName: 'Demo User',
+        password: 'Orion123'
+      }
     },
     expect: { status: 409, error: 'Username already exists.' }
   },
@@ -417,7 +437,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: ADMIN,
-      params: { username: 'user2' },
+      params: { username: 'sasjsuser' },
       body: {}
     },
     expect: { status: 200, body: 'Account Deleted!' }
@@ -429,7 +449,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: RESTRICTED,
-      params: { username: 'user2' },
+      params: { username: 'sasjsuser' },
       body: { password: 'wrong123' }
     },
     expect: { status: 401, error: 'Invalid password.' }
@@ -481,7 +501,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
         users: [
           {
             uid: ADMIN_UID,
-            username: 'admin',
+            username: 'sasjsadmin',
             displayName: 'Demo Admin',
             isAdmin: true
           }
@@ -1219,7 +1239,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: {
       token: RESTRICTED,
-      body: { currentPassword: 'user123', newPassword: 'changed123' }
+      body: { currentPassword: 'Orion123', newPassword: 'changed123' }
     },
     expect: { status: 204 }
   },
@@ -1237,7 +1257,7 @@ export const RECORD_CORPUS: CorpusCase[] = [
     description: 'refuses the change with no caller',
     identity: ADMIN_SIGNED_IN,
     request: {
-      body: { currentPassword: 'user123', newPassword: 'changed123' }
+      body: { currentPassword: 'Orion123', newPassword: 'changed123' }
     },
     expect: { status: 401, error: 'Unauthorized' }
   },

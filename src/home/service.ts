@@ -62,10 +62,12 @@ const FILE_ATTRIBUTE = /(\s(?:src|href)=)("[^"]*"|'[^']*'|[^\s>]+)/g
 /**
  * A reference that names the bundle file itself.
  *
- * Anchored at the end (and at a path boundary) rather than `includes`, so an
- * asset whose name merely begins with the bundle's - `index.bundle.js.css` - is
- * left alone: it is a different file, and stamping it would suggest the token
- * described something it did not.
+ * Anchored at the end (and at a path boundary) rather than matched with
+ * `includes`, which is what sasjs/server's copy does: `includes` stamps
+ * `index.bundle.js.css` with a token derived from a different file, and a token
+ * that describes something it did not is worse than no token. The divergence is
+ * deliberate and is pinned by the corpus case every host runs, so an adopting
+ * host changes this behaviour knowingly rather than by accident.
  */
 const BUNDLE_REFERENCE = new RegExp(
   `(^|/)${BUNDLE_NAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`

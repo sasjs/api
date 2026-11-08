@@ -104,10 +104,12 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   'GET /': {
     implemented: true,
     // public: the shell is what an unauthenticated browser asks for first
-    capabilities: [],
-    responses: {
-      200: '<html><head></head><body>Web Build is not present</body></html>'
-    }
+    capabilities: []
+    // No body annotation: this status carries two, and neither is a value a
+    // client keys on. The usual answer is the host's own page, stamped with its
+    // bundle token (its bytes are the host's, so the corpus pins the transform
+    // rather than the page); the fallback is NO_WEB_BUILD, which is a constant
+    // here rather than a literal copied into this table.
   },
   'POST /SASLogon/login': {
     implemented: true,

@@ -77,6 +77,49 @@ export {
   normaliseInfo
 } from './info/service.js'
 export type { InfoResponse, InfoService } from './info/service.js'
+export {
+  createAuthConfigService,
+  normaliseAuthConfig
+} from './authconfig/service.js'
+export type {
+  AuthConfig,
+  AuthConfigResponse,
+  AuthConfigService,
+  LdapProviderConfig,
+  OidcProviderConfig
+} from './authconfig/service.js'
+export {
+  DEFAULT_LOG_LINES,
+  MAX_LOG_LINES,
+  checkLogFileName,
+  createAdminService,
+  logLines,
+  normaliseDiagnostics,
+  normaliseLogFiles
+} from './admin/service.js'
+export type {
+  AdminReports,
+  AdminService,
+  BuildInfo,
+  DiagnosticsResponse,
+  FilesystemUsage,
+  FolderUsage,
+  LogFileInfo,
+  LogFolderSummary,
+  LogTail,
+  MemoryDetails,
+  ServerDetails
+} from './admin/service.js'
+export { createDirectoryService } from './directory/service.js'
+export type {
+  DirectoryGroup,
+  DirectoryService,
+  DirectoryServiceOptions,
+  DirectorySource,
+  DirectoryStore,
+  DirectorySyncResult,
+  DirectoryUser
+} from './directory/service.js'
 export type {
   AuthorizedRoutesResponse,
   GroupDetailsResponse,

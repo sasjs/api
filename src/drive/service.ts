@@ -14,6 +14,7 @@
 import type { DriveStore, TreeNode } from '../types.js'
 import { ApiError } from '../types.js'
 import { deployTree } from './deploy.js'
+import type { DeployOptions } from './deploy.js'
 import {
   basename,
   checkFilePath,
@@ -59,7 +60,11 @@ export interface DriveService {
    * the shape is one of the things this decides - a mistyped tree earns the
    * routes' `400` rather than a crash in a host that trusted it.
    */
-  deploy(appLoc: string, tree: unknown): Promise<DriveResult>
+  deploy(
+    appLoc: string,
+    tree: unknown,
+    options?: DeployOptions
+  ): Promise<DriveResult>
 }
 
 /** A path a file operation may act on, or the refusal the operation answers. */
@@ -236,8 +241,8 @@ export const createDriveService = (store: DriveStore): DriveService => {
       return { status: 'success', tree: await treeOf(path) }
     },
 
-    async deploy(appLoc, tree) {
-      await deployTree(store, appLoc, tree)
+    async deploy(appLoc, tree, options) {
+      await deployTree(store, appLoc, tree, options)
 
       return { status: 'success' }
     }

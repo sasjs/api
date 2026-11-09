@@ -23,6 +23,15 @@ import { normaliseDrivePath } from './paths.js'
 /** The three member kinds the wire format carries. */
 export type DeployMemberType = 'folder' | 'service' | 'file'
 
+/**
+ * How a `file` member carries its bytes.
+ *
+ * `utf8` is the default: `code` is the file's text, which is what most of a
+ * deployment is. `base64` is for bytes that are not text - an image, a font, a
+ * zip - and is the only form that survives the trip through JSON unchanged.
+ */
+export type DeployFileEncoding = 'utf8' | 'base64'
+
 export interface DeployFolderMember {
   name: string
   type: 'folder'
@@ -36,11 +45,20 @@ export interface DeployServiceMember {
   code: string
 }
 
-/** A file; `code` is base64 of the bytes to write. */
+/**
+ * A file; `code` is its text, or base64 of its bytes when `encoding` says so.
+ *
+ * An absent `encoding` means `utf8` - a caller publishing an HTML page or a
+ * JSON config writes the text it already holds. A binary member states
+ * `base64` and nothing is guessed from the contents: `test` and `data` are
+ * both valid base64, so sniffing would corrupt short text rather than decode a
+ * file.
+ */
 export interface DeployFileMember {
   name: string
   type: 'file'
   code: string
+  encoding?: DeployFileEncoding
 }
 
 export type DeployMember =
@@ -191,7 +209,9 @@ const memberName = (member: DeployMember): string =>
 
 /** The bytes a member writes. */
 const memberBytes = (member: DeployServiceMember | DeployFileMember): number =>
-  member.type === 'file' ? base64Length(member.code) : utf8Length(member.code)
+  member.type === 'file' && member.encoding === 'base64'
+    ? base64Length(member.code)
+    : utf8Length(member.code)
 
 const MEGABYTE = 1024 * 1024
 
@@ -387,10 +407,40 @@ const isDeployMember = (value: unknown): value is DeployMember => {
   if (member.type === 'folder')
     return Array.isArray(member.members) && member.members.every(isDeployMember)
 
-  if (member.type === 'service' || member.type === 'file')
-    return typeof member.code === 'string'
+  if (member.type === 'service') return typeof member.code === 'string'
+
+  if (member.type === 'file')
+    return (
+      typeof member.code === 'string' &&
+      (member.encoding === undefined ||
+        member.encoding === 'utf8' ||
+        member.encoding === 'base64')
+    )
 
   return false
+}
+
+/**
+ * What a deploy may be told beyond the tree itself.
+ *
+ * `replace` writes the tree as the folder's whole contents: the folder is
+ * removed first, so a file the new version renamed or dropped stops answering
+ * at its old URL. It is opt-in because a caller may deploy one folder of a
+ * larger app, and a deploy that quietly deleted the rest would be worse than a
+ * stale file.
+ *
+ * The removal happens AFTER the tree is accepted (shape, containment, cap), so
+ * a request that is going to be refused never destroys what is already there.
+ *
+ * A folder can hold two published apps as a special case - the unpublish
+ * contract documents that - and replacing it removes both. The delete names the
+ * folder, not an app.
+ */
+export interface DeployOptions {
+  /** Remove the app folder before writing the tree. Default `false`. */
+  replace?: boolean
+  /** The cap to apply. Defaults to `DEPLOY_LIMITS`. */
+  limits?: DeployLimits
 }
 
 /**
@@ -408,8 +458,10 @@ export const deployTree = async (
   store: DriveStore,
   appLoc: unknown,
   tree: unknown,
-  limits: DeployLimits = DEPLOY_LIMITS
+  options: DeployOptions = {}
 ): Promise<void> => {
+  const limits = options.limits ?? DEPLOY_LIMITS
+
   if (!isDeployTree(tree))
     throw new ApiError(400, 'Provided not supported data format.', {
       status: 'failure',
@@ -435,6 +487,8 @@ export const deployTree = async (
     })
 
   try {
+    if (options.replace && (await store.exists(root))) await store.remove(root)
+
     await writeMembers(store, tree.members, root)
   } catch {
     throw new ApiError(500, 'Deployment failed!', {
@@ -462,7 +516,9 @@ const writeMembers = async (
 
     await store.write(
       path,
-      member.type === 'file' ? decodeBase64(member.code) : member.code
+      member.type === 'file' && member.encoding === 'base64'
+        ? decodeBase64(member.code)
+        : member.code
     )
   }
 }

@@ -489,6 +489,11 @@ export const deployTree = async (
   try {
     if (options.replace && (await store.exists(root))) await store.remove(root)
 
+    // The app's own folder is created before the first member is written: a tree
+    // whose root holds only files has no folder member to create it, and a store
+    // that writes through to a filesystem refuses a missing parent.
+    await store.mkdirp(root)
+
     await writeMembers(store, tree.members, root)
   } catch {
     throw new ApiError(500, 'Deployment failed!', {

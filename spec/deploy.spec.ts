@@ -344,6 +344,29 @@ describe('deploying', () => {
     expect(store.dump()).toEqual({ '/Public/apps/site/keep.html': 'v1' })
   })
 
+  it('creates the app folder before writing members that sit in its root', async () => {
+    // a tree of root-level files has no folder member to create the app folder,
+    // and a store that writes through to a filesystem refuses a missing parent:
+    // the deploy creates it before the first write
+    const store = new MemoryDriveStore()
+    const made: string[] = []
+    const mkdirp = store.mkdirp.bind(store)
+
+    store.mkdirp = async (path: string) => {
+      made.push(path)
+      await mkdirp(path)
+    }
+
+    await deployTree(store, '/Public/apps/flat', {
+      members: [textFile('index.html', '<h1>Hello</h1>')]
+    })
+
+    expect(made).toEqual(['/Public/apps/flat'])
+    expect(store.dump()).toEqual({
+      '/Public/apps/flat/index.html': '<h1>Hello</h1>'
+    })
+  })
+
   it('writes nothing when the cap refuses the tree', async () => {
     const store = new MemoryDriveStore()
 

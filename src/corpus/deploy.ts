@@ -81,7 +81,36 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
         appLoc: '/Public/apps/uploaded',
         fileTree: {
           members: [
-            { name: 'index.html', type: 'file', code: 'PGgxPkhlbGxvPC9oMT4=' }
+            {
+              name: 'index.html',
+              type: 'file',
+              code: 'PGgxPkhlbGxvPC9oMT4=',
+              encoding: 'base64'
+            }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 200,
+      body: {
+        status: 'success',
+        message: 'Files deployed successfully to @sasjs/server.'
+      }
+    }
+  },
+  {
+    id: 'upload-text-file',
+    route: 'POST /SASjsApi/drive/deploy/upload',
+    description:
+      'writes a file member as its own text when no encoding is stated',
+    request: {
+      subject: SUBJECT,
+      body: {
+        appLoc: '/Public/apps/text',
+        fileTree: {
+          members: [
+            { name: 'index.html', type: 'file', code: '<h1>Hello</h1>' }
           ]
         }
       }

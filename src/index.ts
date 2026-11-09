@@ -33,9 +33,11 @@ export {
   measureDeployTree
 } from './drive/deploy.js'
 export type {
+  DeployFileEncoding,
   DeployLimits,
   DeployMeasurements,
   DeployMember,
+  DeployOptions,
   DeployRefusal,
   DeployTree
 } from './drive/deploy.js'

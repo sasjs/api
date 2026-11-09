@@ -33,9 +33,17 @@ const nest = (levels: number): DeployMember[] => {
 const file = (name: string, size: number): DeployMember => ({
   name,
   type: 'file',
+  encoding: 'base64',
   code:
     'A'.repeat(Math.floor(size / 3) * 4) +
     (size % 3 === 1 ? 'AA==' : size % 3 === 2 ? 'AAA=' : '')
+})
+
+/** A file member carrying text, which is the default encoding. */
+const textFile = (name: string, code: string): DeployMember => ({
+  name,
+  type: 'file',
+  code
 })
 
 const folder = (name: string, members: DeployMember[]): DeployMember => ({
@@ -179,9 +187,12 @@ describe('the deploy cap', () => {
   })
 
   it('measures a base64 file member by the bytes it writes', () => {
-    // 'QUJD' is 'ABC': three bytes, not the four characters on the wire
+    // 'QUJD' is 'ABC': three bytes, not the four characters on the wire - and
+    // the encoding has to be stated, because text is the default
     expect(
-      measureDeployTree([{ name: 'a.txt', type: 'file', code: 'QUJD' }])
+      measureDeployTree([
+        { name: 'a.txt', type: 'file', code: 'QUJD', encoding: 'base64' }
+      ])
     ).toEqual({
       entries: 1,
       totalBytes: 3,
@@ -237,7 +248,12 @@ describe('the tree shape', () => {
 describe('deploying', () => {
   const tree = [
     folder('services', [service('run', '%put hi;')]),
-    { name: 'index.html', type: 'file', code: 'PGgxPkhlbGxvPC9oMT4=' }
+    {
+      name: 'index.html',
+      type: 'file',
+      code: 'PGgxPkhlbGxvPC9oMT4=',
+      encoding: 'base64'
+    }
   ]
 
   it('writes every member under the appLoc it names', async () => {
@@ -254,6 +270,103 @@ describe('deploying', () => {
     })
   })
 
+  it('writes a file member as its own text when no encoding is stated', async () => {
+    const store = new MemoryDriveStore()
+
+    await deployTree(store, '/Public/apps/site', {
+      members: [textFile('index.html', '<h1>Hello</h1>')]
+    })
+
+    expect(store.dump()).toEqual({
+      '/Public/apps/site/index.html': '<h1>Hello</h1>'
+    })
+  })
+
+  it('measures a text file by its bytes, not by a base64 body it never was', async () => {
+    // "e-acute " is 8 ASCII bytes; the e-acute itself is 2 in UTF-8
+    const tree = [textFile('a.txt', `e-acute ${String.fromCharCode(0xe9)}`)]
+
+    expect(measureDeployTree(tree)).toEqual({
+      entries: 1,
+      totalBytes: 10,
+      largest: { path: 'a.txt', bytes: 10 }
+    })
+  })
+
+  it('refuses a file member whose encoding is neither utf8 nor base64', async () => {
+    const store = new MemoryDriveStore()
+
+    await expect(
+      deployTree(store, '/Public/apps/bad', {
+        members: [
+          { name: 'a.bin', type: 'file', code: 'AA==', encoding: 'hex' } as any
+        ]
+      })
+    ).rejects.toMatchObject({ status: 400 })
+
+    expect(store.dump()).toEqual({})
+  })
+
+  it('removes what the previous deploy left when asked to replace', async () => {
+    const store = new MemoryDriveStore()
+
+    await deployTree(store, '/Public/apps/site', {
+      members: [textFile('old.html', 'v1'), textFile('keep.html', 'v1')]
+    })
+
+    await deployTree(
+      store,
+      '/Public/apps/site',
+      { members: [textFile('keep.html', 'v2')] },
+      { replace: true }
+    )
+
+    // the dropped asset is gone rather than still answering at its old URL
+    expect(store.dump()).toEqual({ '/Public/apps/site/keep.html': 'v2' })
+  })
+
+  it('leaves the folder alone when a replacing deploy is refused', async () => {
+    const store = new MemoryDriveStore()
+
+    await deployTree(store, '/Public/apps/site', {
+      members: [textFile('keep.html', 'v1')]
+    })
+
+    await expect(
+      deployTree(
+        store,
+        '/Public/apps/site',
+        { members: [textFile('../escape', 'x')] },
+        { replace: true }
+      )
+    ).rejects.toMatchObject({ status: 400 })
+
+    expect(store.dump()).toEqual({ '/Public/apps/site/keep.html': 'v1' })
+  })
+
+  it('creates the app folder before writing members that sit in its root', async () => {
+    // a tree of root-level files has no folder member to create the app folder,
+    // and a store that writes through to a filesystem refuses a missing parent:
+    // the deploy creates it before the first write
+    const store = new MemoryDriveStore()
+    const made: string[] = []
+    const mkdirp = store.mkdirp.bind(store)
+
+    store.mkdirp = async (path: string) => {
+      made.push(path)
+      await mkdirp(path)
+    }
+
+    await deployTree(store, '/Public/apps/flat', {
+      members: [textFile('index.html', '<h1>Hello</h1>')]
+    })
+
+    expect(made).toEqual(['/Public/apps/flat'])
+    expect(store.dump()).toEqual({
+      '/Public/apps/flat/index.html': '<h1>Hello</h1>'
+    })
+  })
+
   it('writes nothing when the cap refuses the tree', async () => {
     const store = new MemoryDriveStore()
 
@@ -262,7 +375,7 @@ describe('deploying', () => {
         store,
         '/Public/apps/big',
         { members: [file('a.bin', 41)] },
-        limits
+        { limits }
       )
     ).rejects.toMatchObject({ status: 413 })
 
@@ -277,7 +390,7 @@ describe('deploying', () => {
         store,
         '/Public/apps/hostile',
         { members: [service('ok', 'x'), service('../escape', 'y')] },
-        limits
+        { limits }
       )
     ).rejects.toMatchObject({ status: 400 })
 

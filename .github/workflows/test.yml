@@ -243,6 +243,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: The app stream works from the browser bundle
+        run: npm run check:appstream
+
       - name: All three builds load
         run: |
           node -e "const a=require('./build/cjs/index.js'); if(a.ROUTES.length!==61) process.exit(1)"

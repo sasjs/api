@@ -203,11 +203,6 @@ export { MemorySessionRunner } from './runtime/memory-runner.js'
 export type { MemoryRunnerOptions } from './runtime/memory-runner.js'
 export { RUNTIME_CORPUS } from './corpus/runtime.js'
 export {
-  MemoryAppStreamRegistry,
-  unpublishAppStream
-} from './drive/registry.js'
-export type { AppStreamRegistry, UnpublishBody } from './drive/registry.js'
-export {
   RECORD_CORPUS,
   ADMIN_SIGNED_IN,
   PROVIDER_MANAGED
@@ -215,3 +210,48 @@ export {
 export type { CorpusCase } from './corpus/drive.js'
 export { runCase, servicesFor } from './corpus/runner.js'
 export type { CaseResult } from './corpus/runner.js'
+
+export {
+  appSummary,
+  createAppStreamService,
+  defaultAppName,
+  MemoryAppStreamStore
+} from './appstream/service.js'
+export type {
+  AppStreamEntry,
+  AppStreamService,
+  AppStreamStore,
+  PublishAppRequest
+} from './appstream/service.js'
+export {
+  APP_MANIFEST,
+  parseAppManifest,
+  publishRequestFor,
+  splitAppBundle
+} from './appstream/bundle.js'
+export type {
+  AppBundle,
+  AppManifest,
+  DeployPublish
+} from './appstream/bundle.js'
+export {
+  APP_STREAM_INDEX,
+  createDriveAppStreamStore
+} from './appstream/store.js'
+export {
+  DEFAULT_APP_PATH,
+  NO_SUCH_APP,
+  cacheControlFor,
+  contentTypeFor,
+  createAppStreamWebService,
+  escapeHtml
+} from './appstream/web.js'
+export type {
+  AppFilter,
+  AppStreamApp,
+  AppStreamPage,
+  AppStreamRequest,
+  AppStreamWebOptions,
+  AppStreamWebService
+} from './appstream/web.js'
+export { isAppId, newAppId, normaliseAppLoc } from './appstream/identity.js'

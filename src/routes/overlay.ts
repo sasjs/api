@@ -321,8 +321,8 @@ export const OVERLAY: Record<string, RouteOverlay> = {
     }
   },
   'POST /SASjsApi/drive/deploy/upload': { implemented: true },
-  // `404` is a pair - the registry name and the appLoc it was published from -
-  // that matches no entry, and the drive's content is deliberately left alone.
+  // `404` is an id the index does not hold - the id is the app, and its label and
+  // folder are not handles - and the drive's content is deliberately left alone.
   'DELETE /SASjsApi/drive/deploy': { implemented: true },
 
   // Group - members and the groups themselves

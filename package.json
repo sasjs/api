@@ -38,11 +38,12 @@
     "test": "jest --coverage",
     "coverage:comment": "node scripts/coverage-comment.mjs",
     "test:watch": "jest --watch",
-    "lint": "prettier --check \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
-    "lint:fix": "prettier --write \"{src,spec,scripts}/**/*.{ts,mjs,md}\" \"*.{json,md}\"",
+    "lint": "prettier --check \"{src,spec,scripts}/**/*.{ts,mjs,cjs,md}\" \"*.{json,md}\"",
+    "lint:fix": "prettier --write \"{src,spec,scripts}/**/*.{ts,mjs,cjs,md}\" \"*.{json,md}\"",
     "sync:routes": "node scripts/sync-routes.mjs",
     "check:routes": "node scripts/sync-routes.mjs --check",
-    "audit:gate": "node scripts/audit.mjs"
+    "audit:gate": "node scripts/audit.mjs",
+    "check:appstream": "node scripts/appstream-browser-check.cjs"
   },
   "devDependencies": {
     "@semantic-release/commit-analyzer": "13.0.1",

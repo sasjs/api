@@ -8,6 +8,10 @@ import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 import { createDriveService } from '../src/drive/service.js'
 import { MemoryDriveStore } from '../src/drive/memory-store.js'
+import {
+  MemoryAppStreamStore,
+  createAppStreamService
+} from '../src/appstream/service.js'
 import { isApiError } from '../src/types.js'
 import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
@@ -77,6 +81,49 @@ describe('dispatch', () => {
       message:
         'This host has no session service, so it cannot answer GET /SASjsApi/session/{sessionId}.'
     })
+  })
+
+  it('answers 501 for an unpublish when the host has no app stream', async () => {
+    expect(
+      await failure(() =>
+        dispatch(services(), 'DELETE /SASjsApi/drive/deploy', {
+          body: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no app stream, so it cannot answer DELETE /SASjsApi/drive/deploy.'
+    })
+  })
+
+  it('refuses a publish before it writes the deployment the publish describes', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const appStream = createAppStreamService(new MemoryAppStreamStore())
+
+    const answer = await failure(() =>
+      dispatch({ drive, appStream }, 'POST /SASjsApi/drive/deploy', {
+        body: {
+          appLoc: '/Public/apps/x',
+          // the index refuses this, and the drive must not already have the
+          // tree by the time it does
+          streamWebFolder: '../escape',
+          fileTree: {
+            members: [{ name: 'index.html', type: 'file', code: '<h1>x</h1>' }]
+          }
+        }
+      })
+    )
+
+    expect(answer).toEqual({
+      status: 400,
+      message: 'streamWebFolder must be a single path segment.'
+    })
+
+    await expect(drive.tree('/Public/apps/x')).rejects.toMatchObject({
+      status: 404
+    })
+    expect(await appStream.list()).toEqual([])
   })
 
   it('answers 501 on a record route when it has records but no identity service', async () => {

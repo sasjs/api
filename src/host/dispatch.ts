@@ -537,17 +537,13 @@ export const dispatch = async (
           `This host has no app stream, so it cannot answer ${routeId}.`
         )
 
-      const id = given(body.id)
-      const appLoc = given(body.appLoc)
+      // the id is the app: a label is not unique and a folder is not a handle
+      const removed = await services.appStream.unpublish(String(body.id ?? ''))
 
-      // the id is the app; the folder is accepted because that is what a deploy
-      // knows, and a caller that has just published has no other handle yet
-      await services.appStream.unpublish({
-        ...(id === undefined ? {} : { id }),
-        ...(appLoc === undefined ? {} : { appLoc })
-      })
-
-      return { status: 200, body: { status: 'success' } }
+      return {
+        status: 200,
+        body: { status: 'success', app: appSummary(removed) }
+      }
     }
 
     case 'GET /SASjsApi/drive/filetree':

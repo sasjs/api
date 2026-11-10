@@ -45,16 +45,11 @@ describe('route table', () => {
   it('carries the unpublish operation, and answers it', () => {
     const route = routeById('DELETE /SASjsApi/drive/deploy')
 
-    // The pair that identifies a registry entry: a name alone is not enough,
-    // because the same name republished for another folder is another app - which
-    // is why the document requires both and answers 404 when the pair matches no
-    // entry.
+    // The id is the handle: a label is shared by design and a folder is where the
+    // app was published rather than what it is, so the body names the app one way.
     expect(
       route?.params.map((param) => [param.name, param.in, param.required])
-    ).toEqual([
-      ['appLoc', 'body', true],
-      ['streamServiceName', 'body', true]
-    ])
+    ).toEqual([['id', 'body', true]])
     expect(route?.responses.map((response) => response.status)).toEqual([
       200, 400, 404
     ])

@@ -65,12 +65,6 @@ export interface PublishAppRequest {
   publishedAt?: string
 }
 
-/** How an app is named for removal: by id, or - in a deploy's own words - by folder. */
-export interface AppReference {
-  id?: string
-  appLoc?: string
-}
-
 export interface AppStreamService {
   /** Every published app this caller may see, ordered by name. */
   list(allow?: (entry: AppStreamEntry) => boolean): Promise<AppStreamEntry[]>
@@ -88,8 +82,8 @@ export interface AppStreamService {
    * that says nothing about the name is not asking for a rename.
    */
   publish(request: PublishAppRequest): Promise<AppStreamEntry>
-  /** Removes an app from the index, and returns what was removed. */
-  unpublish(reference: AppReference): Promise<AppStreamEntry>
+  /** Removes the app the id names, and returns what was removed. */
+  unpublish(id: string): Promise<AppStreamEntry>
 }
 
 /** What a publish answers: enough for a client to print the app's URL. */
@@ -324,33 +318,16 @@ export const createAppStreamService = (
       })
     },
 
-    unpublish(reference) {
+    unpublish(id) {
       return mutate(async () => {
         const entries = await store.read()
 
-        const match = (entry: AppStreamEntry): boolean => {
-          if (reference.id !== undefined) return entry.id === reference.id
+        const index = entries.findIndex((entry) => entry.id === id)
 
-          if (reference.appLoc === undefined) return false
-
-          return sameAppLoc(entry.appLoc, reference.appLoc)
-        }
-
-        if (reference.id === undefined && reference.appLoc === undefined)
-          throw new ApiError(
-            400,
-            'An app is named for removal by "id" or by "appLoc", and neither was given.'
-          )
-
-        const index = entries.findIndex(match)
-
+        // the id is the app, and the only handle: a label is shared by design and
+        // a folder is where the app was published rather than what it is
         if (index === -1)
-          throw new ApiError(
-            404,
-            reference.id !== undefined
-              ? 'No app is published with that id.'
-              : 'No app is published at that folder.'
-          )
+          throw new ApiError(404, 'No app is published with that id.')
 
         const [removed] = entries.splice(index, 1)
 

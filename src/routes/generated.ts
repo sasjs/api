@@ -531,13 +531,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     summary: 'Remove an app stream entry',
     params: [
       {
-        name: 'appLoc',
-        in: 'body',
-        required: true,
-        type: 'string'
-      },
-      {
-        name: 'streamServiceName',
+        name: 'id',
         in: 'body',
         required: true,
         type: 'string'
@@ -555,7 +549,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 404,
-        description: 'No app is published at that folder'
+        description: 'No app is published with that id'
       }
     ]
   },

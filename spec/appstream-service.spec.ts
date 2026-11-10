@@ -247,48 +247,28 @@ describe('the app index', () => {
     expect(await apps.forAppLoc('/Public/apps/other')).toBeUndefined()
   })
 
-  it('removes an app by id, and by the folder it was published from', async () => {
-    const byId = service()
-    const published = await byId.publish({
+  it('removes the app the id names, and says what went', async () => {
+    const apps = service()
+    const published = await apps.publish({
       appLoc: '/Public/apps/mario',
       streamWebFolder: 'web'
     })
 
-    expect((await byId.unpublish({ id: published.id })).id).toBe(published.id)
-    expect(await byId.list()).toEqual([])
-
-    const byFolder = service()
-    await byFolder.publish({
-      appLoc: '/Public/apps/mario',
-      streamWebFolder: 'web'
-    })
-
-    expect(
-      (await byFolder.unpublish({ appLoc: '/Public/apps/mario/' })).appLoc
-    ).toBe('/Public/apps/mario')
+    expect((await apps.unpublish(published.id)).id).toBe(published.id)
+    expect(await apps.list()).toEqual([])
   })
 
-  it('refuses a removal that names nothing, and answers 404 for a miss', async () => {
+  it('answers 404 for an id that is not published, and for no id at all', async () => {
     const apps = service()
 
-    await expect(apps.unpublish({})).rejects.toMatchObject({ status: 400 })
-
-    await expect(apps.unpublish({ id: 'nope' })).rejects.toMatchObject({
+    await expect(apps.unpublish('no-such-id')).rejects.toMatchObject({
       status: 404,
       message: 'No app is published with that id.'
     })
 
-    await expect(
-      apps.unpublish({ appLoc: '/Public/none' })
-    ).rejects.toMatchObject({
-      status: 404,
-      message: 'No app is published at that folder.'
-    })
-
-    // a folder that cannot be a folder matches nothing rather than throwing
-    await expect(apps.unpublish({ appLoc: '/../..' })).rejects.toMatchObject({
-      status: 404
-    })
+    // an empty value reaches the same guard: the route refuses a missing field
+    // before this, and a host calling in here gets one answer either way
+    await expect(apps.unpublish('')).rejects.toMatchObject({ status: 404 })
   })
 
   it('refuses the drive root, where a deployment cannot be read back', async () => {
@@ -328,13 +308,15 @@ describe('the app index', () => {
     expect((await apps.list()).map((app) => app.name)).toContain('broken')
   })
 
-  it('ignores a stored entry whose folder could never have been one', async () => {
-    // a hand-edited index: the entry matches nothing rather than throwing on
-    // every removal that follows it
+  it('removes an entry whose folder could never have been one, by its id', async () => {
+    // a hand-edited index: the id is still a handle, so the entry can be cleaned
+    // up rather than becoming one nothing can remove
+    const id = '3f9c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60'
+
     const apps = createAppStreamService(
       new MemoryAppStreamStore([
         {
-          id: '3f9c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+          id,
           name: 'broken',
           appLoc: '/../..',
           streamWebFolder: 'web',
@@ -343,11 +325,8 @@ describe('the app index', () => {
       ])
     )
 
-    await expect(apps.unpublish({ appLoc: '/Public/a' })).rejects.toMatchObject(
-      {
-        status: 404
-      }
-    )
+    expect((await apps.unpublish(id)).name).toBe('broken')
+    expect(await apps.list()).toEqual([])
   })
 
   it('keeps two overlapping publishes from discarding each other', async () => {

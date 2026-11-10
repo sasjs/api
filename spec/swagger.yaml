@@ -611,9 +611,29 @@ components:
                     type: string
                 example:
                     $ref: '#/components/schemas/FileTree'
+                app:
+                    $ref: '#/components/schemas/PublishedApp'
             required:
                 - status
                 - message
+            type: object
+            additionalProperties: false
+        PublishedApp:
+            description: 'The app a deploy published - present only when the deployment was indexed as one.'
+            properties:
+                id:
+                    type: string
+                    description: 'The app id, a version 4 UUID assigned the first time the folder was published'
+                name:
+                    type: string
+                    description: 'The label the app is listed under'
+                url:
+                    type: string
+                    description: 'Where the app is served; `/app/<id>/`'
+            required:
+                - id
+                - name
+                - url
             type: object
             additionalProperties: false
         DeployPayload:
@@ -640,17 +660,13 @@ components:
             type: object
             additionalProperties: false
         UnpublishPayload:
-            description: 'The pair an unpublish names - see `DELETE /SASjsApi/drive/deploy`.'
+            description: 'The app an unpublish names - see `DELETE /SASjsApi/drive/deploy`.'
             properties:
-                appLoc:
+                id:
                     type: string
-                    description: 'The folder the app was published from; `/Public/app/myservice`'
-                streamServiceName:
-                    type: string
-                    description: 'The name the app is advertised and served under'
+                    description: "The app's id, as a publish returned it"
             required:
-                - appLoc
-                - streamServiceName
+                - id
             type: object
             additionalProperties: false
         AddFolderPayload:
@@ -1682,8 +1698,8 @@ paths:
                                 'Example 1':
                                     value: {status: failure, message: 'Unpublishing failed!'}
                 '404':
-                    description: 'No app is published at that folder'
-            description: "Removes a published app stream entry.\n\nThe entry stops being advertised - the landing page, its HTML index and\n`/AppStream/apps.json` are all built from the one registry - and stops being\nserved on `/AppStream/<streamServiceName>`, because the name leaves the route\ninventory as well.\n\n`appLoc` and `streamServiceName` are both required - a caller that names a\nstream but not the folder has not said what to remove - but the **folder is\nwhat identifies the app**: an app is one thing to deploy and one thing to\nremove, and its name is a label on it. A folder may hold two apps only as a\nspecial case, and they are still one thing to load or delete. So a name that\nhas since been changed does not turn a correct removal into a `404`; a folder\nwith nothing published at it answers `404`, and a missing field answers `400`.\n\nThe drive content is left alone. Deleting the folder is `DELETE\n/SASjsApi/drive/folder`, so unpublishing never destroys a deployment - and\npublishing created no permission rule, so there is none to withdraw: a caller\nneeds the same `/SASjsApi/drive/deploy` grant this route already requires.\n\nAn entry whose deployment folder has already gone is removable too, which is\nthe case a stale listing is made of: the registry file is consulted as well as\nthe in-memory view, and only the named entry is dropped."
+                    description: 'No app is published with that id'
+            description: "Removes a published app stream entry.\n\n**The app is named by its id**, which a publish returns and the listing carries:\nthe id is the app's identity, and nothing else addresses it. Its label is not a\nkey - two apps may share one - and its folder is not a handle either, because the\napp is what was published rather than the place it was published from. An id the\nindex does not hold answers `404`; a body with no id answers `400`.\n\nThe entry stops being advertised - the landing page, `/app/apps.json` and every\nlisting are built from the one index - and its URL stops serving the app, because\nthe routes resolve the id through the same index.\n\nThe drive content is left alone. Deleting the folder is `DELETE\n/SASjsApi/drive/folder`, so unpublishing never destroys a deployment - and\npublishing created no permission rule, so there is none to withdraw: a caller\nneeds the same `/SASjsApi/drive/deploy` grant this route already requires.\n\nAn entry whose deployment folder has already gone is removable too: the id is\nstill the handle, so a stale listing can be cleaned up rather than becoming a tile\nnothing can remove."
             summary: 'Remove an app stream entry'
             tags:
                 - Drive

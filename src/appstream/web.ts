@@ -336,7 +336,7 @@ export const createAppStreamWebService = (
         // resolves to exactly one app
         if (!entry) return noSuchApp()
 
-        const removed = await appStream.unpublish({ id: entry.id })
+        const removed = await appStream.unpublish(entry.id)
 
         return json(200, { status: 'success', app: rowOf(removed) })
       }

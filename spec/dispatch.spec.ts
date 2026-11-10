@@ -87,7 +87,7 @@ describe('dispatch', () => {
     expect(
       await failure(() =>
         dispatch(services(), 'DELETE /SASjsApi/drive/deploy', {
-          body: { appLoc: '/Public/myApp', streamServiceName: 'myApp' }
+          body: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
         })
       )
     ).toEqual({

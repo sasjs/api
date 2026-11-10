@@ -218,7 +218,6 @@ export {
   MemoryAppStreamStore
 } from './appstream/service.js'
 export type {
-  AppReference,
   AppStreamEntry,
   AppStreamService,
   AppStreamStore,

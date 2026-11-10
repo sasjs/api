@@ -5,11 +5,11 @@
  * `404` - and each has a case here, which is what
  * `spec/corpus-parity.spec.ts` enforces in both directions.
  *
- * **The folder is the identity.** An app is one thing to deploy and one thing to
- * remove; its name is a label on it. The document requires both body values, so a
- * caller must supply both, but only the folder decides what is deleted - and the
- * case below with a stale name and the right folder pins exactly that, because a
- * name-keyed lookup would answer 404 there and leave the app in place.
+ * **The id is the identity.** An app is one thing to deploy and one thing to
+ * remove, and the id a publish returns is the handle: a label is shared by design
+ * and a folder is where the app was published rather than what it is. The case
+ * below removes an app whose label has since changed, by id alone, which a
+ * name-keyed or folder-keyed lookup could not do.
  */
 import type { CorpusCase } from './drive.js'
 
@@ -26,46 +26,35 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
   {
     id: 'deploy-unpublish',
     route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'removes a published app stream and answers the status',
+    description: 'removes the app the id names, and says what went',
     request: {
       subject: SUBJECT,
-      body: { streamServiceName: 'myApp', appLoc: '/Public/myApp' }
+      body: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
     },
-    expect: { status: 200, body: { status: 'success' } }
+    expect: {
+      status: 200,
+      partial: {
+        status: 'success',
+        app: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60', name: 'myApp' }
+      }
+    }
   },
   {
-    id: 'deploy-unpublish-other-name',
+    id: 'deploy-unpublish-no-id',
     route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'removes the app by its folder when the name has been renamed',
+    description: 'refuses a body that does not say which app to remove',
+    request: { subject: SUBJECT, body: {} },
+    expect: { status: 400, error: '"id" is required' }
+  },
+  {
+    id: 'deploy-unpublish-unknown-id',
+    route: 'DELETE /SASjsApi/drive/deploy',
+    description: 'answers 404 for an id the index does not hold',
     request: {
       subject: SUBJECT,
-      body: { streamServiceName: 'renamed-app', appLoc: '/Public/myApp' }
+      body: { id: '11111111-1111-4111-8111-111111111111' }
     },
-    expect: { status: 200, body: { status: 'success' } }
-  },
-  {
-    id: 'deploy-unpublish-no-stream-name',
-    route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'refuses a body that does not say which stream to remove',
-    request: { subject: SUBJECT, body: { appLoc: '/Public/myApp' } },
-    expect: { status: 400, error: '"streamServiceName" is required' }
-  },
-  {
-    id: 'deploy-unpublish-no-app-loc',
-    route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'refuses a body that does not say which folder to remove',
-    request: { subject: SUBJECT, body: { streamServiceName: 'myApp' } },
-    expect: { status: 400, error: '"appLoc" is required' }
-  },
-  {
-    id: 'deploy-unpublish-unknown-folder',
-    route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'answers 404 for a folder nothing is published at',
-    request: {
-      subject: SUBJECT,
-      body: { streamServiceName: 'myApp', appLoc: '/Public/not-an-app' }
-    },
-    expect: { status: 404, error: 'No app is published at that folder.' }
+    expect: { status: 404, error: 'No app is published with that id.' }
   },
 
   // ------------------------------------------- the uploaded-archive route
@@ -161,20 +150,6 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
       error:
         'The file tree exceeds the deploy limit: 10001 entries (maximum 10000).'
     }
-  },
-  {
-    id: 'deploy-unpublish-by-id',
-    route: 'DELETE /SASjsApi/drive/deploy',
-    description: 'removes the app the id names, whatever its label now is',
-    request: {
-      subject: SUBJECT,
-      body: {
-        id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
-        appLoc: '/Public/myApp',
-        streamServiceName: 'renamed-app'
-      }
-    },
-    expect: { status: 200, body: { status: 'success' } }
   },
 
   // ------------------------------------------- a bundle that is an app

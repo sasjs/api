@@ -1,5 +1,23 @@
 import { isAppId, newAppId, normaliseAppLoc } from '../src/appstream/identity'
 
+/** Runs with `globalThis.crypto` replaced, and puts it back however the run ends. */
+const withCrypto = (value: unknown, run: () => void) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+
+  Object.defineProperty(globalThis, 'crypto', {
+    value,
+    configurable: true,
+    writable: true
+  })
+
+  try {
+    run()
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'crypto', original)
+    else delete (globalThis as { crypto?: unknown }).crypto
+  }
+}
+
 describe('app location', () => {
   it('normalises spelling that cannot mean a different folder', () => {
     const canonical = '/Public/apps/mario'
@@ -54,6 +72,31 @@ describe('app id', () => {
     const ids = new Set(Array.from({ length: 500 }, () => newAppId()))
 
     expect(ids.size).toBe(500)
+  })
+
+  it('builds the same uuid from getRandomValues where randomUUID is absent', () => {
+    // an older worker, or a host whose crypto is a different shape: the id must
+    // still be a version 4 UUID, and must not quietly become a weaker one
+    withCrypto(
+      {
+        getRandomValues: (bytes: Uint8Array) => {
+          bytes.fill(0xab)
+          return bytes
+        }
+      },
+      () => {
+        expect(newAppId()).toBe('abababab-abab-4bab-abab-abababababab')
+      }
+    )
+  })
+
+  it('refuses to mint an id with no cryptographic source at all', () => {
+    for (const value of [undefined, {}, { getRandomValues: 1 }])
+      withCrypto(value, () =>
+        expect(() => newAppId()).toThrow(
+          'No cryptographic source of randomness is available.'
+        )
+      )
   })
 
   it('accepts only a uuid as an id', () => {

@@ -291,6 +291,28 @@ describe('the app index', () => {
     })
   })
 
+  it('ignores a stored entry whose folder could never have been one', async () => {
+    // a hand-edited index: the entry matches nothing rather than throwing on
+    // every removal that follows it
+    const apps = createAppStreamService(
+      new MemoryAppStreamStore([
+        {
+          id: '3f9c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+          name: 'broken',
+          appLoc: '/../..',
+          streamWebFolder: 'web',
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    )
+
+    await expect(apps.unpublish({ appLoc: '/Public/a' })).rejects.toMatchObject(
+      {
+        status: 404
+      }
+    )
+  })
+
   it('keeps two overlapping publishes from discarding each other', async () => {
     const apps = service()
 

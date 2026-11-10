@@ -79,6 +79,20 @@ describe('dispatch', () => {
     })
   })
 
+  it('answers 501 for an unpublish when the host has no app stream', async () => {
+    expect(
+      await failure(() =>
+        dispatch(services(), 'DELETE /SASjsApi/drive/deploy', {
+          body: { appLoc: '/Public/myApp', streamServiceName: 'myApp' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no app stream, so it cannot answer DELETE /SASjsApi/drive/deploy.'
+    })
+  })
+
   it('answers 501 on a record route when it has records but no identity service', async () => {
     // a records-only host can answer, but only for a caller it resolved itself:
     // without a subject there is nothing to authenticate, and a 401 would put a

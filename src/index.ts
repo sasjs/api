@@ -236,6 +236,10 @@ export type {
   DeployPublish
 } from './appstream/bundle.js'
 export {
+  APP_STREAM_INDEX,
+  createDriveAppStreamStore
+} from './appstream/store.js'
+export {
   DEFAULT_APP_PATH,
   NO_SUCH_APP,
   cacheControlFor,

@@ -209,6 +209,21 @@ describe('an app url', () => {
     }
   })
 
+  it('does not swallow a drive failure as a missing file', async () => {
+    const appStream = createAppStreamService(
+      new MemoryAppStreamStore([entry()])
+    )
+    const broken = createAppStreamWebService(appStream, {
+      read: async () => {
+        throw new Error('the drive is offline')
+      }
+    } as never)
+
+    await expect(
+      broken.request({ method: 'GET', path: `/app/${MARIO}/` })
+    ).rejects.toThrow('the drive is offline')
+  })
+
   it('refuses a method the surface does not answer', async () => {
     const { surface } = await web()
 

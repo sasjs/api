@@ -163,6 +163,88 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'deploy-unpublish-by-id',
+    route: 'DELETE /SASjsApi/drive/deploy',
+    description: 'removes the app the id names, whatever its label now is',
+    request: {
+      subject: SUBJECT,
+      body: {
+        id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+        appLoc: '/Public/myApp',
+        streamServiceName: 'renamed-app'
+      }
+    },
+    expect: { status: 200, body: { status: 'success' } }
+  },
+
+  // ------------------------------------------- a bundle that is an app
+  // One deploy writes the tree and indexes the app, from the manifest at the
+  // root of the archive. The id is minted, so the case pins what can be pinned:
+  // the app exists, under the label the manifest states.
+  {
+    id: 'deploy-publishes-an-app',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'indexes a bundle as an app from the manifest it carries, in one request',
+    request: {
+      subject: SUBJECT,
+      body: {
+        appLoc: '/Public/apps/mario',
+        fileTree: {
+          members: [
+            {
+              name: 'sasjs.app.json',
+              type: 'file',
+              code: JSON.stringify({
+                name: 'Mario',
+                streamWebFolder: 'web',
+                logo: 'logo.png'
+              })
+            },
+            {
+              name: 'services',
+              type: 'folder',
+              members: [
+                {
+                  name: 'web',
+                  type: 'folder',
+                  members: [
+                    { name: 'index.html', type: 'file', code: '<h1>Mario</h1>' }
+                  ]
+                },
+                { name: 'run', type: 'service', code: '%put hi;' }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 200,
+      partial: {
+        status: 'success',
+        app: { name: 'Mario' }
+      }
+    }
+  },
+  {
+    id: 'deploy-refuses-a-bad-manifest',
+    route: 'POST /SASjsApi/drive/deploy',
+    description: 'refuses a bundle whose manifest is not JSON',
+    request: {
+      subject: SUBJECT,
+      body: {
+        appLoc: '/Public/apps/bad-manifest',
+        fileTree: {
+          members: [{ name: 'sasjs.app.json', type: 'file', code: '{not json' }]
+        }
+      }
+    },
+    expect: {
+      status: 400
+    }
+  },
+  {
     id: 'upload-refused-by-store',
     route: 'POST /SASjsApi/drive/deploy/upload',
     description: 'answers the routes 500 when the drive refuses the write',

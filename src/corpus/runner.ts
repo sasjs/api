@@ -12,7 +12,10 @@ import { dispatch } from '../host/dispatch.js'
 import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
-import { MemoryAppStreamRegistry } from '../drive/registry.js'
+import {
+  MemoryAppStreamStore,
+  createAppStreamService
+} from '../appstream/service.js'
 import { createIdentityService } from '../identity/service.js'
 import { createRecordService } from '../identity/records.js'
 import { createSessionService } from '../session/service.js'
@@ -30,6 +33,19 @@ import { CORPUS_WEB_PAGE } from './home.js'
 import { MemoryIdentityStore } from '../identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
+
+/**
+ * The app every case starts from: one published app, at the folder the unpublish
+ * cases name, so a removal has something to remove. Its id is stated rather than
+ * minted, because a case that pins "the id that is there" cannot invent one.
+ */
+const CORPUS_APP = {
+  id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+  name: 'myApp',
+  appLoc: '/Public/myApp',
+  streamWebFolder: 'web',
+  publishedAt: '2026-01-01T00:00:00.000Z'
+}
 
 export interface CaseResult {
   status: number
@@ -81,7 +97,7 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     directory: createDirectoryService(identity, CORPUS_DIRECTORY),
     identity: createIdentityService(identity),
     records: createRecordService(identity),
-    registry: new MemoryAppStreamRegistry(),
+    appStream: createAppStreamService(new MemoryAppStreamStore([CORPUS_APP])),
     session: createSessionService(identity, runner),
     // no `runTimes` option: the default is the five the document names, so a
     // case is never refused for a reason that belongs to one host's install

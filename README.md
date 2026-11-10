@@ -26,6 +26,15 @@ Where the document is wrong, it is corrected in `sasjs/server` and re-vendored h
 `createAdminService` carries the three Admin reports over the host's `AdminReports`, owning the diagnostics shape, the log-name rule and the `lines` bounds; `createDirectoryService` imports a directory over a five-method `DirectoryStore`, creating what is missing and leaving what exists; `createHomeService` stamps the interface's shell with a token derived from its bundle, so a cached page cannot pin an old build.
 They are `async`, take a `DriveStore`, and import nothing - so the same code runs under Express and inside a service worker.
 
+**The app stream** (`createAppStreamService`, `createAppStreamWebService`, `splitAppBundle`) is what a deployed folder becomes when it is an app.
+An app is one folder, the web assets inside it (`<appLoc>/services/<streamWebFolder>`) and a UUID assigned the first time it is published; the readable name is a label with no uniqueness rule, because nothing is looked up by name - the URL is `/app/<id>/`, so two apps may be called the same thing without colliding.
+Publishing a folder that is already published is the same app published again: it keeps its id, which is what makes a redeploy keep its URL.
+`createAppStreamService` is the index over an `AppStreamStore` a host supplies (`MemoryAppStreamStore` ships for a browser), and `createAppStreamWebService` answers `/app`, `/app/apps.json`, `/app/<id>/...` and `DELETE /app/<id>` over the host's `DriveStore`, so a host mounts one surface rather than reimplementing the listing, the asset lookup and the cache headers.
+
+A deployment and the statement that it is an app travel as one bundle: a zip whose root carries `sasjs.app.json` (`{ "name", "streamWebFolder", "logo", "frameAncestors" }`) beside the folders the app is made of.
+`splitAppBundle` reads that manifest out of the tree and the deploy indexes the app in the same request, so a publish cannot succeed while the files it describes failed to land - or the other way round.
+A deploy that names `streamWebFolder` in its payload publishes without a manifest, and a folder with no manifest and no `streamWebFolder` is a plain deployment that indexes nothing.
+
 **The corpus** (`DRIVE_CORPUS`, `DEPLOY_CORPUS`, `CODE_CORPUS`, `IDENTITY_CORPUS`, `RECORD_CORPUS`, `SESSION_CORPUS`, `RUNTIME_CORPUS`, `INFO_CORPUS`, `ADMIN_CORPUS`, `AUTH_CONFIG_CORPUS`, `DIRECTORY_CORPUS`, `HOME_CORPUS`, `runCase`) is what "the same API" means when a test has to check it: each case is a request, the answer a client expects, and the files it starts from.
 The same cases are meant to run against a live server and against the browser build, so a difference fails a test rather than waiting for a reviewer to notice.
 

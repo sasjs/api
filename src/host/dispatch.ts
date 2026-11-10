@@ -18,8 +18,9 @@ import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
 import type { RuntimeService } from '../runtime/service.js'
-import type { AppStreamRegistry } from '../drive/registry.js'
-import { unpublishAppStream } from '../drive/registry.js'
+import type { AppStreamService } from '../appstream/service.js'
+import { appSummary } from '../appstream/service.js'
+import { publishRequestFor, splitAppBundle } from '../appstream/bundle.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
 import type { AuthConfigService } from '../authconfig/service.js'
@@ -134,11 +135,16 @@ export interface Services {
    */
   runtime?: RuntimeService
   /**
-   * The app streams a host has published. Absent, `DELETE /drive/deploy`
-   * answers 501 - the package cannot know a host's stream registry.
+   * The apps a host has published, and their index. Absent, a deploy publishes
+   * nothing and `DELETE /drive/deploy` answers 501 - the package can decide what
+   * an app is, but only a host can store one.
    */
-  registry?: AppStreamRegistry
+  appStream?: AppStreamService
 }
+
+/** A payload value, when the caller actually stated one. */
+const given = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined
 
 /**
  * The parameters the table marks required, checked before the handler runs.
@@ -485,23 +491,58 @@ export const dispatch = async (
     // expansion, which is why the two share this path rather than reading bytes.
     case 'POST /SASjsApi/drive/deploy/upload':
     case 'POST /SASjsApi/drive/deploy': {
-      // `streamWebFolder` is the host's: publishing an app stream is not a drive
-      // operation, and a host that has no app stream ignores it.
-      await drive.deploy(String(body.appLoc ?? ''), body.fileTree)
+      // A bundle is one archive: the deployment and - when it carries one - the
+      // statement that this folder is an app. The manifest is metadata, so it is
+      // taken out of the tree before anything is written.
+      const bundle = splitAppBundle(body.fileTree)
+      const appLoc = String(body.appLoc ?? '')
 
-      return { status: 200, body: DEPLOY_SUCCESS }
-    }
+      await drive.deploy(appLoc, bundle.tree)
 
-    case 'DELETE /SASjsApi/drive/deploy':
-      if (!services.registry)
-        throw new ApiError(
-          501,
-          `This host has no app stream registry, so it cannot answer ${routeId}.`
-        )
+      const publish = services.appStream
+        ? publishRequestFor(
+            {
+              appLoc,
+              streamWebFolder: given(body.streamWebFolder),
+              streamServiceName: given(body.streamServiceName),
+              streamLogo: given(body.streamLogo)
+            },
+            bundle.manifest
+          )
+        : undefined
+
+      // a deploy of something that is not an app writes files and says so; the
+      // app is indexed in the same request, so a publish cannot half happen
+      if (publish === undefined || !services.appStream)
+        return { status: 200, body: DEPLOY_SUCCESS }
+
+      const entry = await services.appStream.publish(publish)
+
       return {
         status: 200,
-        body: await unpublishAppStream(services.registry, body)
+        body: { ...DEPLOY_SUCCESS, app: appSummary(entry) }
       }
+    }
+
+    case 'DELETE /SASjsApi/drive/deploy': {
+      if (!services.appStream)
+        throw new ApiError(
+          501,
+          `This host has no app stream, so it cannot answer ${routeId}.`
+        )
+
+      const id = given(body.id)
+      const appLoc = given(body.appLoc)
+
+      // the id is the app; the folder is accepted because that is what a deploy
+      // knows, and a caller that has just published has no other handle yet
+      await services.appStream.unpublish({
+        ...(id === undefined ? {} : { id }),
+        ...(appLoc === undefined ? {} : { appLoc })
+      })
+
+      return { status: 200, body: { status: 'success' } }
+    }
 
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }

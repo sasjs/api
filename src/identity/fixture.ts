@@ -16,8 +16,13 @@ export interface IdentityFixtureUser {
   uid: string
   username: string
   displayName: string
-  /** Plain text on purpose: a fixture, not a credential store. */
-  password: string
+  /**
+   * Plain text on purpose: a fixture, not a credential store. Absent when the
+   * account has no local password - one a directory imported authenticates
+   * there, and `createUser` leaves the password to a separate `setPassword`
+   * call, so a store can hold such an account as well.
+   */
+  password?: string
   isAdmin: boolean
   isActive: boolean
   needsToUpdatePassword: boolean
@@ -45,9 +50,9 @@ export interface IdentityFixturePermission {
   type: string
   /** `Grant` or `Deny`. */
   setting: string
-  /** The username the rule is assigned to, when it is not a group's. */
+  /** The uid of the account the rule is assigned to, when it is not a group's. */
   user?: string
-  /** The group the rule is assigned to, when it is not a user's. */
+  /** The uid of the group the rule is assigned to, when it is not a user's. */
   group?: string
 }
 

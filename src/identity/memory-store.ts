@@ -127,7 +127,11 @@ export class MemoryIdentityStore implements IdentityStore {
         authProvider: user.authProvider,
         autoExec: user.autoExec
       })
-      this.passwords.set(user.uid, user.password)
+      // a fixture states no password for an account whose password lives at
+      // its provider - a directory import writes exactly that shape - and an
+      // absent entry is what refuses every attempt, empty string included
+      if (user.password !== undefined)
+        this.passwords.set(user.uid, user.password)
     }
 
     for (const client of fixture.clients) {
@@ -497,5 +501,55 @@ export class MemoryIdentityStore implements IdentityStore {
       refreshTokenExpiration: input.refreshTokenExpiration
     })
     return input
+  }
+
+  /**
+   * The fixture this store would be seeded from now.
+   *
+   * A host that persists the store - the browser build keeps it beside the
+   * drive - writes this object and seeds the next boot from it, so the file a
+   * person reads and the object the store speaks are the same shape. Passwords
+   * are carried because a seed needs them to sign in: the administration
+   * records deliberately leave them out, and a snapshot that did too would be a
+   * fixture no one could log into.
+   *
+   * Tokens and authorization codes are absent on purpose. They are credentials
+   * with a lifetime, minted per session; a persisted one would authenticate a
+   * caller after the pair it names had been rotated or revoked, which is the
+   * failure a token store exists to prevent.
+   *
+   * An account with no local password - one a directory imported, or one
+   * created and never given a password - is stated without one. Writing an
+   * empty string would seed an account the equality check signs in with `''`,
+   * while an absent password refuses every attempt, which is what this store
+   * itself answers for that account.
+   */
+  snapshot(): IdentityFixture {
+    return {
+      format: IDENTITY_FORMAT,
+      users: this.userList.map((user) => {
+        const password = this.passwords.get(user.uid)
+
+        return {
+          ...user,
+          ...(password === undefined ? {} : { password })
+        }
+      }),
+      groups: [...this.groupList.values()].map((group) => ({
+        ...group,
+        // the store holds members as uids; the fixture states them by username,
+        // which is what the constructor resolves back - writing uids here would
+        // seed a group whose membership matches no account
+        users: group.users
+          .map(
+            (uid) => this.userList.find((user) => user.uid === uid)?.username
+          )
+          .filter((username): username is string => username !== undefined)
+      })),
+      permissions: [...this.permissionList.values()].map((permission) => ({
+        ...permission
+      })),
+      clients: [...this.clientRecords.values()].map((client) => ({ ...client }))
+    }
   }
 }

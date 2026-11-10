@@ -4,6 +4,7 @@
  * rotates the pair, and a fixture is refused by a name rather than a stack.
  */
 import { createIdentityService } from '../src/identity/service.js'
+import { createDirectoryService } from '../src/directory/service.js'
 import { createRecordService } from '../src/identity/records.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import {
@@ -340,6 +341,194 @@ describe('identity fixture', () => {
   it('refuses a fixture missing a collection, naming it', () => {
     const { users: _users, ...rest } = DEFAULT_IDENTITY
     expect(() => parseIdentity(rest)).toThrow(/no `users` array/)
+  })
+})
+
+describe('the store snapshot', () => {
+  const store = () => new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+
+  it('carries what a seed needs, passwords included', async () => {
+    const source = store()
+    const created = await source.createUser({
+      username: 'newcomer',
+      displayName: 'New Comer',
+      isAdmin: false,
+      isActive: true
+    })
+    await source.setPassword(created.uid, 'Password123')
+
+    const snapshot = source.snapshot()
+    expect(snapshot.format).toBe(IDENTITY_FORMAT)
+    // a fixture is a seed: it has to be readable by the parser that reads one
+    expect(parseIdentity(snapshot)).toBe(snapshot)
+
+    const restored = new MemoryIdentityStore(snapshot)
+    const identity = createIdentityService(restored)
+    const signedIn = await identity.login({
+      username: 'newcomer',
+      password: 'Password123'
+    })
+    expect(signedIn.user.username).toBe('newcomer')
+  })
+
+  it('carries accounts, groups, rules and clients a session created', async () => {
+    const source = store()
+    const group = await source.createGroup({
+      name: 'Reviewers',
+      description: 'Read-only visitors',
+      isActive: true
+    })
+    await source.createPermission({
+      path: '/SASjsApi/drive',
+      type: 'Route',
+      setting: 'Deny',
+      group: group.uid
+    })
+    await source.createClient({
+      clientId: 'harness',
+      clientSecret: 'secret',
+      accessTokenExpiration: 600,
+      refreshTokenExpiration: 3600
+    })
+
+    const restored = new MemoryIdentityStore(source.snapshot())
+    const groups = await restored.groups()
+    const permissions = await restored.permissions()
+    const clients = await restored.clients()
+    expect(groups.map((entry) => entry.name)).toContain('Reviewers')
+    expect(permissions.map((entry) => entry.path)).toContain('/SASjsApi/drive')
+    // the fixture states an assignment by uid, which is what the seed resolves:
+    // a name here reloads as a rule assigned to nobody
+    expect(
+      permissions.find((entry) => entry.path === '/SASjsApi/drive')?.group
+    ).toBe(group.uid)
+    expect(clients.map((entry) => entry.clientId)).toContain('harness')
+  })
+
+  it('keeps a group membership the session created', async () => {
+    const source = store()
+    const created = await source.createUser({
+      username: 'newcomer',
+      displayName: 'New Comer',
+      isAdmin: false,
+      isActive: true
+    })
+    const group = await source.createGroup({
+      name: 'Reviewers',
+      description: 'Read-only visitors',
+      isActive: true
+    })
+    await source.addToGroup(group.uid, created.uid)
+    await source.setPassword(created.uid, 'Password123')
+
+    const snapshot = source.snapshot()
+    // the fixture states members by username, which is what a seed resolves;
+    // writing the store's uids here would restore an empty group
+    const shipped = snapshot.groups.find((entry) => entry.name === 'Reviewers')
+    expect(shipped?.users).toEqual(['newcomer'])
+
+    const restored = new MemoryIdentityStore(snapshot)
+    const users = await restored.users()
+    expect(
+      users.find((entry) => entry.username === 'newcomer')?.groups
+    ).toContain(group.uid)
+  })
+
+  it('states an account with no password without inventing one', async () => {
+    const source = store()
+    const created = await source.createUser({
+      username: 'nominal',
+      displayName: 'Nominal',
+      isAdmin: false,
+      isActive: true
+    })
+
+    const shipped = source
+      .snapshot()
+      .users.find((entry) => entry.username === 'nominal')
+    // absent, not '': the restored store compares with equality, so an empty
+    // string would be a password it accepted, and this account has none
+    expect(shipped && 'password' in shipped).toBe(false)
+
+    const restored = new MemoryIdentityStore(source.snapshot())
+    expect(await restored.passwordMatches(created, '')).toBe(false)
+  })
+
+  it('carries an account a directory imported, which has no local password', async () => {
+    const source = store()
+    await createDirectoryService(source, {
+      users: async () => [{ username: 'fromldap', displayName: 'From LDAP' }],
+      groups: async () => []
+    }).synchronise()
+
+    const restored = new MemoryIdentityStore(source.snapshot())
+    const imported = (await restored.users()).find(
+      (entry) => entry.username === 'fromldap'
+    )
+    // an import leaves the password to the provider, so a snapshot that refused
+    // this account would lose every write once a sync had run, and one that
+    // wrote '' would hand it an empty credential
+    expect(imported?.authProvider).toBe('ldap')
+    if (!imported) throw new Error('the imported account did not survive')
+
+    expect(await restored.passwordMatches(imported, '')).toBe(false)
+  })
+
+  it('leaves out a membership that names no account', async () => {
+    const source = store()
+    const group = await source.createGroup({
+      name: 'Reviewers',
+      description: 'Read-only visitors',
+      isActive: true
+    })
+    // `addToGroup` records the uid it is handed without checking an account
+    // answers to it, and the fixture states members by username, so a uid that
+    // resolves to nobody would seed a member no reader can find
+    await source.addToGroup(group.uid, 'user-missing')
+
+    const shipped = source
+      .snapshot()
+      .groups.find((entry) => entry.name === 'Reviewers')
+    expect(shipped?.users).toEqual([])
+  })
+
+  it('is a copy, so editing it does not edit the store', async () => {
+    const source = store()
+    const snapshot = source.snapshot()
+    snapshot.users[0].displayName = 'Renamed'
+    snapshot.users.push({
+      uid: 'user-planted',
+      username: 'planted',
+      displayName: 'Planted',
+      password: 'Password123',
+      isAdmin: false,
+      isActive: true,
+      needsToUpdatePassword: false
+    })
+    // groups, permissions and clients are spread shallow, so a shared array or
+    // row would let an edit here change the store it was read from
+    snapshot.groups[0].users.push('planted-member')
+    snapshot.permissions[0].path = '/planted'
+    snapshot.clients[0].clientSecret = 'planted'
+
+    const users = await source.users()
+    expect(users.map((entry) => entry.username)).not.toContain('planted')
+    expect(users[0].displayName).not.toBe('Renamed')
+
+    const groups = await source.groups()
+    expect(groups[0].users).not.toContain('planted-member')
+
+    const permissions = await source.permissions()
+    expect(permissions[0].path).not.toBe('/planted')
+
+    const clients = await source.clients()
+    expect(clients[0].clientSecret).not.toBe('planted')
+  })
+
+  it('leaves out tokens and codes: a persisted credential outlives its pair', async () => {
+    const snapshot = store().snapshot()
+    expect(snapshot.tokens).toBeUndefined()
+    expect(snapshot.codes).toBeUndefined()
   })
 })
 

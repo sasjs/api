@@ -1,4 +1,5 @@
 import { MemoryDriveStore } from '../src/drive/memory-store'
+import { ApiError } from '../src/types'
 import { createDriveService } from '../src/drive/service'
 import {
   MemoryAppStreamStore,
@@ -222,6 +223,17 @@ describe('an app url', () => {
     await expect(
       broken.request({ method: 'GET', path: `/app/${MARIO}/` })
     ).rejects.toThrow('the drive is offline')
+
+    // a fault the drive reports as an ApiError is not a wrong URL either
+    const faulting = createAppStreamWebService(appStream, {
+      read: async () => {
+        throw new ApiError(500, 'the disk went away')
+      }
+    } as never)
+
+    await expect(
+      faulting.request({ method: 'GET', path: `/app/${MARIO}/` })
+    ).rejects.toThrow('the disk went away')
   })
 
   it('refuses a method the surface does not answer', async () => {

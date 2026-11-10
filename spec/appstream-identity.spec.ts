@@ -52,8 +52,12 @@ describe('app location', () => {
   })
 
   it('refuses a location that climbs out of the drive', () => {
-    expect(() => normaliseAppLoc('/..')).toThrow(/outside the drive/)
-    expect(() => normaliseAppLoc('/Public/../..')).toThrow(/outside the drive/)
+    expect(() => normaliseAppLoc('/..')).toThrow(
+      'appLoc cannot be outside drive.'
+    )
+    expect(() => normaliseAppLoc('/Public/../..')).toThrow(
+      'appLoc cannot be outside drive.'
+    )
   })
 
   it('keeps the root as the root', () => {
@@ -101,6 +105,9 @@ describe('app id', () => {
 
   it('accepts only a uuid as an id', () => {
     expect(isAppId(newAppId())).toBe(true)
+    // upper case is a value no lookup can find, because every comparison is
+    // exact, so the guard must not vouch for one
+    expect(isAppId('CB83519E-3EA6-4575-8F71-62173E0467B4')).toBe(false)
     expect(isAppId('3f9')).toBe(false)
     expect(isAppId('67892ccb')).toBe(false)
     expect(isAppId(5)).toBe(false)

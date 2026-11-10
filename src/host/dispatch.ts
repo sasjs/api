@@ -19,7 +19,7 @@ import type { RecordService } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
 import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamService } from '../appstream/service.js'
-import { appSummary } from '../appstream/service.js'
+import { appSummary, checkPublishRequest } from '../appstream/service.js'
 import { publishRequestFor, splitAppBundle } from '../appstream/bundle.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
@@ -497,9 +497,7 @@ export const dispatch = async (
       const bundle = splitAppBundle(body.fileTree)
       const appLoc = String(body.appLoc ?? '')
 
-      await drive.deploy(appLoc, bundle.tree)
-
-      const publish = services.appStream
+      const requested = services.appStream
         ? publishRequestFor(
             {
               appLoc,
@@ -511,8 +509,16 @@ export const dispatch = async (
           )
         : undefined
 
-      // a deploy of something that is not an app writes files and says so; the
-      // app is indexed in the same request, so a publish cannot half happen
+      // the index's own checks run BEFORE the drive is written: a tree the index
+      // would refuse must not leave its files behind, which is what happened when
+      // the deploy came first - a request answered `400` had already deployed
+      const publish =
+        requested === undefined ? undefined : checkPublishRequest(requested)
+
+      await drive.deploy(appLoc, bundle.tree)
+
+      // a deploy of something that is not an app writes files and says so; an app
+      // is indexed in the same request, so the two cannot disagree
       if (publish === undefined || !services.appStream)
         return { status: 200, body: DEPLOY_SUCCESS }
 

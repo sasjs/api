@@ -266,11 +266,9 @@ export const createAppStreamWebService = (
 
     const relative = (parts as string[]).join('/') || 'index.html'
 
-    const folder = entry.appLoc === '/' ? '' : entry.appLoc
-
     try {
       const file = await drive.read(
-        `${folder}/services/${entry.streamWebFolder}/${relative}`
+        `${entry.appLoc}/services/${entry.streamWebFolder}/${relative}`
       )
 
       return {
@@ -281,8 +279,14 @@ export const createAppStreamWebService = (
       }
     } catch (error) {
       // a missing file, a path that climbs out of the folder and a folder named
-      // where a file belongs are one answer to a browser: nothing is here
-      if (error instanceof ApiError) return noSuchApp()
+      // where a file belongs are one answer to a browser: nothing is here. A
+      // fault is not: reporting a drive that went away as a wrong URL would send
+      // the caller looking for a typo that is not there.
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 400)
+      )
+        return noSuchApp()
 
       throw error
     }

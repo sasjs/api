@@ -147,7 +147,7 @@ describe('the app index', () => {
 
     await expect(
       apps.publish({ appLoc: '/../..', streamWebFolder: 'web' })
-    ).rejects.toMatchObject({ status: 400, message: /outside the drive/ })
+    ).rejects.toMatchObject({ status: 400, message: /outside drive/ })
 
     await expect(
       apps.publish({ appLoc: '/Public/apps/a', streamWebFolder: '' })
@@ -289,6 +289,43 @@ describe('the app index', () => {
     await expect(apps.unpublish({ appLoc: '/../..' })).rejects.toMatchObject({
       status: 404
     })
+  })
+
+  it('refuses the drive root, where a deployment cannot be read back', async () => {
+    await expect(
+      service().publish({ appLoc: '/', streamWebFolder: 'web' })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'An app cannot be published at the drive root.'
+    })
+  })
+
+  it('is not stopped by one stored entry whose folder could never have been one', async () => {
+    // the bad entry matches nothing; it must not make every publish and every
+    // redeploy lookup on the host throw
+    const apps = createAppStreamService(
+      new MemoryAppStreamStore([
+        {
+          id: '3f9c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+          name: 'broken',
+          appLoc: '',
+          streamWebFolder: 'web',
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const published = await apps.publish({
+      appLoc: '/Public/apps/b',
+      streamWebFolder: 'web'
+    })
+
+    expect(published.id).toMatch(UUID)
+    expect(await apps.forAppLoc('/Public/apps/b')).toMatchObject({
+      appLoc: '/Public/apps/b'
+    })
+    // and the broken entry is still listed, rather than silently dropped
+    expect((await apps.list()).map((app) => app.name)).toContain('broken')
   })
 
   it('ignores a stored entry whose folder could never have been one', async () => {

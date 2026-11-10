@@ -1,4 +1,5 @@
 import { normaliseDrivePath } from '../drive/paths.js'
+import { ApiError } from '../types.js'
 
 /**
  * An app's id is a UUID assigned once, when the app is first published.
@@ -24,8 +25,10 @@ export const normaliseAppLoc = (appLoc: string): string => {
 
   const normalised = normaliseDrivePath(appLoc)
 
+  // one refusal for one rule: the deploy route refuses an escaping location with
+  // this wording and this status, and a host calling in here gets the same
   if (normalised === null)
-    throw new Error(`App location cannot be outside the drive: ${appLoc}`)
+    throw new ApiError(400, 'appLoc cannot be outside drive.')
 
   return normalised
 }
@@ -74,8 +77,10 @@ export const newAppId = (): string => {
   ].join('-')
 }
 
+// no `i` flag: `newAppId` mints lower case and every lookup compares exactly, so
+// a guard that accepts upper case would vouch for an id no lookup can find
 const APP_ID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 /** Whether a string is a well-formed id: a version 4 UUID. */
 export const isAppId = (value: unknown): value is string =>

@@ -15,9 +15,11 @@
  *
  * One app per folder. Publishing a folder that is already published is the same
  * app published again: it keeps its id (so its URL survives a redeploy) and takes
- * the values the new publish states. Nothing is derived from the path, so a
- * capital, a space or a `..` in a folder name is the drive's business rather than
- * an identity question.
+ * the values the new publish states - except the label, which carries over when
+ * the new publish does not name one, so a redeploy that has forgotten what the
+ * app is called does not rename it to its folder. Nothing is derived from the
+ * path, so a capital, a space or a `..` in a folder name is the drive's business
+ * rather than an identity question.
  */
 import { ApiError } from '../types.js'
 import { newAppId, normaliseAppLoc } from './identity.js'
@@ -81,7 +83,9 @@ export interface AppStreamService {
    *
    * The entry IS the publish: a field the request does not state is absent from
    * the entry rather than inherited from the previous publish, so republishing
-   * from a bundle that dropped its logo drops the logo.
+   * from a bundle that dropped its logo drops the logo. The label is the one
+   * exception - it carries over unless this publish names one - because a redeploy
+   * that says nothing about the name is not asking for a rename.
    */
   publish(request: PublishAppRequest): Promise<AppStreamEntry>
   /** Removes an app from the index, and returns what was removed. */
@@ -115,12 +119,70 @@ export const defaultAppName = (appLoc: string): string => {
   return segment ? segment : 'app'
 }
 
+/**
+ * Whether two spellings name one folder.
+ *
+ * A location that cannot be a folder matches nothing rather than throwing: an
+ * index written by hand, or by an older shape, holds one bad entry at most, and
+ * that entry must not stop every publish and every redeploy lookup on the host.
+ */
+const sameAppLoc = (left: string, right: string): boolean => {
+  try {
+    return normaliseAppLoc(left) === normaliseAppLoc(right)
+  } catch (_) {
+    return false
+  }
+}
+
 /** The same folder spellings `normaliseAppLoc` collapses, as a `400` rather than a throw. */
 const appLocOf = (value: string): string => {
   try {
     return normaliseAppLoc(value)
   } catch (error) {
     throw new ApiError(400, (error as Error).message)
+  }
+}
+
+/** A publish request with every field in the shape the index stores. */
+export interface CheckedPublish extends Omit<
+  PublishAppRequest,
+  'frameAncestors'
+> {
+  frameAncestors?: string[]
+}
+
+/**
+ * A publish request, checked and normalised, with no default applied.
+ *
+ * Separate from `publish` so a host can refuse a publish BEFORE it writes the
+ * deployment: the drive and the index are two writes, and a request the index
+ * would refuse must not leave the files behind. `name` is left absent when the
+ * caller did not state one, because a redeploy inherits the label it had.
+ */
+export const checkPublishRequest = (
+  request: PublishAppRequest
+): CheckedPublish => {
+  const appLoc = appLocOf(request.appLoc)
+
+  // the drive root is not a folder an app can live in: a deploy to `/` writes
+  // `//index.html`, which nothing can read, so it is refused rather than indexed
+  if (appLoc === '/')
+    throw new ApiError(400, 'An app cannot be published at the drive root.')
+
+  const logo = logoOf(request.logo)
+  const frameAncestors = frameAncestorsOf(request.frameAncestors)
+
+  return {
+    appLoc,
+    streamWebFolder: webFolderOf(request.streamWebFolder),
+    ...(request.name === undefined
+      ? {}
+      : { name: nameOf(request.name, appLoc) }),
+    ...(logo === undefined ? {} : { logo }),
+    ...(frameAncestors === undefined ? {} : { frameAncestors }),
+    ...(request.publishedAt === undefined
+      ? {}
+      : { publishedAt: request.publishedAt })
   }
 }
 
@@ -215,8 +277,8 @@ export const createAppStreamService = (
         return undefined
       }
 
-      const entry = (await store.read()).find(
-        (candidate) => normaliseAppLoc(candidate.appLoc) === normalised
+      const entry = (await store.read()).find((candidate) =>
+        sameAppLoc(candidate.appLoc, normalised)
       )
 
       return entry ? { ...entry } : undefined
@@ -224,33 +286,36 @@ export const createAppStreamService = (
 
     publish(request) {
       return mutate(async () => {
-        const appLoc = appLocOf(request.appLoc)
-        const streamWebFolder = webFolderOf(request.streamWebFolder)
+        const checked = checkPublishRequest(request)
+        const appLoc = checked.appLoc
+        const streamWebFolder = checked.streamWebFolder
         const entries = await store.read()
 
         // the folder is the app, so a redeploy is the same app published again:
         // it keeps the id its URL depends on, and takes the values this publish
         // states rather than the ones the previous publish left behind
-        const existing = entries.find(
-          (entry) => normaliseAppLoc(entry.appLoc) === appLoc
+        const existing = entries.find((entry) =>
+          sameAppLoc(entry.appLoc, appLoc)
         )
 
-        const logo = logoOf(request.logo)
-        const frameAncestors = frameAncestorsOf(request.frameAncestors)
+        const logo = checked.logo
+        const frameAncestors = checked.frameAncestors
 
         const entry: AppStreamEntry = {
           id: existing ? existing.id : newAppId(),
-          name: nameOf(request.name ?? existing?.name, appLoc),
+          // the label is the one field a redeploy inherits: everything else is
+          // what this publish states
+          name: nameOf(checked.name ?? existing?.name, appLoc),
           appLoc,
           streamWebFolder,
           ...(logo === undefined ? {} : { logo }),
           ...(frameAncestors === undefined ? {} : { frameAncestors }),
-          publishedAt: request.publishedAt ?? new Date().toISOString()
+          publishedAt: checked.publishedAt ?? new Date().toISOString()
         }
 
         await store.write([
           ...entries.filter(
-            (candidate) => normaliseAppLoc(candidate.appLoc) !== appLoc
+            (candidate) => !sameAppLoc(candidate.appLoc, appLoc)
           ),
           entry
         ])
@@ -268,14 +333,7 @@ export const createAppStreamService = (
 
           if (reference.appLoc === undefined) return false
 
-          try {
-            return (
-              normaliseAppLoc(entry.appLoc) ===
-              normaliseAppLoc(reference.appLoc)
-            )
-          } catch (_) {
-            return false
-          }
+          return sameAppLoc(entry.appLoc, reference.appLoc)
         }
 
         if (reference.id === undefined && reference.appLoc === undefined)

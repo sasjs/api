@@ -117,12 +117,36 @@ const main = async () => {
   const checks = [
     ['deploy indexes the app', deployed.status === 200 && !!app.id],
     ['url is the id', app.url === `/app/${app.id}/`],
-    ['a v4 uuid', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(app.id)],
-    ['index.html is served', index.status === 200 && index.body === '<h1>Mario</h1>'],
-    ['hashed asset is cached hard', /immutable/.test(script.headers['cache-control'])],
-    ['the listing carries the id', listing.apps[0] && listing.apps[0].id === app.id],
-    ['the manifest is not deployed', !(await drive.read('/Public/apps/mario/sasjs.app.json').then(() => true, () => false))],
-    ['the services are deployed', (await drive.read('/Public/apps/mario/services/run.sas')).contents === '%put hi;'],
+    [
+      'a v4 uuid',
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+        app.id
+      )
+    ],
+    [
+      'index.html is served',
+      index.status === 200 && index.body === '<h1>Mario</h1>'
+    ],
+    [
+      'hashed asset is cached hard',
+      /immutable/.test(script.headers['cache-control'])
+    ],
+    [
+      'the listing carries the id',
+      listing.apps[0] && listing.apps[0].id === app.id
+    ],
+    [
+      'the manifest is not deployed',
+      !(await drive.read('/Public/apps/mario/sasjs.app.json').then(
+        () => true,
+        () => false
+      ))
+    ],
+    [
+      'the services are deployed',
+      (await drive.read('/Public/apps/mario/services/run.sas')).contents ===
+        '%put hi;'
+    ],
     ['mints a v4 uuid with no randomUUID', await fallback()]
   ]
 

@@ -498,4 +498,37 @@ export class MemoryIdentityStore implements IdentityStore {
     })
     return input
   }
+
+  /**
+   * The fixture this store would be seeded from now.
+   *
+   * A host that persists the store - the browser build keeps it beside the
+   * drive - writes this object and seeds the next boot from it, so the file a
+   * person reads and the object the store speaks are the same shape. Passwords
+   * are carried because a seed needs them to sign in: the administration
+   * records deliberately leave them out, and a snapshot that did too would be a
+   * fixture no one could log into.
+   *
+   * Tokens and authorization codes are absent on purpose. They are credentials
+   * with a lifetime, minted per session; a persisted one would authenticate a
+   * caller after the pair it names had been rotated or revoked, which is the
+   * failure a token store exists to prevent.
+   */
+  snapshot(): IdentityFixture {
+    return {
+      format: IDENTITY_FORMAT,
+      users: this.userList.map((user) => ({
+        ...user,
+        password: this.passwords.get(user.uid) || ''
+      })),
+      groups: [...this.groupList.values()].map((group) => ({
+        ...group,
+        users: [...group.users]
+      })),
+      permissions: [...this.permissionList.values()].map((permission) => ({
+        ...permission
+      })),
+      clients: [...this.clientRecords.values()].map((client) => ({ ...client }))
+    }
+  }
 }

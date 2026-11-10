@@ -343,6 +343,88 @@ describe('identity fixture', () => {
   })
 })
 
+describe('the store snapshot', () => {
+  const store = () => new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+
+  it('carries what a seed needs, passwords included', async () => {
+    const source = store()
+    const created = await source.createUser({
+      username: 'newcomer',
+      displayName: 'New Comer',
+      isAdmin: false,
+      isActive: true
+    })
+    await source.setPassword(created.uid, 'Password123')
+
+    const snapshot = source.snapshot()
+    expect(snapshot.format).toBe(IDENTITY_FORMAT)
+    // a fixture is a seed: it has to be readable by the parser that reads one
+    expect(parseIdentity(snapshot)).toBe(snapshot)
+
+    const restored = new MemoryIdentityStore(snapshot)
+    const identity = createIdentityService(restored)
+    const signedIn = await identity.login({
+      username: 'newcomer',
+      password: 'Password123'
+    })
+    expect(signedIn.user.username).toBe('newcomer')
+  })
+
+  it('carries accounts, groups, rules and clients a session created', async () => {
+    const source = store()
+    const group = await source.createGroup({
+      name: 'Reviewers',
+      description: 'Read-only visitors',
+      isActive: true
+    })
+    await source.createPermission({
+      path: '/SASjsApi/drive',
+      type: 'Route',
+      setting: 'Deny',
+      group: group.name
+    })
+    await source.createClient({
+      clientId: 'harness',
+      clientSecret: 'secret',
+      accessTokenExpiration: 600,
+      refreshTokenExpiration: 3600
+    })
+
+    const restored = new MemoryIdentityStore(source.snapshot())
+    const groups = await restored.groups()
+    const permissions = await restored.permissions()
+    const clients = await restored.clients()
+    expect(groups.map((entry) => entry.name)).toContain('Reviewers')
+    expect(permissions.map((entry) => entry.path)).toContain('/SASjsApi/drive')
+    expect(clients.map((entry) => entry.clientId)).toContain('harness')
+  })
+
+  it('is a copy, so editing it does not edit the store', async () => {
+    const source = store()
+    const snapshot = source.snapshot()
+    snapshot.users[0].displayName = 'Renamed'
+    snapshot.users.push({
+      uid: 'user-planted',
+      username: 'planted',
+      displayName: 'Planted',
+      password: 'Password123',
+      isAdmin: false,
+      isActive: true,
+      needsToUpdatePassword: false
+    })
+
+    const users = await source.users()
+    expect(users.map((entry) => entry.username)).not.toContain('planted')
+    expect(users[0].displayName).not.toBe('Renamed')
+  })
+
+  it('leaves out tokens and codes: a persisted credential outlives its pair', async () => {
+    const snapshot = store().snapshot()
+    expect(snapshot.tokens).toBeUndefined()
+    expect(snapshot.codes).toBeUndefined()
+  })
+})
+
 describe('what the store refuses', () => {
   it('refuses a fixture whose format this build does not read', () => {
     expect(

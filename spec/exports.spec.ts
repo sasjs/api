@@ -15,6 +15,7 @@ import path from 'node:path'
 import type {
   AdminReports,
   AuthConfig,
+  CheckedPublish,
   DirectoryStore,
   WebPage,
   CallerDirectory,
@@ -117,6 +118,28 @@ describe('the entry point exports the types a host implements', () => {
     }
 
     expect(store).toBeDefined()
+  })
+
+  it('the publish check a host runs before it writes a deployment', () => {
+    // A host deploys first and indexes second, and the two are separate writes
+    // with no transaction across them - so a host has to be able to refuse the
+    // index's own reasons BEFORE the drive is written, or a bundle the index
+    // rejects leaves its files behind. That makes the check part of the surface
+    // a host compiles against, not an implementation detail of `publish`.
+    const checked: CheckedPublish = api.checkPublishRequest({
+      appLoc: '/Public/apps/mario/',
+      streamWebFolder: 'web',
+      frameAncestors: 'https://example.com'
+    })
+
+    expect(checked.appLoc).toBe('/Public/apps/mario')
+    expect(checked.frameAncestors).toEqual(['https://example.com'])
+    // no default is applied: a redeploy that names no label keeps the one it has
+    expect(checked.name).toBeUndefined()
+
+    expect(() =>
+      api.checkPublishRequest({ appLoc: '/', streamWebFolder: 'web' })
+    ).toThrow(/drive root/)
   })
 })
 

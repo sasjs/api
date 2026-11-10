@@ -213,6 +213,7 @@ export type { CaseResult } from './corpus/runner.js'
 
 export {
   appSummary,
+  checkPublishRequest,
   createAppStreamService,
   defaultAppName,
   MemoryAppStreamStore
@@ -221,6 +222,7 @@ export type {
   AppStreamEntry,
   AppStreamService,
   AppStreamStore,
+  CheckedPublish,
   PublishAppRequest
 } from './appstream/service.js'
 export {

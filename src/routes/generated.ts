@@ -528,7 +528,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     method: 'DELETE',
     path: '/SASjsApi/drive/deploy',
     tag: 'Drive',
-    summary: 'Remove an app stream entry',
+    summary: 'Remove an app',
     params: [
       {
         name: 'id',
@@ -573,6 +573,24 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         type: 'string'
       },
       {
+        name: 'streamServiceName',
+        in: 'body',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'streamLogo',
+        in: 'body',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'replace',
+        in: 'body',
+        required: false,
+        type: 'boolean'
+      },
+      {
         name: 'fileTree',
         in: 'body',
         required: true,
@@ -606,6 +624,36 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     tag: 'Drive',
     summary: 'Deploy an uploaded file to SASjs Drive',
     params: [
+      {
+        name: 'appLoc',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'streamWebFolder',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'streamServiceName',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'streamLogo',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'replace',
+        in: 'query',
+        required: false,
+        type: 'boolean'
+      },
       {
         name: 'file',
         in: 'formData',

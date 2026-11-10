@@ -1,0 +1,66 @@
+import { isAppId, newAppId, normaliseAppLoc } from '../src/appstream/identity'
+
+describe('app location', () => {
+  it('normalises spelling that cannot mean a different folder', () => {
+    const canonical = '/Public/apps/mario'
+
+    for (const spelling of [
+      '/Public/apps/mario/',
+      '//Public//apps//mario',
+      'Public/apps/mario',
+      '/Public/apps/x/../mario',
+      '/Public/apps/mario/.'
+    ]) {
+      expect(normaliseAppLoc(spelling)).toBe(canonical)
+    }
+  })
+
+  it('leaves the path free to be whatever the drive allows', () => {
+    // nothing restricts the charset any more: the id is not derived from the path,
+    // so a capital or a space is a folder name rather than an identity problem
+    for (const allowed of [
+      '/Public/apps/Mario',
+      '/Public/apps/my app',
+      '/Public/apps/my-app_v2'
+    ]) {
+      expect(normaliseAppLoc(allowed)).toBe(allowed)
+    }
+  })
+
+  it('refuses a location that is not a string, rather than using the root', () => {
+    for (const invalid of [undefined, null, 0, ''] as any[]) {
+      expect(() => normaliseAppLoc(invalid)).toThrow(/non-empty string/)
+    }
+  })
+
+  it('refuses a location that climbs out of the drive', () => {
+    expect(() => normaliseAppLoc('/..')).toThrow(/outside the drive/)
+    expect(() => normaliseAppLoc('/Public/../..')).toThrow(/outside the drive/)
+  })
+
+  it('keeps the root as the root', () => {
+    expect(normaliseAppLoc('/')).toBe('/')
+  })
+})
+
+describe('app id', () => {
+  it('is a version 4 uuid', () => {
+    expect(newAppId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
+  })
+
+  it('does not repeat', () => {
+    const ids = new Set(Array.from({ length: 500 }, () => newAppId()))
+
+    expect(ids.size).toBe(500)
+  })
+
+  it('accepts only a uuid as an id', () => {
+    expect(isAppId(newAppId())).toBe(true)
+    expect(isAppId('3f9')).toBe(false)
+    expect(isAppId('67892ccb')).toBe(false)
+    expect(isAppId(5)).toBe(false)
+    expect(isAppId('not-a-uuid-at-all')).toBe(false)
+  })
+})

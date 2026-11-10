@@ -215,3 +215,5 @@ export {
 export type { CorpusCase } from './corpus/drive.js'
 export { runCase, servicesFor } from './corpus/runner.js'
 export type { CaseResult } from './corpus/runner.js'
+
+export * from './appstream/identity.js'

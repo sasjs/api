@@ -514,16 +514,13 @@ export const dispatch = async (
       // taken out of the tree before anything is written.
       const bundle = splitAppBundle(body.fileTree)
 
-      // The document states these in the QUERY on the upload route - where the
-      // archive is the body - and in the body on the JSON route. A host that
-      // expands the archive itself may hand them over in either place, so the
-      // query wins and the body is the fallback.
       const isUpload = routeId === 'POST /SASjsApi/drive/deploy/upload'
 
-      // the query is read on the upload route only: that is where the document
-      // states these, because the archive is the body. On the JSON route the
-      // document states them in the body, and a stray `?appLoc=` beside a body
-      // that names one would silently deploy to another folder.
+      // The query is read on the upload route only: that is where the document
+      // states these, because the archive is the body. There the body is still the
+      // fallback, for a host that expands the archive before it dispatches. On the
+      // JSON route the document states them in the body, and a stray `?appLoc=`
+      // beside a body that names one would silently deploy to another folder.
       const setting = (name: string): unknown =>
         isUpload ? (given(query[name]) ?? body?.[name]) : body?.[name]
 

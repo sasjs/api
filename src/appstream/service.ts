@@ -151,7 +151,7 @@ export interface CheckedPublish extends Omit<
  * An app is served out of `<appLoc>/services/<streamWebFolder>`, so a tree
  * without that folder would be indexed and then answer `404` to every request -
  * a tile that opens nothing, which is worse than a refusal that names the missing
- * folder. Both the check below and a host that wants to decide earlier read this.
+ * folder.
  */
 export const hasStreamFolder = (
   tree: unknown,

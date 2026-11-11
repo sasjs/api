@@ -147,6 +147,24 @@ const given = (value: unknown): string | undefined =>
   typeof value === 'string' && value !== '' ? value : undefined
 
 /**
+ * `replace`, as the two deploy routes state it: a query string on the upload
+ * route, a boolean in the JSON one. Anything else is refused rather than guessed
+ * at, because guessing "keep" when the caller said nothing would leave a dropped
+ * file being served.
+ */
+const replaceOf = (value: unknown): boolean | undefined => {
+  if (value === undefined || value === '') return undefined
+  if (typeof value === 'boolean') return value
+
+  const text = String(value).trim().toLowerCase()
+
+  if (text === 'true') return true
+  if (text === 'false') return false
+
+  throw new ApiError(400, '"replace" must be true or false.')
+}
+
+/**
  * The parameters the table marks required, checked before the handler runs.
  *
  * Multipart fields are deliberately left to the handler: the payload carries the
@@ -495,15 +513,26 @@ export const dispatch = async (
       // statement that this folder is an app. The manifest is metadata, so it is
       // taken out of the tree before anything is written.
       const bundle = splitAppBundle(body.fileTree)
-      const appLoc = String(body.appLoc ?? '')
+
+      const isUpload = routeId === 'POST /SASjsApi/drive/deploy/upload'
+
+      // The query is read on the upload route only: that is where the document
+      // states these, because the archive is the body. There the body is still the
+      // fallback, for a host that expands the archive before it dispatches. On the
+      // JSON route the document states them in the body, and a stray `?appLoc=`
+      // beside a body that names one would silently deploy to another folder.
+      const setting = (name: string): unknown =>
+        isUpload ? (given(query[name]) ?? body?.[name]) : body?.[name]
+
+      const appLoc = String(setting('appLoc') ?? '')
 
       const requested = services.appStream
         ? publishRequestFor(
             {
               appLoc,
-              streamWebFolder: given(body.streamWebFolder),
-              streamServiceName: given(body.streamServiceName),
-              streamLogo: given(body.streamLogo)
+              streamWebFolder: given(setting('streamWebFolder')),
+              streamServiceName: given(setting('streamServiceName')),
+              streamLogo: given(setting('streamLogo'))
             },
             bundle.manifest
           )
@@ -511,11 +540,27 @@ export const dispatch = async (
 
       // the index's own checks run BEFORE the drive is written: a tree the index
       // would refuse must not leave its files behind, which is what happened when
-      // the deploy came first - a request answered `400` had already deployed
-      const publish =
-        requested === undefined ? undefined : checkPublishRequest(requested)
+      // the deploy came first - a request answered `400` had already deployed.
+      // The tree goes in, so a tree without the folder the app would be served
+      // from is refused rather than indexed as an app that 404s.
+      // the folder the refusal should tell the caller to fix: the bundle's, when
+      // the request did not state one and the manifest did
+      const folderFromManifest =
+        requested?.streamWebFolder !== undefined &&
+        given(setting('streamWebFolder')) === undefined &&
+        bundle.manifest?.streamWebFolder !== undefined
 
-      await drive.deploy(appLoc, bundle.tree)
+      const publish =
+        requested === undefined
+          ? undefined
+          : checkPublishRequest(requested, bundle.tree, { folderFromManifest })
+
+      // an archive upload replaces by default - publishing a folder means the
+      // folder is what the archive says it is - while the JSON route writes over
+      // what is there unless it is told otherwise
+      const replace = replaceOf(setting('replace')) ?? isUpload
+
+      await drive.deploy(appLoc, bundle.tree, { replace })
 
       // a deploy of something that is not an app writes files and says so; an app
       // is indexed in the same request, so the two cannot disagree

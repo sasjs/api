@@ -87,6 +87,37 @@ describe.each(CORPORA)('%s', (_name, corpus) => {
   }
 })
 
+describe('the drive state a case expects', () => {
+  // a case that states state has to fail when the state is not there, or the
+  // assertion is decoration - the deploy routes' `replace` policy is only ever
+  // visible this way, both answers being `200`
+  const deploy = DEPLOY_CORPUS.find(
+    (testCase) => testCase.id === 'deploy-keeps-what-is-there'
+  ) as CorpusCase
+
+  it('fails a case that expected a file the run did not write', async () => {
+    await expect(
+      runCase({
+        ...deploy,
+        expectDrive: { present: ['/Public/apps/kept/missing.html'] }
+      } satisfies CorpusCase)
+    ).rejects.toThrow(
+      'expected a file at /Public/apps/kept/missing.html, and the drive has none'
+    )
+  })
+
+  it('fails a case that expected a file the run kept', async () => {
+    await expect(
+      runCase({
+        ...deploy,
+        expectDrive: { missing: ['/Public/apps/kept/old.html'] }
+      } satisfies CorpusCase)
+    ).rejects.toThrow(
+      'expected no file at /Public/apps/kept/old.html, and the drive still holds one'
+    )
+  })
+})
+
 describe('corpus coverage', () => {
   it('has a case for every operation this package implements', async () => {
     // an operation with no case is an operation nobody proved anything about

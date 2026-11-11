@@ -126,6 +126,184 @@ describe('dispatch', () => {
     expect(await appStream.list()).toEqual([])
   })
 
+  it('takes the upload route’s folder from the query, and replaces the folder by default', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const appStream = createAppStreamService(new MemoryAppStreamStore())
+    const services = { drive, appStream }
+
+    /** A tree carrying the folder the app is served from, and one extra file. */
+    const tree = (code: string, extra = true) => ({
+      members: [
+        {
+          name: 'services',
+          type: 'folder',
+          members: [
+            {
+              name: 'web',
+              type: 'folder',
+              members: [
+                { name: 'index.html', type: 'file', code },
+                ...(extra
+                  ? [{ name: 'old.html', type: 'file', code: '<h1>old</h1>' }]
+                  : [])
+              ]
+            }
+          ]
+        }
+      ]
+    })
+
+    // the document states `appLoc` and `streamWebFolder` in the QUERY on this
+    // route, because the archive is the body
+    const first = await dispatch(
+      services,
+      'POST /SASjsApi/drive/deploy/upload',
+      {
+        query: { appLoc: '/Public/apps/q', streamWebFolder: 'web' },
+        body: { fileTree: tree('<h1>one</h1>') }
+      }
+    )
+
+    expect(first.status).toBe(200)
+
+    const published = first.body as { app: { id: string; name: string } }
+
+    expect(published.app).toMatchObject({ name: 'q' })
+    expect(
+      (await drive.read('/Public/apps/q/services/web/index.html')).contents
+    ).toEqual('<h1>one</h1>')
+
+    // an archive upload is the folder's whole contents, so a second, smaller
+    // tree leaves nothing of the first behind - and keeps the app's id
+    const second = await dispatch(
+      services,
+      'POST /SASjsApi/drive/deploy/upload',
+      {
+        query: { appLoc: '/Public/apps/q', streamWebFolder: 'web' },
+        body: { fileTree: tree('<h1>two</h1>', false) }
+      }
+    )
+
+    expect(second.status).toBe(200)
+    expect((second.body as { app: { id: string } }).app.id).toBe(
+      published.app.id
+    )
+    await expect(
+      drive.read('/Public/apps/q/services/web/old.html')
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('keeps what is already there when the JSON route is not told to replace', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const services = { drive }
+
+    const deploy = (names: string[], replace?: boolean) =>
+      dispatch(services, 'POST /SASjsApi/drive/deploy', {
+        body: {
+          appLoc: '/Public/apps/json',
+          replace,
+          fileTree: {
+            members: names.map((name) => ({
+              name,
+              type: 'file',
+              code: '<h1>x</h1>'
+            }))
+          }
+        }
+      })
+
+    await deploy(['a.html', 'b.html'])
+    // no stream named, so these are files rather than an app
+    await deploy(['a.html'])
+
+    expect((await drive.read('/Public/apps/json/b.html')).contents).toEqual(
+      '<h1>x</h1>'
+    )
+
+    // and told to replace, the folder is what the tree says it is
+    await deploy(['a.html'], true)
+
+    await expect(drive.read('/Public/apps/json/b.html')).rejects.toMatchObject({
+      status: 404
+    })
+  })
+
+  it('takes the JSON route’s folder from the body, whatever the query says', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    // the document states appLoc in the body on this route, so a stray query key
+    // must not quietly redeploy somewhere else
+    const answer = await dispatch(
+      { drive } as any,
+      'POST /SASjsApi/drive/deploy',
+      {
+        query: { appLoc: '/Public/apps/from-query' },
+        body: {
+          appLoc: '/Public/apps/from-body',
+          fileTree: {
+            members: [{ name: 'a.html', type: 'file', code: '<h1>a</h1>' }]
+          }
+        }
+      }
+    )
+
+    expect(answer.status).toBe(200)
+    expect(
+      (await drive.read('/Public/apps/from-body/a.html')).contents
+    ).toEqual('<h1>a</h1>')
+    await expect(
+      drive.read('/Public/apps/from-query/a.html')
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('answers 501 where the route needs a service the host does not have', async () => {
+    for (const routeId of [
+      'POST /SASjsApi/code/lint',
+      'POST /SASjsApi/code/format'
+    ]) {
+      const answer = await failure(() =>
+        dispatch({} as any, routeId, { body: { code: 'data a; run;' } })
+      )
+
+      expect(answer).toMatchObject({ status: 501 })
+      expect(String((answer as { message?: string }).message)).toContain(
+        routeId
+      )
+    }
+
+    // a route the table does not state never reaches a handler at all
+    const unknown = await failure(() =>
+      dispatch({} as any, 'POST /SASjsApi/not/a/route' as any, { body: {} })
+    )
+
+    expect(unknown).toMatchObject({ status: 404 })
+  })
+
+  it('refuses a replace it cannot read, rather than guessing', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    const answer = await failure(() =>
+      dispatch({ drive } as any, 'POST /SASjsApi/drive/deploy/upload', {
+        query: { appLoc: '/Public/apps/x', replace: 'sometimes' },
+        body: {
+          fileTree: {
+            members: [{ name: 'index.html', type: 'file', code: '<h1>x</h1>' }]
+          }
+        }
+      })
+    )
+
+    expect(answer).toEqual({
+      status: 400,
+      message: '"replace" must be true or false.'
+    })
+
+    // and nothing was written, because the refusal comes before the deploy
+    await expect(drive.tree('/Public/apps/x')).rejects.toMatchObject({
+      status: 404
+    })
+  })
+
   it('answers 501 on a record route when it has records but no identity service', async () => {
     // a records-only host can answer, but only for a caller it resolved itself:
     // without a subject there is nothing to authenticate, and a 401 would put a

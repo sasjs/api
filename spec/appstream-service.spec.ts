@@ -1,8 +1,10 @@
 import {
   MemoryAppStreamStore,
   appSummary,
+  checkPublishRequest,
   createAppStreamService,
-  defaultAppName
+  defaultAppName,
+  hasStreamFolder
 } from '../src/appstream/service'
 import type { AppStreamEntry } from '../src/appstream/service'
 
@@ -196,6 +198,61 @@ describe('the app index', () => {
         frameAncestors: ['ok', '']
       })
     ).rejects.toMatchObject({ status: 400, message: /"frameAncestors"/ })
+  })
+
+  it('refuses a tree that does not carry the folder the app would be served from', async () => {
+    const request = { appLoc: '/Public/apps/a', streamWebFolder: 'web' }
+    const refusal = /no "services\/web" folder/
+
+    // no tree stated: the check is about the request alone, as it always was
+    expect(checkPublishRequest(request).streamWebFolder).toBe('web')
+
+    // a request with no folder has no default: an app is served from one
+    expect(() =>
+      checkPublishRequest({ appLoc: '/Public/apps/a', streamWebFolder: '' })
+    ).toThrow('"streamWebFolder" is required')
+
+    const services = (members: unknown[]) => ({
+      members: [{ name: 'services', type: 'folder', members }]
+    })
+
+    // the folder the app is served from is there
+    expect(
+      checkPublishRequest(request, services([{ name: 'web', type: 'folder' }]))
+        .appLoc
+    ).toBe('/Public/apps/a')
+
+    // `services` present, the folder not
+    expect(() =>
+      checkPublishRequest(
+        request,
+        services([{ name: 'other', type: 'folder' }])
+      )
+    ).toThrow(refusal)
+
+    // the name held by a FILE rather than a folder
+    expect(() =>
+      checkPublishRequest(
+        request,
+        services([{ name: 'web', type: 'file', code: '' }])
+      )
+    ).toThrow(refusal)
+
+    // nothing that reads as a tree at all
+    expect(() => checkPublishRequest(request, { members: [] })).toThrow(refusal)
+
+    // advice that names the source: a bundle stating the folder cannot omit it
+    expect(() =>
+      checkPublishRequest(
+        request,
+        { members: [] },
+        { folderFromManifest: true }
+      )
+    ).toThrow(/correct the folder sasjs\.app\.json names\./)
+    expect(() => checkPublishRequest(request, 'nope')).toThrow(refusal)
+
+    expect(hasStreamFolder(undefined, 'web')).toBe(false)
+    expect(hasStreamFolder({ members: [] }, 'web')).toBe(false)
   })
 
   it('lists apps by label, filtered by the caller rule', async () => {

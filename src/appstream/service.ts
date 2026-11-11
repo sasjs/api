@@ -146,15 +146,55 @@ export interface CheckedPublish extends Omit<
 }
 
 /**
+ * Whether a deploy tree carries the folder an app is served from.
+ *
+ * An app is served out of `<appLoc>/services/<streamWebFolder>`, so a tree
+ * without that folder would be indexed and then answer `404` to every request -
+ * a tile that opens nothing, which is worse than a refusal that names the missing
+ * folder.
+ */
+export const hasStreamFolder = (
+  tree: unknown,
+  streamWebFolder: string
+): boolean => {
+  const members = (tree as { members?: unknown })?.members
+
+  if (!Array.isArray(members)) return false
+
+  const isFolder = (member: unknown, name: string): boolean => {
+    const entry = member as {
+      name?: unknown
+      type?: unknown
+      members?: unknown
+    }
+
+    return entry?.type === 'folder' && entry?.name === name
+  }
+
+  const services = members.find((member) => isFolder(member, 'services'))
+  const children = (services as { members?: unknown })?.members
+
+  return (
+    Array.isArray(children) &&
+    children.some((member) => isFolder(member, streamWebFolder))
+  )
+}
+
+/**
  * A publish request, checked and normalised, with no default applied.
  *
  * Separate from `publish` so a host can refuse a publish BEFORE it writes the
  * deployment: the drive and the index are two writes, and a request the index
  * would refuse must not leave the files behind. `name` is left absent when the
  * caller did not state one, because a redeploy inherits the label it had.
+ *
+ * The tree is optional so that a caller holding only the request can still check
+ * it; when it is stated, the folder the app would be served from has to be in it.
  */
 export const checkPublishRequest = (
-  request: PublishAppRequest
+  request: PublishAppRequest,
+  tree?: unknown,
+  options: { folderFromManifest?: boolean } = {}
 ): CheckedPublish => {
   const appLoc = appLocOf(request.appLoc)
 
@@ -165,10 +205,25 @@ export const checkPublishRequest = (
 
   const logo = logoOf(request.logo)
   const frameAncestors = frameAncestorsOf(request.frameAncestors)
+  const streamWebFolder = webFolderOf(request.streamWebFolder)
+
+  // the tree has to carry the folder the app is served from, or the publish
+  // advertises an app whose every request is a `404`. The advice names the source
+  // of the folder: a caller whose bundle stated it cannot omit the field, and the
+  // bundle is the thing to correct.
+  if (tree !== undefined && !hasStreamFolder(tree, streamWebFolder))
+    throw new ApiError(
+      400,
+      `The deployed tree has no "services/${streamWebFolder}" folder, so nothing would be published at ${appLoc}. Deploy the web assets under services/${streamWebFolder}, or ${
+        options.folderFromManifest
+          ? 'correct the folder sasjs.app.json names.'
+          : 'omit streamWebFolder.'
+      }`
+    )
 
   return {
     appLoc,
-    streamWebFolder: webFolderOf(request.streamWebFolder),
+    streamWebFolder,
     ...(request.name === undefined
       ? {}
       : { name: nameOf(request.name, appLoc) }),

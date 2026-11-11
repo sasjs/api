@@ -19,6 +19,7 @@ import {
 import type { RunRequest, SessionRunner } from '../src/runtime/service.js'
 import { MemorySessionRunner } from '../src/runtime/memory-runner.js'
 import { createSessionService } from '../src/session/service.js'
+import { programNotFound } from '../src/runtime/program.js'
 
 const ADMIN = { userId: 'user-admin', clientId: 'web_app' }
 const RESTRICTED = { userId: 'user-restricted', clientId: 'web_app' }
@@ -280,6 +281,12 @@ describe('what the package hands the runner', () => {
       message: 'Job execution failed.',
       error: 'The Program at (../../etc/passwd) does not exist.'
     })
+
+    // the sentence is the resolver's, not a copy of it: `resolveProgram` decides the
+    // detail and this route renders it inside the failed-run envelope, so editing one
+    // copy has to edit both
+    expect(response.body.error).toBe(programNotFound('../../etc/passwd'))
+
     expect(runner.requests).toEqual([])
   })
 

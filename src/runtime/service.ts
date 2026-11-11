@@ -16,6 +16,8 @@
  * that would carry one carries it as optional.
  */
 import { ApiError } from '../types.js'
+import { DOCUMENTED_RUN_TIMES } from './runTimes.js'
+import { programNotFound, runTimeOfPath } from './program.js'
 import type { IdentityUserRecord, Subject } from '../identity/types.js'
 import type { CallerDirectory, SessionArtifact } from '../session/service.js'
 import { normaliseDrivePath } from '../drive/paths.js'
@@ -36,9 +38,6 @@ import { normaliseDrivePath } from '../drive/paths.js'
  * else.
  */
 export const CODE_DEBUG = 131
-
-/** The run times the published document states, and a host may hold fewer. */
-export const DOCUMENTED_RUN_TIMES = ['sas', 'js', 'py', 'r', 'sasviya']
 
 /**
  * `_debug`, normalised the way sasjs/server's `parseDebugValue` normalises it.
@@ -250,8 +249,9 @@ const newSessionId = (now: Date): string =>
   `${timestamp(now)}-${Math.round(Math.random() * 100000)}-${now.getTime()}`
 
 /** The refusal a program that cannot be found answers, as the server words it. */
-const notThere = (programPath: string): string =>
-  `The Program at (${programPath}) does not exist.`
+// the wording is `resolveProgram`'s, so the module that decides the rule and the
+// route that renders it cannot drift apart
+const notThere = (programPath: string): string => programNotFound(programPath)
 
 /**
  * The failure a run that could not be performed answers.
@@ -353,15 +353,10 @@ export const createRuntimeService = (
   const runTimeForPath = (
     path: string,
     request: RuntimeRequest
-  ): string | undefined => {
-    const file = path.split('/').pop() || ''
-    const dot = file.lastIndexOf('.')
-    const extension = dot > 0 ? file.slice(dot + 1).toLowerCase() : ''
-
-    if (DOCUMENTED_RUN_TIMES.includes(extension)) return extension
-
-    return runTimeOf(request)
-  }
+  ): string | undefined =>
+    // the extension rule is `resolveProgram`'s; this asks it and falls back to what
+    // the request stated, which is the part that is this route's
+    runTimeOfPath(path) ?? runTimeOf(request)
 
   /** The run time, refused when it is absent where the document requires it, or unheld. */
   const runTimeOf = (request: RuntimeRequest): string | undefined => {

@@ -178,6 +178,8 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     id: 'upload-refused-by-shape',
     route: 'POST /SASjsApi/drive/deploy/upload',
     description: 'refuses an expansion that is not a tree',
+    // no archive expands to this: only a host handed an expansion can send it
+    transport: 'expansion',
     request: {
       subject: SUBJECT,
       query: { appLoc: '/Public/apps/bad' },

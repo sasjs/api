@@ -39,10 +39,10 @@ describe('the app index', () => {
     const named = await service().publish({
       appLoc: '/Public/apps/mario',
       streamWebFolder: 'web',
-      name: 'Super Mario'
+      name: 'super-mario'
     })
 
-    expect(named.name).toBe('Super Mario')
+    expect(named.name).toBe('super-mario')
 
     expect(defaultAppName('/')).toBe('app')
   })
@@ -90,22 +90,41 @@ describe('the app index', () => {
     expect(again.frameAncestors).toBeUndefined()
   })
 
-  it('gives two folders two ids, even under one label', async () => {
+  it('gives two folders two ids, and refuses them one stated name', async () => {
     const apps = service()
 
+    // a label a folder derives is shared by design: /Public/a/report and
+    // /Public/b/report are both called "report", and both open by id
     const a = await apps.publish({
       appLoc: '/Public/a/report',
-      streamWebFolder: 'web',
-      name: 'report'
+      streamWebFolder: 'web'
     })
     const b = await apps.publish({
       appLoc: '/Public/b/report',
-      streamWebFolder: 'web',
-      name: 'report'
+      streamWebFolder: 'web'
     })
 
     expect(a.id).not.toBe(b.id)
+    expect(a.name).toBe('report')
+    expect(b.name).toBe('report')
     expect(await apps.list()).toHaveLength(2)
+
+    // a STATED name is an address, and one address is one app
+    const c = await apps.publish({
+      appLoc: '/Public/c/report',
+      streamWebFolder: 'web',
+      name: 'reports'
+    })
+
+    await expect(
+      apps.publish({
+        appLoc: '/Public/d/report',
+        streamWebFolder: 'web',
+        name: 'reports'
+      })
+    ).rejects.toMatchObject({ status: 409 })
+
+    expect(c.name).toBe('reports')
   })
 
   it('keeps a label that was set, over the folder default, on a redeploy', async () => {
@@ -253,6 +272,120 @@ describe('the app index', () => {
 
     expect(hasStreamFolder(undefined, 'web')).toBe(false)
     expect(hasStreamFolder({ members: [] }, 'web')).toBe(false)
+  })
+
+  it('refuses a stated name that is not a URL segment', async () => {
+    const apps = service()
+
+    // a stated name is /app/<name>, so it has to be spellable as one segment
+    for (const name of [
+      'Macro Dash',
+      'macro dash',
+      'a/b',
+      'a#b',
+      'a?b',
+      'a%20b',
+      'a&b',
+      '.hidden',
+      '-leading',
+      ''
+    ]) {
+      await expect(
+        apps.publish({ appLoc: '/Public/apps/a', streamWebFolder: 'web', name })
+      ).rejects.toMatchObject({ status: 400, message: /"name"/ })
+    }
+
+    await expect(
+      apps.publish({
+        appLoc: '/Public/apps/a',
+        streamWebFolder: 'web',
+        name: 'a'.repeat(65)
+      })
+    ).rejects.toMatchObject({ status: 400, message: /at most 64 characters/ })
+
+    // the surface answers these itself, before any app is looked up
+    for (const name of ['apps.json', 'index.html', 'APPS.JSON']) {
+      await expect(
+        apps.publish({ appLoc: '/Public/apps/a', streamWebFolder: 'web', name })
+      ).rejects.toMatchObject({ status: 400, message: /answers \/app\// })
+    }
+
+    // what a name may be: letters, digits, dot, dash, underscore, tilde
+    const allowed = ['macro-dash', 'macro_dash', 'MacroDash', 'v1.2', 'a~b']
+
+    for (const [index, name] of allowed.entries()) {
+      const app = await apps.publish({
+        appLoc: `/Public/apps/ok${index}`,
+        streamWebFolder: 'web',
+        name
+      })
+
+      expect(app.name).toBe(name)
+    }
+  })
+
+  it('refuses a stated name that another app already answers on, but keeps its own', async () => {
+    const apps = service()
+
+    await apps.publish({
+      appLoc: '/Public/apps/mario',
+      streamWebFolder: 'web',
+      name: 'mario'
+    })
+
+    // another folder may not take the address
+    await expect(
+      apps.publish({
+        appLoc: '/Public/apps/other',
+        streamWebFolder: 'web',
+        name: 'mario'
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        /already the address of the app published at \/Public\/apps\/mario/
+    })
+
+    // case-insensitively, because one address is one app to a reader
+    await expect(
+      apps.publish({
+        appLoc: '/Public/apps/other',
+        streamWebFolder: 'web',
+        name: 'Mario'
+      })
+    ).rejects.toMatchObject({ status: 409 })
+
+    // a redeploy of the app that holds it is the same app, not a clash
+    const again = await apps.publish({
+      appLoc: '/Public/apps/mario',
+      streamWebFolder: 'web',
+      name: 'mario'
+    })
+
+    expect(again.name).toBe('mario')
+  })
+
+  it('leaves a label derived from the folder alone, and takes it again on a redeploy', async () => {
+    const apps = service()
+
+    // no name stated: the folder segment is the label, spaces and all - it is a
+    // label rather than an address, and /app/Mario%20Kart/ still opens it
+    const derived = await apps.publish({
+      appLoc: '/Public/apps/Mario Kart',
+      streamWebFolder: 'web'
+    })
+
+    expect(derived.name).toBe('Mario Kart')
+
+    // a redeploy that states nothing keeps it: the rule is on what a caller
+    // states, so an app published before the rule can still be published again
+    const again = await apps.publish({
+      appLoc: '/Public/apps/Mario Kart',
+      streamWebFolder: 'web'
+    })
+
+    expect(again.name).toBe('Mario Kart')
+    expect(again.id).toBe(derived.id)
   })
 
   it('lists apps by label, filtered by the caller rule', async () => {

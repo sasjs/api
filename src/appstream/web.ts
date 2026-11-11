@@ -237,9 +237,13 @@ export const createAppStreamWebService = (
   }
 
   /**
-   * The app a URL segment names: its id, or - as a courtesy - its label when one
-   * app alone holds that label. An ambiguous label resolves to nothing, because
-   * guessing which of two same-named apps a URL meant is worse than a 404.
+   * The app a URL segment names: its id, or its label when one app alone holds
+   * that label. The label is a real address, not a convenience - `/app/<name>`
+   * is the readable form of an app's URL - and the publish side keeps it usable
+   * by validating a stated name as a URL segment and refusing one another app
+   * holds. An ambiguous label still resolves to nothing, because a label derived
+   * from a folder has no uniqueness rule of its own, and guessing which of two
+   * same-named apps a URL meant is worse than a 404.
    */
   const resolve = async (
     segment: string,

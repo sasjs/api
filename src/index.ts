@@ -184,11 +184,8 @@ export type {
   SessionSummary
 } from './session/service.js'
 export { DEFAULT_SESSIONS, MemorySessionHost } from './session/memory-host.js'
-export {
-  CODE_DEBUG,
-  DOCUMENTED_RUN_TIMES,
-  createRuntimeService
-} from './runtime/service.js'
+export { CODE_DEBUG, createRuntimeService } from './runtime/service.js'
+export { DOCUMENTED_RUN_TIMES } from './runtime/runTimes.js'
 export type {
   ProgramSource,
   RunOutcome,
@@ -200,6 +197,12 @@ export type {
   SessionRunner,
   TriggerResponse
 } from './runtime/service.js'
+export {
+  programNotFound,
+  resolveProgram,
+  runTimeOfPath
+} from './runtime/program.js'
+export type { ProgramDeps, ProgramResolution } from './runtime/program.js'
 export { MemorySessionRunner } from './runtime/memory-runner.js'
 export type { MemoryRunnerOptions } from './runtime/memory-runner.js'
 export { RUNTIME_CORPUS } from './corpus/runtime.js'

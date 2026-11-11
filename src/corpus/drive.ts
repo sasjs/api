@@ -41,6 +41,16 @@ export interface CorpusCase {
   /** The run fails, so a case can pin the `400` a failed run answers. */
   failingRun?: boolean
   /**
+   * Which host transport can produce this request, where only one can.
+   *
+   * Most cases are reachable either way: a host that expands an archive before it
+   * dispatches, and one that takes the archive and expands it itself. A case whose
+   * request no archive could produce - a tree that is not a tree - is reachable
+   * only by the first, and says so here rather than in the filter of each host that
+   * runs the corpus.
+   */
+  transport?: 'expansion' | 'archive'
+  /**
    * The state the case leaves in the drive, where a status cannot see it.
    *
    * The deploy routes' `replace` policy is exactly that: both answers are `200`

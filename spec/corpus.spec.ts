@@ -118,6 +118,19 @@ describe('the drive state a case expects', () => {
   })
 })
 
+describe('the corpus as data', () => {
+  it('marks the cases only a host handed an expansion can send', () => {
+    // a host that takes an archive filters on this marker instead of on a name, so
+    // a case that becomes unreachable that way has to say so here - and a new one
+    // that forgets fails this, rather than shipping unmarked
+    expect(
+      DEPLOY_CORPUS.filter(
+        (testCase) => testCase.transport === 'expansion'
+      ).map((testCase) => testCase.id)
+    ).toEqual(['upload-refused-by-shape'])
+  })
+})
+
 describe('corpus coverage', () => {
   it('has a case for every operation this package implements', async () => {
     // an operation with no case is an operation nobody proved anything about

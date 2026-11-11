@@ -193,7 +193,8 @@ export const hasStreamFolder = (
  */
 export const checkPublishRequest = (
   request: PublishAppRequest,
-  tree?: unknown
+  tree?: unknown,
+  options: { folderFromManifest?: boolean } = {}
 ): CheckedPublish => {
   const appLoc = appLocOf(request.appLoc)
 
@@ -207,11 +208,17 @@ export const checkPublishRequest = (
   const streamWebFolder = webFolderOf(request.streamWebFolder)
 
   // the tree has to carry the folder the app is served from, or the publish
-  // advertises an app whose every request is a `404`
+  // advertises an app whose every request is a `404`. The advice names the source
+  // of the folder: a caller whose bundle stated it cannot omit the field, and the
+  // bundle is the thing to correct.
   if (tree !== undefined && !hasStreamFolder(tree, streamWebFolder))
     throw new ApiError(
       400,
-      `The deployed tree has no "services/${streamWebFolder}" folder, so nothing would be published at ${appLoc}. Deploy the web assets under services/${streamWebFolder}, or omit streamWebFolder.`
+      `The deployed tree has no "services/${streamWebFolder}" folder, so nothing would be published at ${appLoc}. Deploy the web assets under services/${streamWebFolder}, or ${
+        options.folderFromManifest
+          ? 'correct the folder sasjs.app.json names.'
+          : 'omit streamWebFolder.'
+      }`
     )
 
   return {

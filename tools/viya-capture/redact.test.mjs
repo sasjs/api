@@ -7,6 +7,7 @@ import {
   findLeaks,
   isSecretHeader,
   isSecretKey,
+  redactAndCap,
   redactBody,
   redactHeaders
 } from './redact.mjs'
@@ -98,7 +99,7 @@ test('a JSON body is walked, so a token in a nested field is replaced', () => {
   assert.match(body, /"name":"app"/)
 })
 
-test('a form body is redacted by parameter and keeps the rest', () => {
+test('a form body keeps its non-secret values, which identify the call', () => {
   const body = redactBody(
     'grant_type=client_credentials&client_secret=the-client-secret',
     'application/x-www-form-urlencoded',
@@ -106,7 +107,44 @@ test('a form body is redacted by parameter and keeps the rest', () => {
   )
 
   assert.equal(body.includes('the-client-secret'), false)
-  assert.match(body, /grant_type=<value>/)
+  // `grant_type` is what distinguishes the three token requests
+  assert.match(body, /grant_type=client_credentials/)
+  assert.match(body, /client_secret=<redacted>/)
+})
+
+test('a body is redacted before it is capped, so a secret past the cap cannot survive', () => {
+  // a response over the cap used to fail the JSON parse and fall back to a
+  // literal scrub, which cannot know a `password` field
+  const big = JSON.stringify({
+    filler: 'x'.repeat(40000),
+    password: 'SUPERSECRETVALUE',
+    nested: { client_secret: 'NESTEDSECRET' }
+  })
+
+  const { body, truncated } = redactAndCap(
+    big,
+    'application/json',
+    scrub,
+    24000
+  )
+
+  assert.equal(truncated, true)
+  assert.ok(body.length <= 24000)
+  assert.equal(body.includes('SUPERSECRETVALUE'), false)
+  assert.equal(body.includes('NESTEDSECRET'), false)
+})
+
+test('a body under the cap is recorded whole and not marked truncated', () => {
+  const small = JSON.stringify({ access_token: 'the-access-token-abcdef' })
+  const { body, truncated } = redactAndCap(
+    small,
+    'application/json',
+    scrub,
+    24000
+  )
+
+  assert.equal(truncated, false)
+  assert.equal(body.includes('the-access-token-abcdef'), false)
 })
 
 test('an HTML body is scrubbed but not rewritten', () => {

@@ -26,7 +26,7 @@
  *   VIYA_CLIENT_ID / VIYA_CLIENT_SECRET  record the token endpoint as well
  *   VIYA_REFRESH_TOKEN                   record the refresh grant
  *   VIYA_ALLOW_EXECUTE=1                 create a session and run a program
- *   VIYA_ALLOW_WRITES=1                  create and delete a file and a folder
+ *   VIYA_ALLOW_WRITES=1                  create and delete one folder
  *   VIYA_TLS_RELAX=1                     accept a self-signed certificate
  *   CAPTURE_PORT=8899                    local proxy port
  *
@@ -55,6 +55,8 @@ import {
   createScrubber,
   findLeaks,
   isSecretHeader,
+  redactAndCap,
+  redactAuthorization,
   redactBody
 } from './redact.mjs'
 
@@ -151,6 +153,14 @@ const proxy = http.createServer((req, res) => {
         upstreamResponse.on('end', () => {
           const responseBody = Buffer.concat(parts).toString('utf8')
 
+          // redact, then cap: a cap applied first cuts JSON mid-token, the parse
+          // fails, and the fallback cannot know a `password` field
+          const response = redactAndCap(
+            responseBody,
+            upstreamResponse.headers['content-type'],
+            scrub
+          )
+
           record({
             request: {
               method: req.method,
@@ -161,7 +171,11 @@ const proxy = http.createServer((req, res) => {
               headers: Object.fromEntries(
                 Object.entries(headers).map(([key, value]) => [
                   key,
-                  isSecretHeader(key) ? REDACTED : scrub(String(value))
+                  // the scheme is the part a reader diagnoses with: the token
+                  // steps use Basic and every other call uses Bearer
+                  isSecretHeader(key)
+                    ? scrub(redactAuthorization(value))
+                    : scrub(String(value))
                 ])
               ),
               body: redactBody(requestBody, headers['content-type'], scrub),
@@ -170,12 +184,9 @@ const proxy = http.createServer((req, res) => {
             response: {
               status: upstreamResponse.statusCode,
               headers: storedHeaders(upstreamResponse.headers),
-              body: redactBody(
-                responseBody.slice(0, 24000),
-                upstreamResponse.headers['content-type'],
-                scrub
-              ),
-              bodyBytes: Buffer.byteLength(responseBody)
+              body: response.body,
+              bodyBytes: Buffer.byteLength(responseBody),
+              bodyTruncated: response.truncated
             },
             ms: Date.now() - started
           })

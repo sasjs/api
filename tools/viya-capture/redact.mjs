@@ -154,11 +154,14 @@ export const redactBody = (
   }
 
   if (type.includes('x-www-form-urlencoded'))
+    // only the secret-bearing parameters lose their value: the others are what
+    // identifies the call, and `grant_type` is the difference between the three
+    // token requests
     return scrub(
       trimmed.replace(
         /(^|&)([^=&]+)=([^&]*)/g,
-        (match, separator, key) =>
-          `${separator}${key}=${isSecretKey(key) ? REDACTED : '<value>'}`
+        (match, separator, key, value) =>
+          `${separator}${key}=${isSecretKey(key) ? REDACTED : value}`
       )
     )
 
@@ -197,4 +200,26 @@ export const findLeaks = (text, { host = '', secrets = [] } = {}) => {
   if (addresses) found.push({ category: 'address', count: addresses })
 
   return found
+}
+
+/**
+ * A body reduced to what may be recorded: redacted first, capped second.
+ *
+ * The order matters. Capping first can cut a JSON document mid-token, the parse
+ * fails, and the fallback only substitutes literals this run knows - so a
+ * `password` field past the cap travels verbatim. A cap applied to redacted text
+ * cannot do that, and the caller is told the body was cut.
+ */
+export const redactAndCap = (
+  text,
+  contentType = '',
+  scrub = (value) => value,
+  limit = 24000
+) => {
+  const body = redactBody(text, contentType, scrub)
+
+  return {
+    body: body.length > limit ? body.slice(0, limit) : body,
+    truncated: body.length > limit
+  }
 }

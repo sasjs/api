@@ -43,6 +43,16 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
+      # tools/viya-capture is its own package - its own lockfile and .npmrc -
+      # because it installs @sasjs/adapter to drive a real estate. The root
+      # install never sees it, so its tests, its audit and its formatting would
+      # otherwise run on no push at all.
+      - name: Capture tool: install, test and audit
+        run: |
+          npm ci --prefix tools/viya-capture
+          node --test tools/viya-capture/redact.test.mjs
+          npm audit --prefix tools/viya-capture --omit=dev --audit-level=high
+
       # No high or critical advisory, in any dependency, published or not.
       #
       # The tree carries 36 moderates that cannot be cleared from here: every one

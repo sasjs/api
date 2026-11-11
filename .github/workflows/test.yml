@@ -51,7 +51,9 @@ jobs:
         run: |
           npm ci --prefix tools/viya-capture
           node --test tools/viya-capture/redact.test.mjs
-          npm audit --prefix tools/viya-capture --omit=dev --audit-level=high
+          # the same level the root tree is held to: a sub-project audited less
+          # strictly than the repository it sits in is a hole, not a detail
+          npm audit --prefix tools/viya-capture --omit=dev --audit-level=low
 
       # No high or critical advisory, in any dependency, published or not.
       #

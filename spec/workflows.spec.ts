@@ -32,7 +32,9 @@ describe('the workflows', () => {
         // a reusable-workflow job has `uses` instead of steps
         expect(Boolean(job.steps) || Boolean(job.uses)).toBe(true)
 
-      // a step name is a plain scalar: a second colon makes the file invalid
+      // Not the colon rule - the parse above is what refuses an unquoted colon.
+      // This one is for the reader: a step that names itself (or names the
+      // action it uses) makes a later failure say which step, not which index.
       for (const job of Object.values<any>(document.jobs))
         for (const step of job.steps ?? [])
           expect(typeof (step.name ?? step.uses)).toBe('string')

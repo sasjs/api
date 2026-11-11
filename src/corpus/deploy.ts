@@ -89,6 +89,65 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'upload-query-fields',
+    route: 'POST /SASjsApi/drive/deploy/upload',
+    description:
+      'takes the folder and the stream from the query, where the document states them',
+    request: {
+      subject: SUBJECT,
+      query: { appLoc: '/Public/apps/from-query', streamWebFolder: 'web' },
+      body: {
+        fileTree: {
+          members: [
+            {
+              name: 'services',
+              type: 'folder',
+              members: [
+                {
+                  name: 'web',
+                  type: 'folder',
+                  members: [
+                    { name: 'index.html', type: 'file', code: '<h1>Hello</h1>' }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 200,
+      partial: {
+        status: 'success',
+        app: { name: 'from-query' }
+      }
+    }
+  },
+  {
+    id: 'deploy-refuses-a-tree-without-its-web-folder',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a stream the tree does not carry, rather than indexing an app that would answer 404',
+    request: {
+      subject: SUBJECT,
+      body: {
+        appLoc: '/Public/apps/no-web',
+        streamWebFolder: 'web',
+        fileTree: {
+          members: [
+            { name: 'index.html', type: 'file', code: '<h1>Hello</h1>' }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 400,
+      error:
+        'The deployed tree has no "services/web" folder, so nothing would be published at /Public/apps/no-web. Deploy the web assets under services/web, or omit streamWebFolder.'
+    }
+  },
+  {
     id: 'upload-text-file',
     route: 'POST /SASjsApi/drive/deploy/upload',
     description:

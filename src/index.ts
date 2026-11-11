@@ -216,6 +216,7 @@ export {
   checkPublishRequest,
   createAppStreamService,
   defaultAppName,
+  hasStreamFolder,
   MemoryAppStreamStore
 } from './appstream/service.js'
 export type {

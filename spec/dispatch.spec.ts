@@ -228,6 +228,54 @@ describe('dispatch', () => {
     })
   })
 
+  it('answers 501 where the route needs a service the host does not have', async () => {
+    for (const routeId of [
+      'POST /SASjsApi/code/lint',
+      'POST /SASjsApi/code/format'
+    ]) {
+      const answer = await failure(() =>
+        dispatch({} as any, routeId, { body: { code: 'data a; run;' } })
+      )
+
+      expect(answer).toMatchObject({ status: 501 })
+      expect(String((answer as { message?: string }).message)).toContain(
+        routeId
+      )
+    }
+
+    // a route the table does not state never reaches a handler at all
+    const unknown = await failure(() =>
+      dispatch({} as any, 'POST /SASjsApi/not/a/route' as any, { body: {} })
+    )
+
+    expect(unknown).toMatchObject({ status: 404 })
+  })
+
+  it('refuses a replace it cannot read, rather than guessing', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    const answer = await failure(() =>
+      dispatch({ drive } as any, 'POST /SASjsApi/drive/deploy/upload', {
+        query: { appLoc: '/Public/apps/x', replace: 'sometimes' },
+        body: {
+          fileTree: {
+            members: [{ name: 'index.html', type: 'file', code: '<h1>x</h1>' }]
+          }
+        }
+      })
+    )
+
+    expect(answer).toEqual({
+      status: 400,
+      message: '"replace" must be true or false.'
+    })
+
+    // and nothing was written, because the refusal comes before the deploy
+    await expect(drive.tree('/Public/apps/x')).rejects.toMatchObject({
+      status: 404
+    })
+  })
+
   it('answers 501 on a record route when it has records but no identity service', async () => {
     // a records-only host can answer, but only for a caller it resolved itself:
     // without a subject there is nothing to authenticate, and a 401 would put a

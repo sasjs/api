@@ -228,6 +228,34 @@ describe('dispatch', () => {
     })
   })
 
+  it('takes the JSON route’s folder from the body, whatever the query says', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    // the document states appLoc in the body on this route, so a stray query key
+    // must not quietly redeploy somewhere else
+    const answer = await dispatch(
+      { drive } as any,
+      'POST /SASjsApi/drive/deploy',
+      {
+        query: { appLoc: '/Public/apps/from-query' },
+        body: {
+          appLoc: '/Public/apps/from-body',
+          fileTree: {
+            members: [{ name: 'a.html', type: 'file', code: '<h1>a</h1>' }]
+          }
+        }
+      }
+    )
+
+    expect(answer.status).toBe(200)
+    expect(
+      (await drive.read('/Public/apps/from-body/a.html')).contents
+    ).toEqual('<h1>a</h1>')
+    await expect(
+      drive.read('/Public/apps/from-query/a.html')
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
   it('answers 501 where the route needs a service the host does not have', async () => {
     for (const routeId of [
       'POST /SASjsApi/code/lint',

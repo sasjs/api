@@ -40,6 +40,19 @@ export interface CorpusCase {
   runOutput?: { contents: string | Uint8Array; contentType?: string }
   /** The run fails, so a case can pin the `400` a failed run answers. */
   failingRun?: boolean
+  /**
+   * The state the case leaves in the drive, where a status cannot see it.
+   *
+   * The deploy routes' `replace` policy is exactly that: both answers are `200`
+   * and the difference is a file the drive does or does not still hold, so a case
+   * that pinned only the status would let a host drop the option.
+   */
+  expectDrive?: {
+    /** Files the drive must hold once the case has run. */
+    present?: string[]
+    /** Files it must not: the ones a replacement removes, or never writes. */
+    missing?: string[]
+  }
   request: ApiRequest
   expect: {
     status: number

@@ -131,6 +131,41 @@ class RefusingDriveStore extends MemoryDriveStore {
 }
 
 /**
+ * The drive state a case says it leaves, checked where the case states it.
+ *
+ * Reported as a thrown error naming the case rather than as a status mismatch: a
+ * host that dropped the deploy option answers `200` and fails here, which is the
+ * only place the difference between "replaced" and "kept" can be seen.
+ */
+const checkDrive = async (
+  testCase: CorpusCase,
+  services: Services
+): Promise<void> => {
+  if (!testCase.expectDrive || !services.drive) return
+
+  const holds = async (path: string): Promise<boolean> => {
+    try {
+      await services.drive!.read(path)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  for (const path of testCase.expectDrive.present || [])
+    if (!(await holds(path)))
+      throw new Error(
+        `${testCase.id}: expected a file at ${path}, and the drive has none`
+      )
+
+  for (const path of testCase.expectDrive.missing || [])
+    if (await holds(path))
+      throw new Error(
+        `${testCase.id}: expected no file at ${path}, and the drive still holds one`
+      )
+}
+
+/**
  * Runs a corpus case against the drive the case seeds itself, or against
  * services a caller supplies - that is how a host (or a failing store) is put
  * behind the same cases.
@@ -141,6 +176,7 @@ export const runCase = async (
 ): Promise<CaseResult> => {
   try {
     const response = await dispatch(services, testCase.route, testCase.request)
+    await checkDrive(testCase, services)
     return {
       status: response.status,
       body: response.body,

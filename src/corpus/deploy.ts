@@ -297,5 +297,67 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
       body: { status: 'failure', message: 'Deployment failed!' },
       error: 'Deployment failed!'
     }
+  },
+  {
+    id: 'upload-replaces-the-folder',
+    route: 'POST /SASjsApi/drive/deploy/upload',
+    description:
+      "an archive upload is the folder's whole contents, so a file it drops is gone",
+    seed: {
+      '/Public/apps/replaced/services/web/old.html': '<h1>old</h1>'
+    },
+    request: {
+      subject: SUBJECT,
+      query: { appLoc: '/Public/apps/replaced', streamWebFolder: 'web' },
+      body: {
+        fileTree: {
+          members: [
+            {
+              name: 'services',
+              type: 'folder',
+              members: [
+                {
+                  name: 'web',
+                  type: 'folder',
+                  members: [
+                    { name: 'index.html', type: 'file', code: '<h1>new</h1>' }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    expect: {
+      status: 200,
+      partial: { status: 'success', app: { name: 'replaced' } }
+    },
+    expectDrive: {
+      present: ['/Public/apps/replaced/services/web/index.html'],
+      missing: ['/Public/apps/replaced/services/web/old.html']
+    }
+  },
+  {
+    id: 'deploy-keeps-what-is-there',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'the JSON route writes over what is there unless it is told to replace',
+    seed: {
+      '/Public/apps/kept/old.html': '<h1>old</h1>'
+    },
+    request: {
+      subject: SUBJECT,
+      body: {
+        appLoc: '/Public/apps/kept',
+        fileTree: {
+          members: [{ name: 'a.html', type: 'file', code: '<h1>a</h1>' }]
+        }
+      }
+    },
+    expect: { status: 200 },
+    expectDrive: {
+      present: ['/Public/apps/kept/a.html', '/Public/apps/kept/old.html']
+    }
   }
 ]

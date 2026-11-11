@@ -240,6 +240,15 @@ describe('the app index', () => {
 
     // nothing that reads as a tree at all
     expect(() => checkPublishRequest(request, { members: [] })).toThrow(refusal)
+
+    // advice that names the source: a bundle stating the folder cannot omit it
+    expect(() =>
+      checkPublishRequest(
+        request,
+        { members: [] },
+        { folderFromManifest: true }
+      )
+    ).toThrow(/correct the folder sasjs\.app\.json names\./)
     expect(() => checkPublishRequest(request, 'nope')).toThrow(refusal)
 
     expect(hasStreamFolder(undefined, 'web')).toBe(false)

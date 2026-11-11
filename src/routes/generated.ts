@@ -121,6 +121,40 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     ]
   },
   {
+    id: 'GET /SASjsApi/app/{id}',
+    method: 'GET',
+    path: '/SASjsApi/app/{id}',
+    tag: 'App Stream',
+    summary: 'Get a published app by id',
+    params: [
+      {
+        name: 'id',
+        in: 'path',
+        required: true,
+        type: 'string'
+      }
+    ],
+    requestBodies: [],
+    responses: [
+      {
+        status: 200,
+        description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
+        status: 404,
+        description: 'No App Stream is registered with that id.'
+      },
+      {
+        status: 500,
+        description: 'Internal Server Error'
+      }
+    ]
+  },
+  {
     id: 'POST /SASjsApi/auth/logout',
     method: 'POST',
     path: '/SASjsApi/auth/logout',

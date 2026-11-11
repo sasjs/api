@@ -10,7 +10,7 @@ import { GENERATED_ROUTES } from '../src/routes/generated.js'
 
 describe('route table', () => {
   it('covers every operation in the published document', () => {
-    expect(GENERATED_ROUTES.length).toBe(61)
+    expect(GENERATED_ROUTES.length).toBe(62)
     expect(ROUTES.length).toBe(GENERATED_ROUTES.length)
     expect(new Set(ROUTES.map((route) => route.id)).size).toBe(ROUTES.length)
   })

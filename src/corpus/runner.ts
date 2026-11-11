@@ -35,11 +35,12 @@ import { DEFAULT_IDENTITY } from '../identity/fixture.js'
 import { isApiError } from '../types.js'
 
 /**
- * The app every case starts from: one published app, at the folder the unpublish
- * cases name, so a removal has something to remove. Its id is stated rather than
- * minted, because a case that pins "the id that is there" cannot invent one.
+ * The app every app-stream case starts from: one published app, at the folder the
+ * unpublish cases name, so a removal has something to remove. Its id is stated
+ * rather than minted, because a case that pins "the id that is there" cannot
+ * invent one.
  */
-const CORPUS_APP = {
+export const CORPUS_APP = {
   id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
   name: 'myApp',
   appLoc: '/Public/myApp',

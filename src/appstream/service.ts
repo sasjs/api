@@ -4,9 +4,11 @@
  * An app is one deployed folder (`appLoc`), the web assets inside it
  * (`appLoc/services/<streamWebFolder>`) and a UUID assigned when it is first
  * published. The id is the key the routes, the listing and the permission rules
- * point at; the name is a label a person reads, and carries no uniqueness rule at
- * all - two apps may be called the same thing without colliding, because nothing
- * is looked up by name.
+ * point at, and it is what a redeploy keeps. The name is a label a person reads
+ * AND - when exactly one app holds it - an address: `/app/<name>` opens the app,
+ * so a name the caller states is validated as a URL segment and has to be free.
+ * A label derived from the folder carries no such rule, because it was not
+ * chosen: two folders may share a leaf name and both stay openable by id.
  *
  * The service is the decisions, and a host supplies the storage. That split is
  * the point of this package: sasjs/server keeps the index in a JSON file beside
@@ -241,7 +243,48 @@ const nameOf = (value: unknown, appLoc: string): string => {
   if (typeof value !== 'string' || value.trim() === '')
     throw new ApiError(400, '"name" must be a non-empty string')
 
-  return value.trim()
+  return urlSafeName(value.trim())
+}
+
+/**
+ * A stated name is a URL segment, so it has to be spellable in one.
+ *
+ * `/app/<name>` resolves an app by its name when exactly one holds it, which
+ * makes the name an address and not only a label. A name carrying a space, a
+ * `#`, a `?` or a `/` is either unopenable or forced through percent-encoding -
+ * `/app/Macro%20Dash/` - and a name that collides with the surface's own paths
+ * (`apps.json`, the landing page's `index.html`) can never be opened by name at
+ * all, because those are answered before any app is looked up.
+ *
+ * Only a STATED name is held to this. A label derived from the folder stays as
+ * the folder spelled it, because a deployment that never chose a name did not
+ * choose an address either, and two folders sharing a leaf name are a fact of
+ * the drive rather than a naming decision.
+ */
+const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._~-]*$/
+const NAME_MAX_LENGTH = 64
+const RESERVED_NAMES = ['apps.json', 'index.html']
+
+const urlSafeName = (name: string): string => {
+  if (name.length > NAME_MAX_LENGTH)
+    throw new ApiError(
+      400,
+      `"name" must be at most ${NAME_MAX_LENGTH} characters, and "${name}" is ${name.length}.`
+    )
+
+  if (!NAME_PATTERN.test(name))
+    throw new ApiError(
+      400,
+      `"name" must be usable as a URL segment - letters, digits, dot, dash, underscore or tilde, starting with a letter or digit - so "/app/${name}" can be opened. "${name}" is not, because it carries a character that has to be percent-encoded, or a space.`
+    )
+
+  if (RESERVED_NAMES.includes(name.toLowerCase()))
+    throw new ApiError(
+      400,
+      `"name" cannot be "${name}": the App Stream answers /app/${name} itself, so an app with that name could never be opened by name.`
+    )
+
+  return name
 }
 
 const logoOf = (value: unknown): string | undefined => {
@@ -350,11 +393,35 @@ export const createAppStreamService = (
         const logo = checked.logo
         const frameAncestors = checked.frameAncestors
 
+        // A name this publish STATES is an address, so it is validated as a URL
+        // segment and has to be free. A name it inherits from the last publish,
+        // or one derived from the folder, is a label only: it was not chosen
+        // here, it may predate this rule, and two folders may share a leaf name.
+        const statedName = checked.name
+        const name =
+          statedName !== undefined
+            ? nameOf(statedName, appLoc)
+            : (existing?.name ?? nameOf(undefined, appLoc))
+
+        if (statedName !== undefined) {
+          const clash = entries.find(
+            (candidate) =>
+              !sameAppLoc(candidate.appLoc, appLoc) &&
+              candidate.name.toLowerCase() === name.toLowerCase()
+          )
+
+          if (clash)
+            throw new ApiError(
+              409,
+              `The name "${name}" is already the address of the app published at ${clash.appLoc}. A stated name is how the app opens (/app/${name}), and two apps holding one name would answer an ambiguous lookup with nothing, so publish this one under a different name.`
+            )
+        }
+
         const entry: AppStreamEntry = {
           id: existing ? existing.id : newAppId(),
           // the label is the one field a redeploy inherits: everything else is
           // what this publish states
-          name: nameOf(checked.name ?? existing?.name, appLoc),
+          name,
           appLoc,
           streamWebFolder,
           ...(logo === undefined ? {} : { logo }),

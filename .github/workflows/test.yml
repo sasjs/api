@@ -47,7 +47,7 @@ jobs:
       # because it installs @sasjs/adapter to drive a real estate. The root
       # install never sees it, so its tests, its audit and its formatting would
       # otherwise run on no push at all.
-      - name: Capture tool: install, test and audit
+      - name: Capture tool (install, test, audit)
         run: |
           npm ci --prefix tools/viya-capture
           node --test tools/viya-capture/redact.test.mjs

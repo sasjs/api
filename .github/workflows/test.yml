@@ -16,6 +16,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A scan of the whole history, not only the diff: a secret that reaches a public
+  # repository is public from the moment it is pushed, and the commit that removes
+  # it leaves the value in the history.
+  #
+  # The version matches the rev in .pre-commit-config.yaml, so a contributor's
+  # hook and this job agree about what a leak is. The binary is downloaded rather
+  # than taken from gitleaks-action, which needs a licence key for an
+  # organisation's repository.
+  secrets:
+    name: No secret in the history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets (gitleaks)
+        run: |
+          set -eu
+          version=8.30.1
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          "$RUNNER_TEMP/bin/gitleaks" version
+          "$RUNNER_TEMP/bin/gitleaks" detect --source . --redact --no-banner -v
+
   test:
     runs-on: ubuntu-latest
     strategy:

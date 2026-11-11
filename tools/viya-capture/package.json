@@ -1,0 +1,13 @@
+{
+  "name": "viya-capture",
+  "private": true,
+  "description": "Records the requests @sasjs/adapter sends to a Viya estate, for the emulator's route table and corpus",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "test": "node --test redact.test.mjs"
+  },
+  "dependencies": {
+    "@sasjs/adapter": "6.0.2"
+  }
+}

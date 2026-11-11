@@ -122,7 +122,7 @@ test('an HTML body is scrubbed but not rewritten', () => {
 
 test('the verifier names the category and counts, never the value', () => {
   const leaks = findLeaks(
-    'see https://estate.example.com/x for the-client-secret and 10.11.12.13',
+    'see https://estate.example.com/x for the-client-secret and 203.0.113.9',
     run
   )
 
@@ -130,7 +130,7 @@ test('the verifier names the category and counts, never the value', () => {
 
   assert.deepEqual(categories, ['address', 'credential', 'estate-host'])
   assert.equal(JSON.stringify(leaks).includes('the-client-secret'), false)
-  assert.equal(JSON.stringify(leaks).includes('10.11.12.13'), false)
+  assert.equal(JSON.stringify(leaks).includes('203.0.113.9'), false)
 })
 
 test('a token-shaped value is caught even when the run never saw it', () => {

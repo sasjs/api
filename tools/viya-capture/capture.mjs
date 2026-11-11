@@ -49,6 +49,15 @@ const require = createRequire(import.meta.url)
 // than exports, which keeps this file from transcribing any request shape.
 const Adapter = require('@sasjs/adapter/node').default
 
+import {
+  ESTATE,
+  REDACTED,
+  createScrubber,
+  findLeaks,
+  isSecretHeader,
+  redactBody
+} from './redact.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.CAPTURE_PORT ?? 8899)
@@ -78,115 +87,30 @@ const transport = upstream.protocol === 'http:' ? http : https
 const captures = []
 let step = 'startup'
 
-const SECRET_HEADERS = [
-  'authorization',
-  'cookie',
-  'set-cookie',
-  'x-csrf-token',
-  'x-xsrf-token'
-]
-const SECRET_KEYS = [
-  'token',
-  'access_token',
-  'accesstoken',
-  'refresh_token',
-  'refreshtoken',
-  'id_token',
-  'client_secret',
-  'clientsecret',
-  'secret',
-  'password',
-  'code',
-  'authorization',
-  'cookie',
-  'csrftoken'
-]
-
-const isSecretKey = (key) =>
-  SECRET_KEYS.includes(
-    String(key)
-      .toLowerCase()
-      .replace(/[\s_-]/g, '')
-  )
-
-const redacted = '<redacted>'
-
-/** Replace every literal secret in a string, whatever the shape carried it in. */
-const scrubLiterals = (text) => {
-  let out = String(text)
-
-  for (const secret of [CLIENT_SECRET, TOKEN, REFRESH_TOKEN])
-    if (secret && secret.length > 8) out = out.split(secret).join(redacted)
-
-  return out
-}
-
 /**
- * A body, with the values that carry a credential replaced.
- *
- * JSON is walked by key, so a token in a response body is replaced wherever it
- * sits. A form-encoded body is redacted by parameter name. Anything else - an
- * HTML login page, a SAS log - is only scrubbed for the literals this run knows,
- * because rewriting arbitrary text by pattern would corrupt the thing being
- * documented.
+ * One scrubber for the run: the estate's names and this run's secrets. Every
+ * string that reaches the file goes through it, so a link in a body and an
+ * address in an error message leave the same way.
  */
-const redactBody = (text, contentType = '') => {
-  if (!text) return text
-
-  const trimmed = text.trim()
-  const type = String(contentType).toLowerCase()
-  const looksJson = type.includes('json') || /^[[{]/.test(trimmed)
-
-  if (looksJson) {
-    try {
-      const parsed = JSON.parse(trimmed)
-
-      const walk = (value) => {
-        if (Array.isArray(value)) return value.map(walk)
-
-        if (value && typeof value === 'object')
-          return Object.fromEntries(
-            Object.entries(value).map(([key, inner]) => [
-              key,
-              isSecretKey(key) ? redacted : walk(inner)
-            ])
-          )
-
-        return value
-      }
-
-      return scrubLiterals(JSON.stringify(walk(parsed)))
-    } catch {
-      return scrubLiterals(text)
-    }
-  }
-
-  if (type.includes('x-www-form-urlencoded'))
-    return scrubLiterals(
-      trimmed.replace(
-        /(^|&)([^=&]+)=([^&]*)/g,
-        (match, separator, key) =>
-          `${separator}${key}=${isSecretKey(key) ? redacted : '<value>'}`
-      )
-    )
-
-  return scrubLiterals(text)
-}
+const scrub = createScrubber({
+  origin: upstream.origin,
+  host: upstream.hostname,
+  secrets: [CLIENT_SECRET, TOKEN, REFRESH_TOKEN]
+})
 
 const STORED_HEADERS = [
   'content-type',
   'content-length',
   'location',
   'etag',
-  'retry-after',
-  'x-forcedotcom-instanceurl'
+  'retry-after'
 ]
 
 const storedHeaders = (headers) =>
   Object.fromEntries(
     Object.entries(headers ?? {})
       .filter(([key]) => STORED_HEADERS.includes(key.toLowerCase()))
-      .map(([key, value]) => [key.toLowerCase(), String(value)])
+      .map(([key, value]) => [key.toLowerCase(), scrub(String(value))])
   )
 
 const record = (entry) => {
@@ -237,12 +161,10 @@ const proxy = http.createServer((req, res) => {
               headers: Object.fromEntries(
                 Object.entries(headers).map(([key, value]) => [
                   key,
-                  SECRET_HEADERS.includes(key.toLowerCase())
-                    ? redacted
-                    : String(value)
+                  isSecretHeader(key) ? REDACTED : scrub(String(value))
                 ])
               ),
-              body: redactBody(requestBody, headers['content-type']),
+              body: redactBody(requestBody, headers['content-type'], scrub),
               bodyBytes: Buffer.byteLength(requestBody)
             },
             response: {
@@ -250,7 +172,8 @@ const proxy = http.createServer((req, res) => {
               headers: storedHeaders(upstreamResponse.headers),
               body: redactBody(
                 responseBody.slice(0, 24000),
-                upstreamResponse.headers['content-type']
+                upstreamResponse.headers['content-type'],
+                scrub
               ),
               bodyBytes: Buffer.byteLength(responseBody)
             },
@@ -416,29 +339,44 @@ proxy.close()
 
 /* ------------------------------------------------------------------- output */
 
-const redactJson = (value) =>
-  redactBody(JSON.stringify(value), 'application/json')
+const document = {
+  capturedAt: new Date().toISOString(),
+  node: process.version,
+  adapter: require('@sasjs/adapter/package.json').version,
+  estate: ESTATE,
+  context: CONTEXT || null,
+  appLoc: APP_LOC ? '<appLoc>' : null,
+  allowExecute: ALLOW_EXECUTE,
+  allowWrites: ALLOW_WRITES,
+  steps: captures
+}
+
+const payload = redactBody(JSON.stringify(document), 'application/json', scrub)
+
+// The scrubber is a filter, not a proof: it replaces what it knows. This is the
+// second opinion, and it runs on the finished text - a host in a link, a token
+// the run never held, an address in an error message. Nothing sensitive is left
+// on disk when it fails.
+const leaks = findLeaks(payload, {
+  host: upstream.hostname,
+  secrets: [CLIENT_SECRET, TOKEN, REFRESH_TOKEN]
+})
+
+if (leaks.length) {
+  console.error(
+    '\nRefusing to write the capture. It still carries: ' +
+      leaks.map((leak) => `${leak.category} (${leak.count})`).join(', ') +
+      '\nNothing was written. Please send this output rather than the file.'
+  )
+  process.exit(3)
+}
 
 const outDir = join(here, 'capture')
 mkdirSync(outDir, { recursive: true })
 
 const outFile = join(outDir, `viya-capture-${started}.json`)
 
-writeFileSync(
-  outFile,
-  redactJson({
-    capturedAt: new Date().toISOString(),
-    node: process.version,
-    adapter: require('@sasjs/adapter/package.json').version,
-    estate: '<estate>',
-    context: CONTEXT || null,
-    appLoc: APP_LOC || null,
-    allowExecute: ALLOW_EXECUTE,
-    allowWrites: ALLOW_WRITES,
-    steps: captures
-  }),
-  'utf8'
-)
+writeFileSync(outFile, payload, 'utf8')
 
 const statuses = captures.reduce((counts, entry) => {
   const status = entry.response?.status ?? 'transport-error'

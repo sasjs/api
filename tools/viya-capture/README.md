@@ -34,8 +34,18 @@ The default pass is read-only. `VIYA_ALLOW_EXECUTE` and `VIYA_ALLOW_WRITES` are 
 
 A refused call is recorded too: a 401, a 403 or a 400 is as much a part of the contract as a 200, and the emulator has to answer it identically.
 
+## What leaves the file, and what stops it
+
+Two kinds of fact are removed before anything is written:
+
+- **Credentials.** Header values for `authorization`, `cookie`, `set-cookie` and the CSRF headers are replaced; JSON bodies are walked key by key, so a token nested in a response is replaced wherever it sits; form bodies are redacted by parameter. The access token, client secret and refresh token are also scrubbed as literals, which catches one echoed inside an error message.
+- **The environment.** The estate's origin becomes `https://<estate>` and its host becomes `<estate>` wherever they appear - including an absolute link inside a response body - and `VIYA_APP_LOC` becomes `<appLoc>`.
+
+The finished text is then read back and searched for what a scrubber cannot know: the estate host, a token-shaped value, any address other than loopback, and the run's own secrets. If anything is found the file is **not written**: the categories and counts are printed, the script exits 3, and nothing is left on disk. Both directions are exercised - a clean run writes, a stand-in estate answering with an address in a field is refused with `address (1)`.
+
 ## What it does not do
 
 - It does not create, modify or delete anything outside the folder names it generates, and it deletes those.
 - It does not need the CLI, a browser, or a project checkout.
 - It does not record request or response bodies in full: bodies are capped at 24 KB and are redacted.
+- It does not commit anything. `capture/` and `node_modules/` are ignored, so a capture is a file to send back, never a file to push.

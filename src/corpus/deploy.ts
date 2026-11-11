@@ -59,15 +59,18 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
 
   // ------------------------------------------- the uploaded-archive route
   // The archive is expanded by the host, so what arrives here is the same tree
-  // `POST /deploy` takes - which is why every answer below matches its twin.
+  // `POST /deploy` takes - which is why every answer below matches its twin. The
+  // folder and the stream are stated in the QUERY, where the document puts them on
+  // this route: the body is the archive. A host that receives an archive builds it
+  // from the tree below; the tree is what the archive has to expand to.
   {
     id: 'upload-tree',
     route: 'POST /SASjsApi/drive/deploy/upload',
     description: 'writes the tree an uploaded archive expanded to',
     request: {
       subject: SUBJECT,
+      query: { appLoc: '/Public/apps/uploaded' },
       body: {
-        appLoc: '/Public/apps/uploaded',
         fileTree: {
           members: [
             {
@@ -154,8 +157,8 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
       'writes a file member as its own text when no encoding is stated',
     request: {
       subject: SUBJECT,
+      query: { appLoc: '/Public/apps/text' },
       body: {
-        appLoc: '/Public/apps/text',
         fileTree: {
           members: [
             { name: 'index.html', type: 'file', code: '<h1>Hello</h1>' }
@@ -177,7 +180,8 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     description: 'refuses an expansion that is not a tree',
     request: {
       subject: SUBJECT,
-      body: { appLoc: '/Public/apps/bad', fileTree: { members: 1 } }
+      query: { appLoc: '/Public/apps/bad' },
+      body: { fileTree: { members: 1 } }
     },
     expect: {
       status: 400,
@@ -194,8 +198,8 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     description: 'applies the deploy cap to the expanded tree, not the bytes',
     request: {
       subject: SUBJECT,
+      query: { appLoc: '/Public/apps/many' },
       body: {
-        appLoc: '/Public/apps/many',
         fileTree: { members: manyMembers(10001) }
       }
     },
@@ -285,8 +289,8 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     unwritable: true,
     request: {
       subject: SUBJECT,
+      query: { appLoc: '/Public/apps/demo' },
       body: {
-        appLoc: '/Public/apps/demo',
         fileTree: {
           members: [{ name: 'run', type: 'service', code: '%put hi;' }]
         }

@@ -193,6 +193,31 @@ describe('dispatch', () => {
     ).rejects.toMatchObject({ status: 404 })
   })
 
+  it('takes an upload’s folder from the body when the query is silent', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    // a host that expands the archive before it dispatches has the fields in the
+    // body and no query to put them in: the document states them in the query, so
+    // that is where they belong, but the fallback is what such a host relies on
+    const answer = await dispatch(
+      { drive } as any,
+      'POST /SASjsApi/drive/deploy/upload',
+      {
+        body: {
+          appLoc: '/Public/apps/from-body',
+          fileTree: {
+            members: [{ name: 'a.html', type: 'file', code: '<h1>a</h1>' }]
+          }
+        }
+      }
+    )
+
+    expect(answer.status).toBe(200)
+    expect(
+      (await drive.read('/Public/apps/from-body/a.html')).contents
+    ).toEqual('<h1>a</h1>')
+  })
+
   it('keeps what is already there when the JSON route is not told to replace', async () => {
     const drive = createDriveService(new MemoryDriveStore({}))
     const services = { drive }

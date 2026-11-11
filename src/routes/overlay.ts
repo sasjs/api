@@ -77,7 +77,9 @@ export const TAG_CAPABILITIES: Record<string, Capability[]> = {
   Group: ['identity'],
   Permission: ['identity'],
   Client: ['identity'],
-  Web: ['identity']
+  Web: ['identity'],
+  // an app's entry is indexed, and the file it is served from is read off the drive
+  'App Stream': ['storage']
 }
 
 /**
@@ -324,6 +326,38 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   // `404` is an id the index does not hold - the id is the app, and its label and
   // folder are not handles - and the drive's content is deliberately left alone.
   'DELETE /SASjsApi/drive/deploy': { implemented: true },
+
+  // App Stream - what is published under one app's id.
+  //
+  // Carried here: the answer is the app index plus the drive, and `APP_CORPUS` pins
+  // its shape. The mock build (`sasjs/cli`) still answers the App Stream surface by
+  // hand; consuming this operation from the table is its next step on
+  // sasjs/cli#1550, not this package's.
+  'GET /SASjsApi/app/{id}': {
+    implemented: true,
+    // the caller's token is the host's middleware, and a failure that is not the
+    // index refusing the id - a drive read that broke - is the host's to answer
+    hostResponses: [401, 500],
+    // the shape a client reads: the entry as registered, the file it is served from,
+    // and whether that file is there
+    responses: {
+      404: {
+        status: 'failure',
+        message: 'No App Stream is registered with that id.'
+      },
+      200: {
+        id: '',
+        name: '',
+        appLoc: '',
+        streamWebFolder: '',
+        publishedAt: null,
+        entryFile: 'index.html',
+        entryFileExists: false,
+        lastModified: null,
+        url: ''
+      }
+    }
+  },
 
   // Group - members and the groups themselves
   'GET /SASjsApi/group': { implemented: true },

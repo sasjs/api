@@ -28,7 +28,7 @@ import type { AdminService } from '../admin/service.js'
 import type { DirectoryService } from '../directory/service.js'
 import type { HomeService } from '../home/service.js'
 import type { Subject } from '../identity/types.js'
-import { ApiError } from '../types.js'
+import { ApiError, isApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 
 /** The defaults sasjs/server's Client schema applies to an omitted lifetime. */
@@ -191,6 +191,24 @@ const validate = (route: Route, request: ApiRequest): void => {
       throw new ApiError(400, `"${param.name}" is not allowed to be empty`)
   }
 }
+
+/** The file an app is served from for a directory request, as the surface serves it. */
+const APP_ENTRY_FILE = 'index.html'
+
+/**
+ * An app the index does not hold, in the wording the route answers with.
+ *
+ * The package's own message names the id ("No app is published with that id"); the
+ * route names the App Stream, and the corpus is what both hosts answer, so the
+ * wording is stated here rather than left to the service's.
+ */
+const APP_NOT_REGISTERED = 'No App Stream is registered with that id.'
+
+const appNotRegistered = () =>
+  new ApiError(404, APP_NOT_REGISTERED, {
+    status: 'failure',
+    message: APP_NOT_REGISTERED
+  })
 
 /** The drive path a write names: the query parameter wins over the form field. */
 const targetPath = (request: ApiRequest): string => {
@@ -591,6 +609,74 @@ export const dispatch = async (
       }
     }
 
+    // --------------------------------------------------- what an app *is*
+    //
+    // The surface serves an app's files; this describes the app itself - the entry
+    // as registered, and whether the file it is served from is there. Addressed by id,
+    // which is what a publish answers with and what the app's URL carries: a label is
+    // shared by design, so "the app with this name" is not one app.
+    case 'GET /SASjsApi/app/{id}': {
+      if (!services.appStream)
+        throw new ApiError(
+          501,
+          `This host has no app stream, so it cannot answer ${routeId}.`
+        )
+
+      const entry = await services.appStream
+        .get(String(params.id ?? ''))
+        .catch((err: unknown) => {
+          if (isApiError(err) && err.status === 404) throw appNotRegistered()
+
+          throw err
+        })
+
+      const folder = `${entry.appLoc}/services/${entry.streamWebFolder}`
+
+      // An index entry can outlive its deployment - the folder deleted from under
+      // the host - and reporting a file and a date that are not there would be worse
+      // than reporting none, so the listing decides both.
+      let entryFileExists = false
+      let lastModified: string | null = null
+
+      try {
+        const { tree } = await drive.tree(folder)
+        const file = tree.children.find(
+          (child) => child.name === APP_ENTRY_FILE && !child.isFolder
+        )
+
+        entryFileExists = file !== undefined
+        lastModified = file?.modified ?? null
+      } catch (err) {
+        // A folder that is gone is the ordinary case - an index entry that outlived
+        // its deployment - and the answer is "no entry file". Anything else is not
+        // that answer: a `streamWebFolder` that names a file, or a store that failed,
+        // would read as a deleted deployment, so it reaches the host's 500.
+        if (!isApiError(err) || err.status !== 404) throw err
+
+        entryFileExists = false
+      }
+
+      const body: Record<string, unknown> = {
+        id: entry.id,
+        name: entry.name,
+        appLoc: entry.appLoc,
+        streamWebFolder: entry.streamWebFolder,
+        publishedAt: entry.publishedAt ?? null,
+        entryFile: APP_ENTRY_FILE,
+        entryFileExists,
+        lastModified,
+        url: `/app/${entry.id}/`
+      }
+
+      // the two the index may not carry are absent rather than undefined, which is
+      // how they reach a JSON client
+      if (entry.logo !== undefined) body.logo = entry.logo
+      if (entry.frameAncestors !== undefined)
+        body.frameAncestors = entry.frameAncestors
+
+      return { status: 200, body }
+    }
+
     case 'GET /SASjsApi/drive/filetree':
       return { status: 200, body: await drive.tree(query._folderPath) }
 
@@ -980,6 +1066,7 @@ export const HANDLED_ROUTES: string[] = [
   'DELETE /SASjsApi/drive/folder',
   'POST /SASjsApi/drive/rename',
   'GET /SASjsApi/drive/filetree',
+  'GET /SASjsApi/app/{id}',
   'POST /SASjsApi/drive/deploy',
   'POST /SASjsApi/auth/token',
   'POST /SASjsApi/auth/refresh',

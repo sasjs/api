@@ -10,9 +10,18 @@ import { parse } from 'yaml'
  * name the facts the table cannot carry, so a copy that drops one fails here
  * rather than in a consumer that had come to rely on it.
  */
-const document = parse(readFileSync(join(__dirname, 'swagger.yaml'), 'utf8'))
+const text = readFileSync(join(__dirname, 'swagger.yaml'), 'utf8')
+const document = parse(text)
 
 describe('the vendored document', () => {
+  it('says which revision of sasjs/server it was taken from', () => {
+    // the header is the only record of provenance, and a copy that replaces the file
+    // wholesale is exactly how it gets lost - which happened once already
+    expect(text.split('\n')[0]).toMatch(
+      /^# Vendored from sasjs\/server: api\/public\/swagger\.yaml at main \([0-9a-f]{7,},/
+    )
+  })
+
   it('states the Retry-After header the sign-in lockout carries', () => {
     const responses = document.paths['/SASLogon/login'].post.responses
 

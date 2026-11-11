@@ -97,6 +97,112 @@ describe('dispatch', () => {
     })
   })
 
+  it('answers 501 for an app detail when the host has no app stream', async () => {
+    expect(
+      await failure(() =>
+        dispatch(services(), 'GET /SASjsApi/app/{id}', {
+          params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no app stream, so it cannot answer GET /SASjsApi/app/{id}.'
+    })
+  })
+
+  it('describes an app with the fields the index carries, and only those', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const appStream = createAppStreamService(
+      new MemoryAppStreamStore([
+        {
+          id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+          name: 'myApp',
+          appLoc: '/Public/myApp',
+          streamWebFolder: 'web',
+          logo: 'logo.png',
+          frameAncestors: ['https://portal.example.com'],
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const answer = (await dispatch(
+      { drive, appStream },
+      'GET /SASjsApi/app/{id}',
+      { params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' } }
+    )) as { status: number; body: Record<string, unknown> }
+
+    expect(answer.body).toMatchObject({
+      logo: 'logo.png',
+      frameAncestors: ['https://portal.example.com'],
+      entryFileExists: false,
+      lastModified: null
+    })
+  })
+
+  it('lets a drive read that is not “folder gone” through, rather than reporting no file', async () => {
+    // the app's streamed folder is a FILE here, so the tree answers `400 Not a
+    // Folder.` - not the 404 that means "the deployment is gone", and not something
+    // this route may answer with `entryFileExists: false`
+    const drive = createDriveService(
+      new MemoryDriveStore({ '/Public/myApp/services/web': 'not a folder' })
+    )
+    const appStream = createAppStreamService(
+      new MemoryAppStreamStore([
+        {
+          id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60',
+          name: 'myApp',
+          appLoc: '/Public/myApp',
+          streamWebFolder: 'web',
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    )
+
+    expect(
+      await failure(() =>
+        dispatch({ drive, appStream }, 'GET /SASjsApi/app/{id}', {
+          params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+        })
+      )
+    ).toEqual({ status: 400, message: 'Not a Folder.' })
+  })
+
+  it('treats a request that names no id as one the index does not hold', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const appStream = createAppStreamService(new MemoryAppStreamStore())
+
+    expect(
+      await failure(() =>
+        dispatch({ drive, appStream }, 'GET /SASjsApi/app/{id}', {})
+      )
+    ).toEqual({
+      status: 404,
+      message: 'No App Stream is registered with that id.'
+    })
+  })
+
+  it('lets a failure that is not the index refusing the id through', async () => {
+    // a drive read that broke is not "no such app": the route's own 404 is the
+    // index's answer, and anything else has to reach the host's 500
+    const drive = createDriveService(new MemoryDriveStore({}))
+    const appStream = {
+      list: async () => [],
+      get: async () => {
+        throw new Error('EIO: i/o error, read')
+      }
+    } as unknown as ReturnType<typeof createAppStreamService>
+
+    const answer = (await failure(() =>
+      dispatch({ drive, appStream }, 'GET /SASjsApi/app/{id}', {
+        params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+      })
+    )) as string
+
+    expect(answer).toContain('EIO')
+  })
+
   it('refuses a publish before it writes the deployment the publish describes', async () => {
     const drive = createDriveService(new MemoryDriveStore({}))
     const appStream = createAppStreamService(new MemoryAppStreamStore())

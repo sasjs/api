@@ -193,6 +193,35 @@ describe('dispatch', () => {
     ).rejects.toMatchObject({ status: 404 })
   })
 
+  it('prefers the upload route’s query over its body, as the document orders them', async () => {
+    const drive = createDriveService(new MemoryDriveStore({}))
+
+    // both places state a folder: the document puts the query first on this route,
+    // so that is the one a host has to read - a body-first host would deploy to a
+    // folder the caller did not choose
+    const answer = await dispatch(
+      { drive } as any,
+      'POST /SASjsApi/drive/deploy/upload',
+      {
+        query: { appLoc: '/Public/apps/from-query' },
+        body: {
+          appLoc: '/Public/apps/from-body',
+          fileTree: {
+            members: [{ name: 'a.html', type: 'file', code: '<h1>a</h1>' }]
+          }
+        }
+      }
+    )
+
+    expect(answer.status).toBe(200)
+    expect(
+      (await drive.read('/Public/apps/from-query/a.html')).contents
+    ).toEqual('<h1>a</h1>')
+    await expect(
+      drive.read('/Public/apps/from-body/a.html')
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
   it('takes an upload’s folder from the body when the query is silent', async () => {
     const drive = createDriveService(new MemoryDriveStore({}))
 

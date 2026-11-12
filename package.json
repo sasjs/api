@@ -44,6 +44,8 @@
     "check:routes": "node scripts/sync-routes.mjs --check",
     "sync:scope": "node scripts/viya-scope.mjs",
     "check:scope": "node scripts/viya-scope.mjs --check",
+    "sync:viya": "node scripts/viya-generate.mjs",
+    "check:viya": "node scripts/viya-generate.mjs --check",
     "check:builds": "node scripts/check-builds.mjs",
     "audit:gate": "node scripts/audit.mjs",
     "check:appstream": "node scripts/appstream-browser-check.cjs"

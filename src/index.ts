@@ -58,6 +58,19 @@ export type { RouteOverlay } from './routes/overlay.js'
 // host that refuses an out-of-scope path reads the same statement the guard does
 export { SURFACE, SURFACE_ADAPTER_VERSION } from './viya/surface.js'
 export type { SurfaceEntry, SurfaceFamily } from './viya/surface.js'
+export { VIYA_TABLE } from './viya/table.js'
+export type { ViyaOperation } from './viya/table.js'
+export { UNRECORDED } from './viya/unrecorded.js'
+export type { UnrecordedOperation } from './viya/unrecorded.js'
+export {
+  EMULATED_HEADER,
+  EMULATED_HEADER_VALUE,
+  VIYA_CAPTURED_AT,
+  VIYA_TARGET_VERSION,
+  emulatedHeaders
+} from './viya/version.js'
+export { VIYA_CORPUS } from './corpus/viya/operations.js'
+export type { ViyaCase } from './corpus/viya/operations.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
 
 // a host gating its own middleware reads the same decision the inventory reports

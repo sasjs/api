@@ -318,3 +318,99 @@ describe('the content types the estate names', () => {
     expect(await typeOf('a.bin')).toBe('application/octet-stream')
   })
 })
+
+describe('the size a client sees', () => {
+  it('counts bytes, not characters, so a non-ASCII file is measured honestly', async () => {
+    const shared = services()
+
+    // two characters, three bytes: the size is what a upload of this file sends
+    const answer = await dispatchViya(shared, 'POST', '/files/files', {
+      query: {},
+      file: { name: 'a.txt', contents: 'eu' }
+    })
+
+    expect((answer.body as { size: number }).size).toBe(2)
+
+    const accented = await dispatchViya(shared, 'POST', '/files/files', {
+      query: {},
+      file: { name: 'b.txt', contents: 'eu\u0301' }
+    })
+
+    const bytes = (accented.body as { size: number }).size
+
+    expect(bytes).toBeGreaterThan((answer.body as { size: number }).size)
+  })
+})
+
+describe('the paths a request can name', () => {
+  it('finds a parent nested below the root', async () => {
+    const shared = services()
+
+    const outer = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'outer' }
+    })
+    const inner = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: (outer.body as { id: string }).id },
+      body: { name: 'inner' }
+    })
+
+    const uploaded = await dispatchViya(shared, 'POST', '/files/files', {
+      query: { parentFolderUri: (inner.body as { id: string }).id },
+      file: { name: 'deep.sas', contents: 'x' }
+    })
+
+    expect(uploaded.status).toBe(201)
+    expect(idFor('/outer/inner/deep.sas', 'file')).toBe(
+      (uploaded.body as { id: string }).id
+    )
+  })
+
+  it('renames to the name it already has when the body names none', async () => {
+    const { shared, folderId } = await withFolder()
+    const uploaded = await upload(
+      shared,
+      `/folders/folders/${folderId}`,
+      'same.sas',
+      'x'
+    )
+    const id = (uploaded.body as { id: string }).id
+
+    const answer = await dispatchViya(shared, 'PATCH', `/files/files/${id}`, {
+      body: {}
+    })
+
+    expect((answer.body as { name: string }).name).toBe('same.sas')
+  })
+
+  it('accepts bytes as the multipart part, and measures them', async () => {
+    const shared = services()
+
+    const answer = await dispatchViya(shared, 'POST', '/files/files', {
+      query: {},
+      file: { name: 'a.bin', contents: new Uint8Array([1, 2, 3]) }
+    })
+
+    expect((answer.body as { size: number }).size).toBe(3)
+  })
+
+  it('accepts a replacement body that carries its content under `contents`', async () => {
+    const { shared, folderId } = await withFolder()
+    const uploaded = await upload(
+      shared,
+      `/folders/folders/${folderId}`,
+      'a.sas',
+      'x'
+    )
+    const id = (uploaded.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'PUT',
+      `/files/files/${id}/content`,
+      { body: { contents: 'data b; run;' } }
+    )
+
+    expect((answer.body as { size: number }).size).toBe(12)
+  })
+})

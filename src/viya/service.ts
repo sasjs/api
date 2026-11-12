@@ -21,8 +21,6 @@ import { FILE_HANDLERS } from './files.js'
 
 import { idFor, EMULATED_NOW, EMULATED_USER } from './ids.js'
 
-export { idFor, EMULATED_NOW, EMULATED_USER }
-
 const linksFor = (uri: string, collection = false) => {
   const self = {
     href: uri,

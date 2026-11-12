@@ -410,3 +410,47 @@ describe('the parts of the estate that only a second call reaches', () => {
     ).toMatch(/Emulated/)
   })
 })
+
+describe('addresses the parser has to read', () => {
+  it('reads an IPv6 host, with and without a port', () => {
+    expect(normaliseServerUrl('http://[::1]:8080/x')).toBe('http://[::1]:8080')
+    expect(normaliseServerUrl('http://[::1]/x')).toBe('http://[::1]')
+  })
+
+  it('treats a value it cannot read as an address anyway', () => {
+    // no scheme and no authority: the string is its own identity
+    expect(normaliseServerUrl('/just/a/path')).toBe('/just/a/path')
+  })
+
+  it('drops credentials, which are not part of the identity', () => {
+    expect(normaliseServerUrl('http://user:pass@host:5000/')).toBe(
+      'http://host:5000'
+    )
+  })
+})
+
+describe('requests that carry no body at all', () => {
+  it('creates a session with no body', async () => {
+    const target = services()
+    const answer = await dispatchViya(
+      target,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`
+    )
+
+    expect(answer.status).toBe(201)
+  })
+
+  it('submits a job with no body', async () => {
+    const target = services()
+    const sessionId = await sessionOn(target)
+
+    const answer = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`
+    )
+
+    expect(answer.status).toBe(201)
+  })
+})

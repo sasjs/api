@@ -90,10 +90,26 @@ const fileBody = (file: EmulatedFile) => {
   }
 }
 
+/**
+ * The bytes in a string, counted rather than measured.
+ *
+ * `Buffer.byteLength` is not available in the browser build, and the number this
+ * returns is the size a client sees, so it has to be right for non-ASCII too.
+ */
+const utf8Length = (text: string): number => {
+  let bytes = 0
+
+  for (const character of text) {
+    const point = character.codePointAt(0) as number
+
+    bytes += point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4
+  }
+
+  return bytes
+}
+
 const sizeOf = (contents: string | Uint8Array): number =>
-  typeof contents === 'string'
-    ? Buffer.byteLength(contents, 'utf-8')
-    : contents.byteLength
+  typeof contents === 'string' ? utf8Length(contents) : contents.byteLength
 
 /** Every file in the drive, as `path` and name. */
 const filesIn = async (drive: DriveService): Promise<EmulatedFile[]> => {

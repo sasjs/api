@@ -44,28 +44,46 @@ export const normaliseServerUrl = (url: string | undefined): string => {
 
   if (!trimmed) return ''
 
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `http://${trimmed}`
+  // parsed by hand rather than with `new URL`, because the browser build has no
+  // URL global and this module is part of it
+  const match = /^(?:([a-z][a-z0-9+.-]*):\/\/)?([^/?#]+)/i.exec(trimmed)
 
-  let parsed: URL
+  if (!match) return trimmed.replace(/\/+$/, '').toLowerCase()
 
-  try {
-    parsed = new URL(withScheme)
-  } catch {
-    return trimmed.replace(/\/+$/, '').toLowerCase()
+  const scheme = (match[1] ?? 'http').toLowerCase()
+
+  let authority = match[2].toLowerCase()
+
+  const credentials = authority.lastIndexOf('@')
+
+  if (credentials >= 0) authority = authority.slice(credentials + 1)
+
+  let host = authority
+  let port = ''
+
+  if (authority.startsWith('[')) {
+    const close = authority.indexOf(']')
+
+    if (close >= 0) {
+      host = authority.slice(0, close + 1)
+
+      if (authority[close + 1] === ':') port = authority.slice(close + 2)
+    }
+  } else {
+    const colon = authority.lastIndexOf(':')
+
+    if (colon >= 0) {
+      host = authority.slice(0, colon)
+      port = authority.slice(colon + 1)
+    }
   }
 
-  const scheme = parsed.protocol.replace(/:$/, '').toLowerCase()
-  const host = parsed.hostname.toLowerCase()
-  const port =
-    parsed.port === '' ||
-    (scheme === 'http' && parsed.port === '80') ||
-    (scheme === 'https' && parsed.port === '443')
-      ? ''
-      : `:${parsed.port}`
+  const isDefault =
+    (scheme === 'http' && port === '80') ||
+    (scheme === 'https' && port === '443')
 
-  return `${scheme}://${host}${port}`
+  // a non-default port stays: two emulators on one machine are two estates
+  return `${scheme}://${host}${port && !isDefault ? `:${port}` : ''}`
 }
 
 /** A 32-bit FNV-1a hash, so one string becomes one number. */

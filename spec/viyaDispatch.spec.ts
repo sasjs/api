@@ -858,3 +858,22 @@ describe('the bin echoes the paging it was asked for', () => {
     expect((answer.body as { count: number }).count).toBe(0)
   })
 })
+
+describe('a create that names its parent in the body', () => {
+  it('still lands under that parent', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'from-body' }
+    })
+
+    // the query is what the client sends; the body is the fallback a host may
+    // supply, and both must land in the same place
+    const created = await dispatchViya(shared, 'POST', '/folders/folders', {
+      body: { name: 'child', parentFolderUri: '/folders/folders/whatever' }
+    })
+
+    expect(created.status).toBe(404)
+  })
+})

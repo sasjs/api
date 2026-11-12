@@ -40,7 +40,7 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'GET /identities/users/@currentUser': { implemented: true },
   'GET /types/types': { implemented: true },
 
-  // declined: the session and file ports
+  // declined: the file port
   'GET /compute/contexts': { implemented: true },
   'POST /compute/contexts/{}/sessions': { implemented: true },
   'DELETE /compute/sessions/{}': { implemented: true },

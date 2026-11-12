@@ -13,7 +13,8 @@
  * that parses for NOTEs still gets a well-formed log, and a person reading it is
  * not misled about what ran.
  */
-import { drawFrom, drawInt, generator } from './seed.js'
+import { drawFrom, drawInt, generator, hash } from './seed.js'
+import { EMULATED_NOW } from './ids.js'
 
 /** One submitted job, and what the emulator answered for it. */
 export interface EmulatedJob {
@@ -35,9 +36,6 @@ export interface EmulatedSession {
   submitted: number
 }
 
-/** The clock every generated answer is stamped with. */
-export const EMULATED_STAMP = '2026-01-01T00:00:00.000Z'
-
 /** What a submitted job answers before it is run - the same for every request. */
 export interface SubmittedJob {
   name?: string
@@ -55,7 +53,10 @@ export interface SubmittedJob {
  * depend on how many jobs ran before it.
  */
 export const logFor = (seed: number, code: string): string[] => {
-  const next = generator(seed ^ (code.length * 2654435761))
+  // seeded from the program's TEXT, not its length: two programs of the same
+  // length are two programs, and a fixture that names the numbers would be
+  // right for both of them otherwise
+  const next = generator(seed ^ hash(`code:${code}`))
   const rows = drawInt(next, 900) + 100
   const seconds = (drawInt(next, 90) + 10) / 100
 
@@ -121,8 +122,8 @@ export class EmulatedEstate {
       // program answers the same lines whatever session it was submitted in
       log: logFor(this.seed, code),
       state: 'completed',
-      creationTimeStamp: EMULATED_STAMP,
-      completedTimeStamp: EMULATED_STAMP,
+      creationTimeStamp: EMULATED_NOW,
+      completedTimeStamp: EMULATED_NOW,
       sessionId: session.id
     }
 

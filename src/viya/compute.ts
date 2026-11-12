@@ -16,8 +16,8 @@ import type { ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError } from '../types.js'
 import { normaliseServerUrl } from './seed.js'
 import { seedOf } from './seed.js'
-import { estateFor, EMULATED_STAMP, type EmulatedJob } from './sessions.js'
-import { EMULATED_USER, idFor } from './ids.js'
+import { estateFor, type EmulatedJob } from './sessions.js'
+import { EMULATED_NOW, EMULATED_USER, idFor } from './ids.js'
 
 /** The name the emulator answers when a client asks for no particular context. */
 export const DEFAULT_CONTEXT_NAME = 'Emulated Compute Context'
@@ -57,7 +57,7 @@ const linksFor = (
   }
 ]
 
-const estateOf = (services: Services) => estateFor(seedOf(services.viya ?? {}))
+const estateOf = (services: Services) => estateFor(seedOf(services.viya))
 
 /**
  * The context name a client asked for.
@@ -107,7 +107,7 @@ const sessionBody = (
       sessionInactiveTimeout: 3600
     },
     environment: { autoExecLines },
-    creationTimeStamp: EMULATED_STAMP,
+    creationTimeStamp: EMULATED_NOW,
     serviceAPIVersion: 1,
     sessionConditionCode: 0,
     stateElapsedTime: 0,
@@ -160,9 +160,14 @@ const jobOf = (services: Services, sessionId: string, jobId: string) => {
   return job
 }
 
-/** The `{}` values a request carried, in path order. */
+/**
+ * The `{}` values a request carried, in path order.
+ *
+ * `dispatchViya` sets `segments` on every request it hands a handler, so there is
+ * no absent case to answer - a fallback here would be a branch nothing reaches.
+ */
 const segmentsOf = (params: Record<string, string>): string[] =>
-  (params as unknown as { segments?: string[] }).segments ?? []
+  (params as unknown as { segments: string[] }).segments
 
 export const COMPUTE_HANDLERS: Record<
   string,

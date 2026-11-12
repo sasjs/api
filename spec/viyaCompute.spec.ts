@@ -454,3 +454,59 @@ describe('requests that carry no body at all', () => {
     expect(answer.status).toBe(201)
   })
 })
+
+describe('the seed when there is no settings object at all', () => {
+  it('answers the default for an argument nobody passed', () => {
+    expect(seedOf()).toBe(seedOf({}))
+  })
+
+  it('treats a whitespace-only address as no address', () => {
+    expect(normaliseServerUrl('   ')).toBe('')
+    expect(seedOf({ serverUrl: '   ' })).toBe(seedOf({}))
+  })
+
+  it('answers for a host that mounts no emulated settings', async () => {
+    // `viya` is optional on Services; a host that does not set it still gets an
+    // estate, the default one
+    const answer = await dispatchViya(
+      {
+        drive: createDriveService(new MemoryDriveStore()),
+        identity: createIdentityService(
+          new MemoryIdentityStore(DEFAULT_IDENTITY)
+        )
+      },
+      'GET',
+      '/compute/contexts'
+    )
+
+    expect(answer.status).toBe(200)
+  })
+})
+
+describe('two programs of the same length', () => {
+  it('do not share generated numbers, because the text seeds them', async () => {
+    const shared = services('http://localhost:5000')
+    const sessionId = await sessionOn(shared)
+
+    const linesFor = async (code: string) => {
+      const submitted = await dispatchViya(
+        shared,
+        'POST',
+        `/compute/sessions/${sessionId}/jobs`,
+        { body: { code } }
+      )
+
+      return logOn(shared, sessionId, (submitted.body as { id: string }).id)
+    }
+
+    // 22 characters each, and the same estate: only the text differs
+    const first = await linesFor('data work.a; x=1; run;')
+    const second = await linesFor('data work.b; y=2; run;')
+
+    expect(first.length).toBe(second.length)
+    expect(first).not.toEqual(second)
+    expect(first.filter((line) => line.includes('observations'))).not.toEqual(
+      second.filter((line) => line.includes('observations'))
+    )
+  })
+})

@@ -87,7 +87,7 @@ export const normaliseServerUrl = (url: string | undefined): string => {
 }
 
 /** A 32-bit FNV-1a hash, so one string becomes one number. */
-const hash = (input: string): number => {
+export const hash = (input: string): number => {
   let value = 2166136261
 
   for (let index = 0; index < input.length; index++) {

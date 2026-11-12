@@ -64,3 +64,76 @@ test('single quotes, double quotes and backticks are all read', () => {
     '/folders/folders/@myRecycleBin'
   ])
 })
+
+test('a path in a doc comment is prose, not a call', () => {
+  // the first extractor read the raw text, so five JSDoc examples and a
+  // sentence about `/SASjsApi/` arrived in the inventory as operations
+  const literals = literalsIn(
+    [
+      '/**',
+      ' * @param folderPath - the full path (eg `/Public/example/deleteThis`) to remove.',
+      ' * `SASjsApi`, `/SASjsApi/` and ` /SASjsApi ` all mean the same mount.',
+      ' */',
+      "requestClient.get('/folders/folders/@item')"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals, ['/folders/folders/@item'])
+})
+
+test('a comment does not begin inside a string', () => {
+  const literals = literalsIn(
+    [
+      "const base = 'https://host/x' // not a comment start inside the string",
+      "const path = '/files/files'"
+    ].join('\n')
+  )
+
+  // the URL is not a path and is dropped on its own merits; what this pins is
+  // that the `//` inside it did not swallow the line after it
+  assert.deepEqual(literals, ['/files/files'])
+})
+
+test('a block comment ends where it says, and code after it still counts', () => {
+  const literals = literalsIn(
+    '/* /not/this */ const a = "/types/types"; /* and /nor/this */'
+  )
+
+  assert.deepEqual(literals, ['/types/types'])
+})
+
+test('an escaped-slash regex does not blank the rest of the line', () => {
+  // `/https?:\/\//` contains `//`; a scanner that reads it as a line comment
+  // loses every path after it on that line, silently - the under-report a scope
+  // guard exists to prevent
+  const literals = literalsIn(
+    "const b = u.replace(/https?:\\/\\//g, ''); const p = '/files/files'"
+  )
+
+  assert.deepEqual(literals, ['/files/files'])
+})
+
+test('a division is not a regex, and a regex in a class keeps its slashes', () => {
+  const literals = literalsIn(
+    [
+      "const ratio = total / count; const p = '/types/types'",
+      "const split = value.replace(/[/]/g, '-'); const q = '/folders/folders'"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals.sort(), ['/folders/folders', '/types/types'])
+})
+
+test('a regex after return or a closing bracket is a regex', () => {
+  // `return /\/\//` and `if (x) /…)` are the two shapes an adapter's
+  // URL-normalising code most often uses, and neither is precedable by a
+  // character in the operator set
+  const literals = literalsIn(
+    [
+      "function f(u) { return /\\/\\//.test(u) }; const p = '/files/files'",
+      "if (u) /\\/\\//.test(u); const q = '/folders/folders'"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals.sort(), ['/files/files', '/folders/folders'])
+})

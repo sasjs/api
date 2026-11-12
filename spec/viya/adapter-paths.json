@@ -2,33 +2,13 @@
   "adapter": "6.0.2",
   "extractedFrom": "node_modules/@sasjs/adapter",
   "paths": {
-    "/Public/example/deleteThis": [
-      "SASViyaApiClient.js",
-      "SASjs.js"
-    ],
-    "/Public/example/myFolder": [
-      "SASViyaApiClient.js",
-      "SASjs.js"
-    ],
-    "/Public/newDestination": [
-      "SASViyaApiClient.js",
-      "SASjs.js"
-    ],
-    "/Public/newDestination/myFolder": [
-      "SASViyaApiClient.js",
-      "SASjs.js"
-    ],
     "/Public/seedapp": [
       "SASjs.js"
     ],
     "/SASJobExecution": [
-      "SASjs.js",
-      "types/SASjsConfig.js"
+      "SASjs.js"
     ],
     "/SASLogon": [
-      "auth/AuthManager.js"
-    ],
-    "/SASLogon/home": [
       "auth/AuthManager.js"
     ],
     "/SASLogon/login": [
@@ -55,32 +35,17 @@
       "auth/AuthManager.js"
     ],
     "/SASStoredProcess/do": [
-      "SASjs.js",
-      "types/SASjsConfig.js"
+      "SASjs.js"
     ],
     "/SASStoredProcess/j_spring_cas_security_check": [
       "auth/AuthManager.js"
     ],
     "/SASjsApi": [
-      "apiBasePath.js",
-      "auth/getAccessTokenForSasjs.js",
-      "auth/getTokens.js",
-      "auth/refreshTokensForSasjs.js",
-      "types/SASjsConfig.js"
-    ],
-    "/SASjsApi/{}": [
       "apiBasePath.js"
     ],
     "/User Folders/{}/My Folder/sasjs/runner": [
       "SAS9ApiClient.js",
       "request/Sas9RequestClient.js"
-    ],
-    "/api": [
-      "apiBasePath.js",
-      "types/SASjsConfig.js"
-    ],
-    "/api/stp/execute": [
-      "apiBasePath.js"
     ],
     "/auth/refresh": [
       "auth/refreshTokensForSasjs.js"
@@ -181,7 +146,6 @@
       "SASjsApiClient.js"
     ],
     "/stp/execute": [
-      "SASjs.js",
       "SASjsApiClient.js",
       "apiBasePath.js"
     ],

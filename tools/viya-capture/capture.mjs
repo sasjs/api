@@ -23,8 +23,8 @@
  *
  * Optional:
  *
- *   VIYA_CLIENT_ID / VIYA_CLIENT_SECRET  record the token endpoint as well
- *   VIYA_REFRESH_TOKEN                   record the refresh grant
+ *   VIYA_REFRESH_TOKEN                   record the refresh grant (the adapter's
+ *                                        own path, with the sas.cli public client)
  *   VIYA_ALLOW_EXECUTE=1                 create a session and run a program
  *   VIYA_ALLOW_WRITES=1                  create and delete one folder
  *   VIYA_ALLOW_FILES=1                   create, read and replace one file
@@ -67,8 +67,6 @@ const here = dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.CAPTURE_PORT ?? 8899)
 const TARGET = process.env.VIYA_URL
 const TOKEN = process.env.VIYA_TOKEN ?? ''
-const CLIENT_ID = process.env.VIYA_CLIENT_ID ?? ''
-const CLIENT_SECRET = process.env.VIYA_CLIENT_SECRET ?? ''
 const REFRESH_TOKEN = process.env.VIYA_REFRESH_TOKEN ?? ''
 const CONTEXT = process.env.VIYA_CONTEXT ?? ''
 const APP_LOC = process.env.VIYA_APP_LOC ?? ''
@@ -108,7 +106,7 @@ let cleanup = false
 const scrub = createScrubber({
   origin: upstream.origin,
   host: upstream.hostname,
-  secrets: [CLIENT_SECRET, TOKEN, REFRESH_TOKEN]
+  secrets: [TOKEN, REFRESH_TOKEN]
 })
 
 const STORED_HEADERS = [
@@ -290,52 +288,6 @@ const client = sasjs.sasViyaApiClient
 const basicAuth = (clientId, clientSecret) =>
   'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
-if (CLIENT_ID && CLIENT_SECRET) {
-  await runStep('auth/token-client-credentials', () =>
-    requestClient.post(
-      '/SASLogon/oauth/token',
-      'grant_type=client_credentials',
-      undefined,
-      'application/x-www-form-urlencoded',
-      {
-        Authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
-        Accept: 'application/json'
-      }
-    )
-  )
-
-  // the same call with a wrong secret: the refusal shape matters as much as the
-  // success, and the emulator has to answer it identically
-  await runStep('auth/token-bad-secret', () =>
-    requestClient.post(
-      '/SASLogon/oauth/token',
-      'grant_type=client_credentials',
-      undefined,
-      'application/x-www-form-urlencoded',
-      {
-        Authorization: basicAuth(CLIENT_ID, `${CLIENT_SECRET}-wrong`),
-        Accept: 'application/json'
-      }
-    )
-  )
-}
-
-if (REFRESH_TOKEN && CLIENT_ID && CLIENT_SECRET) {
-  await runStep('auth/token-refresh', () =>
-    requestClient.post(
-      '/SASLogon/oauth/token',
-      'grant_type=refresh_token&refresh_token=' +
-        encodeURIComponent(REFRESH_TOKEN),
-      undefined,
-      'application/x-www-form-urlencoded',
-      {
-        Authorization: basicAuth(CLIENT_ID, CLIENT_SECRET),
-        Accept: 'application/json'
-      }
-    )
-  )
-}
-
 await runStep('identities/current-user', () =>
   requestClient.get('/identities/users/@currentUser', TOKEN)
 )
@@ -415,6 +367,27 @@ if (ALLOW_EXECUTE && CONTEXT) {
   )
 }
 
+/**
+ * The refresh grant, through the adapter's own method.
+ *
+ * Not a hand-built request: `refreshTokens` posts `multipart/form-data` with a
+ * boundary, and a recorder that transcribed the call as urlencoded would store a
+ * framing the client never sends. Calling the client is the whole premise here.
+ *
+ * Last, because a refresh rotates the pair: every step that needs the token this
+ * run was given has to run before it. The refusal is recorded too - a revoked or
+ * expired refresh token is the answer the emulator has no shape for otherwise.
+ */
+if (REFRESH_TOKEN) {
+  await runStep('auth/token-refresh', () =>
+    client.refreshTokens('sas.cli', '', REFRESH_TOKEN)
+  )
+
+  await runStep('auth/token-refresh-refused', () =>
+    client.refreshTokens('sas.cli', '', `${REFRESH_TOKEN}-revoked`)
+  )
+}
+
 proxy.close()
 
 /* ------------------------------------------------------------------- output */
@@ -440,7 +413,7 @@ const payload = redactBody(JSON.stringify(document), 'application/json', scrub)
 // on disk when it fails.
 const leaks = findLeaks(payload, {
   host: upstream.hostname,
-  secrets: [CLIENT_SECRET, TOKEN, REFRESH_TOKEN]
+  secrets: [TOKEN, REFRESH_TOKEN]
 })
 
 if (leaks.length) {

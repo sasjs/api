@@ -49,15 +49,96 @@ export const normalise = (literal) => {
   return trimmed.replace(/\/{2,}/g, '/').replace(/\/$/, '')
 }
 
-/** Every quoted or template path literal in one file's text. */
+/**
+ * The same text with its comments removed.
+ *
+ * A comment is not code, and a path in one is prose: `@example /Public/x` in a
+ * JSDoc block names a folder in a sentence, not a call the client makes. The
+ * first version of this extractor read the raw text, so five doc examples and a
+ * JSDoc mention of `/SASjsApi/` appeared in the inventory as operations - and a
+ * guard that reddens when someone rewords a comment is measuring the wrong
+ * thing.
+ *
+ * The scan tracks quote state so a `//` inside a string - `'https://host/x'` -
+ * does not begin a comment. Regex literals are not tracked: a pattern containing
+ * a quote is exotic in a tsc build, and the cost of getting it wrong is a missed
+ * literal, not an invented one.
+ */
+export const stripComments = (source) => {
+  let code = ''
+  let index = 0
+
+  while (index < source.length) {
+    const character = source[index]
+    const next = source[index + 1]
+
+    if (character === '/' && next === '/') {
+      while (index < source.length && source[index] !== '\n') {
+        code += ' '
+        index += 1
+      }
+      continue
+    }
+
+    if (character === '/' && next === '*') {
+      code += '  '
+      index += 2
+      while (
+        index < source.length &&
+        !(source[index] === '*' && source[index + 1] === '/')
+      ) {
+        code += source[index] === '\n' ? '\n' : ' '
+        index += 1
+      }
+      if (index < source.length) {
+        code += '  '
+        index += 2
+      }
+      continue
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      const quote = character
+      code += character
+      index += 1
+
+      while (index < source.length) {
+        const inside = source[index]
+        code += inside
+        index += 1
+
+        if (inside === '\\') {
+          if (index < source.length) {
+            code += source[index]
+            index += 1
+          }
+          continue
+        }
+
+        if (inside === quote) break
+      }
+
+      continue
+    }
+
+    code += character
+    index += 1
+  }
+
+  return code
+}
+
+/** Every quoted or template path literal in one file's code. */
 export const literalsIn = (source) => {
   const found = new Set()
 
   // every quoted string, then decide whether it names a path
   const pattern = /(['"`])([^'"`\n]*)\1/g
 
+  const code = stripComments(source)
+
   let match
-  while ((match = pattern.exec(source))) {
+  while ((match = pattern.exec(code))) {
     // a template placeholder becomes `{}` here so the path after it survives;
     // `${this.serverUrl}/identities/users/@currentUser` is a request, and a
     // matcher that demanded a leading slash missed it

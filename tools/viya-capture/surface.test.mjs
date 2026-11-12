@@ -64,3 +64,40 @@ test('single quotes, double quotes and backticks are all read', () => {
     '/folders/folders/@myRecycleBin'
   ])
 })
+
+test('a path in a doc comment is prose, not a call', () => {
+  // the first extractor read the raw text, so five JSDoc examples and a
+  // sentence about `/SASjsApi/` arrived in the inventory as operations
+  const literals = literalsIn(
+    [
+      '/**',
+      ' * @param folderPath - the full path (eg `/Public/example/deleteThis`) to remove.',
+      ' * `SASjsApi`, `/SASjsApi/` and ` /SASjsApi ` all mean the same mount.',
+      ' */',
+      "requestClient.get('/folders/folders/@item')"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals, ['/folders/folders/@item'])
+})
+
+test('a comment does not begin inside a string', () => {
+  const literals = literalsIn(
+    [
+      "const base = 'https://host/x' // not a comment start inside the string",
+      "const path = '/files/files'"
+    ].join('\n')
+  )
+
+  // the URL is not a path and is dropped on its own merits; what this pins is
+  // that the `//` inside it did not swallow the line after it
+  assert.deepEqual(literals, ['/files/files'])
+})
+
+test('a block comment ends where it says, and code after it still counts', () => {
+  const literals = literalsIn(
+    '/* /not/this */ const a = "/types/types"; /* and /nor/this */'
+  )
+
+  assert.deepEqual(literals, ['/types/types'])
+})

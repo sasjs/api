@@ -37,34 +37,10 @@ export const SURFACE_ADAPTER_VERSION = '6.0.2'
 export const SURFACE: SurfaceEntry[] = [
   // sas9
   {
-    path: '/Public/example/deleteThis',
-    family: 'sas9',
-    decision: 'declined',
-    reason: 'a path in a doc example or a default config value, not a call'
-  },
-  {
-    path: '/Public/example/myFolder',
-    family: 'sas9',
-    decision: 'declined',
-    reason: 'a path in a doc example or a default config value, not a call'
-  },
-  {
-    path: '/Public/newDestination',
-    family: 'sas9',
-    decision: 'declined',
-    reason: 'a path in a doc example or a default config value, not a call'
-  },
-  {
-    path: '/Public/newDestination/myFolder',
-    family: 'sas9',
-    decision: 'declined',
-    reason: 'a path in a doc example or a default config value, not a call'
-  },
-  {
     path: '/Public/seedapp',
     family: 'sas9',
     decision: 'declined',
-    reason: 'a path in a doc example or a default config value, not a call'
+    reason: 'a default config value the client falls back to, not a call'
   },
   {
     path: '/SASJobExecution',
@@ -77,13 +53,6 @@ export const SURFACE: SurfaceEntry[] = [
   // viya-auth
   {
     path: '/SASLogon',
-    family: 'viya-auth',
-    decision: 'in',
-    reason:
-      'the auth flow the client speaks, and the reason the emulated paths cannot be renamed'
-  },
-  {
-    path: '/SASLogon/home',
     family: 'viya-auth',
     decision: 'in',
     reason:
@@ -163,13 +132,6 @@ export const SURFACE: SurfaceEntry[] = [
     reason:
       "the SASjs API surface, answered by the server's own registered routes, not by a Viya-shaped one"
   },
-  {
-    path: '/SASjsApi/{}',
-    family: 'sasjs-api',
-    decision: 'declined',
-    reason:
-      "the SASjs API surface, answered by the server's own registered routes, not by a Viya-shaped one"
-  },
 
   // sas9
   {
@@ -181,20 +143,6 @@ export const SURFACE: SurfaceEntry[] = [
   },
 
   // sasjs-api
-  {
-    path: '/api',
-    family: 'sasjs-api',
-    decision: 'declined',
-    reason:
-      "the SASjs API surface, answered by the server's own registered routes, not by a Viya-shaped one"
-  },
-  {
-    path: '/api/stp/execute',
-    family: 'sasjs-api',
-    decision: 'declined',
-    reason:
-      "the SASjs API surface, answered by the server's own registered routes, not by a Viya-shaped one"
-  },
   {
     path: '/auth/refresh',
     family: 'sasjs-api',

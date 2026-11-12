@@ -31,11 +31,6 @@ export const UNRECORDED: UnrecordedOperation[] = [
       'no capture: the pass authenticates outside the adapter, so the login root is never requested through the client'
   },
   {
-    path: '/SASLogon/home',
-    reason:
-      'no capture: reached only on a CAS-redirect login, which an estate with a direct token grant does not take'
-  },
-  {
     path: '/SASLogon/login',
     reason:
       'no capture: an interactive login; the pass presents a token instead of a form'

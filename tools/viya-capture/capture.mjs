@@ -27,6 +27,7 @@
  *   VIYA_REFRESH_TOKEN                   record the refresh grant
  *   VIYA_ALLOW_EXECUTE=1                 create a session and run a program
  *   VIYA_ALLOW_WRITES=1                  create and delete one folder
+ *   VIYA_ALLOW_FILES=1                   create, read and replace one file
  *   VIYA_TLS_RELAX=1                     accept a self-signed certificate
  *   CAPTURE_PORT=8899                    local proxy port
  *
@@ -59,6 +60,7 @@ import {
   redactAuthorization,
   redactBody
 } from './redact.mjs'
+import { contentPass, executePass, folderNameFor } from './pass.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -72,6 +74,7 @@ const CONTEXT = process.env.VIYA_CONTEXT ?? ''
 const APP_LOC = process.env.VIYA_APP_LOC ?? ''
 const ALLOW_EXECUTE = process.env.VIYA_ALLOW_EXECUTE === '1'
 const ALLOW_WRITES = process.env.VIYA_ALLOW_WRITES === '1'
+const ALLOW_FILES = process.env.VIYA_ALLOW_FILES === '1'
 const TLS_RELAX = process.env.VIYA_TLS_RELAX === '1'
 
 if (!TARGET) {
@@ -88,6 +91,14 @@ const transport = upstream.protocol === 'http:' ? http : https
 
 const captures = []
 let step = 'startup'
+
+/**
+ * True while a step is removing what an earlier step created. Its requests are
+ * still recorded - the file is a log of the run - but they are marked, because
+ * a delete performed for tidiness is not part of the client's surface and must
+ * not reach the generated table.
+ */
+let cleanup = false
 
 /**
  * One scrubber for the run: the estate's names and this run's secrets. Every
@@ -116,7 +127,7 @@ const storedHeaders = (headers) =>
   )
 
 const record = (entry) => {
-  captures.push({ step, ...entry })
+  captures.push({ step, ...(cleanup ? { cleanup: true } : {}), ...entry })
 }
 
 /* -------------------------------------------------------------------- proxy */
@@ -234,6 +245,29 @@ const runStep = async (name, action) => {
   }
 }
 
+/**
+ * A step that removes what the pass created.
+ *
+ * Kept apart from `runStep` because the two say different things: a refused
+ * cleanup is a warning about the run, not a captured contract, and its requests
+ * carry the `cleanup` marker so the generator passes over them.
+ */
+const runCleanup = async (name, action) => {
+  step = name
+  cleanup = true
+
+  try {
+    await action()
+    console.log(`  ${name}: ok`)
+  } catch (error) {
+    console.log(
+      `  ${name}: ${String(error?.message ?? error).slice(0, 160)} (left behind)`
+    )
+  } finally {
+    cleanup = false
+  }
+}
+
 const started = Date.now()
 
 await new Promise((resolve) => proxy.listen(PORT, '127.0.0.1', resolve))
@@ -334,15 +368,50 @@ if (ALLOW_EXECUTE && CONTEXT) {
   }
 }
 
-if (ALLOW_WRITES && APP_LOC) {
-  const folderName = `capture-${started}`
+if (ALLOW_WRITES || ALLOW_FILES) {
+  if (APP_LOC) {
+    const result = await contentPass({
+      client,
+      requestClient,
+      token: TOKEN,
+      appLoc: APP_LOC,
+      folderName: folderNameFor(started),
+      allowFiles: ALLOW_FILES,
+      runStep,
+      runCleanup
+    })
 
-  await runStep('folders/create', () =>
-    client.createFolder(`${APP_LOC}/${folderName}`, TOKEN)
-  )
+    if (!result.created)
+      console.log(
+        '  content pass stopped: the folder create was refused, so no file or delete step ran'
+      )
+  } else console.log('  folders/create: skipped, VIYA_APP_LOC is not set')
+}
 
-  await runStep('folders/delete', () =>
-    client.deleteFolder(`${APP_LOC}/${folderName}`, TOKEN)
+// Last, because the adapter treats a fresh one-hour token as expiring and
+// refreshes it before the job is submitted: the refresh rotates the pair, so
+// every step that needs `TOKEN` runs before this one.
+if (ALLOW_EXECUTE && CONTEXT) {
+  const executed = await executePass({
+    client,
+    requestClient,
+    authConfig: {
+      access_token: TOKEN,
+      ...(REFRESH_TOKEN ? { refresh_token: REFRESH_TOKEN } : {})
+    },
+    contextName: CONTEXT,
+    runStep,
+    runCleanup
+  })
+
+  // the version the capture was taken against, said out loud rather than
+  // remembered: it is what VIYA_TARGET_VERSION is pinned to
+  const version = String(executed?.log ?? '').match(/SYSVLONG=\s*(.+)/)?.[1]
+
+  console.log(
+    version
+      ? `  version: ${version.trim()}`
+      : '  version: not in the log, the execute step did not return one'
   )
 }
 
@@ -359,6 +428,7 @@ const document = {
   appLoc: APP_LOC ? '<appLoc>' : null,
   allowExecute: ALLOW_EXECUTE,
   allowWrites: ALLOW_WRITES,
+  allowFiles: ALLOW_FILES,
   steps: captures
 }
 
@@ -397,6 +467,9 @@ const statuses = captures.reduce((counts, entry) => {
   return counts
 }, {})
 
+const cleaned = captures.filter((entry) => entry.cleanup).length
+
 console.log(
-  `\n${captures.length} requests recorded -> ${outFile}\nstatuses: ${JSON.stringify(statuses)}`
+  `\n${captures.length} requests recorded -> ${outFile}\nstatuses: ${JSON.stringify(statuses)}` +
+    (cleaned ? `\ncleanup requests, kept out of the table: ${cleaned}` : '')
 )

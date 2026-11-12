@@ -15,24 +15,31 @@ Node 18 or newer. Three commands, from this directory:
 
 Add these when you have them:
 
-| Variable                               | What it turns on                                                                            |
-| -------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `VIYA_CLIENT_ID`, `VIYA_CLIENT_SECRET` | records `/SASLogon/oauth/token` for client credentials, and a deliberate bad-secret refusal |
-| `VIYA_REFRESH_TOKEN`                   | records the refresh grant                                                                   |
-| `VIYA_CONTEXT`                         | records the compute context lookup by name, and enables the session steps                   |
-| `VIYA_APP_LOC`                         | records the folder item and its members                                                     |
-| `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it                                              |
-| `VIYA_ALLOW_WRITES=1`                  | creates and deletes one folder under `VIYA_APP_LOC`                                         |
-| `VIYA_TLS_RELAX=1`                     | accepts a self-signed certificate                                                           |
-| `CAPTURE_PORT`                         | local proxy port, default 8899                                                              |
+| Variable                               | What it turns on                                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `VIYA_CLIENT_ID`, `VIYA_CLIENT_SECRET` | records `/SASLogon/oauth/token` for client credentials, and a deliberate bad-secret refusal  |
+| `VIYA_REFRESH_TOKEN`                   | records the refresh grant                                                                    |
+| `VIYA_CONTEXT`                         | records the compute context lookup by name, and enables the session steps                    |
+| `VIYA_APP_LOC`                         | records the folder item and its members                                                      |
+| `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it; submits `%put &=sysvlong;` and reads the log |
+| `VIYA_ALLOW_WRITES=1`                  | creates and deletes one folder under `VIYA_APP_LOC`                                          |
+| `VIYA_ALLOW_FILES=1`                   | creates its own folder, then creates, reads and replaces one file in it                      |
+| `VIYA_TLS_RELAX=1`                     | accepts a self-signed certificate                                                            |
+| `CAPTURE_PORT`                         | local proxy port, default 8899                                                               |
 
-The default pass is read-only. `VIYA_ALLOW_EXECUTE` and `VIYA_ALLOW_WRITES` are off unless set, and each one only touches what it creates.
+The default pass is read-only. `VIYA_ALLOW_EXECUTE`, `VIYA_ALLOW_WRITES` and `VIYA_ALLOW_FILES` are off unless set, and each one only touches what it creates.
 
 ## What it leaves behind
 
 `capture/viya-capture-<timestamp>.json`, and a summary line with the count of requests and the statuses seen. Send the file back; it is safe to share.
 
 A refused call is recorded too: a 401, a 403 or a 400 is as much a part of the contract as a 200, and the emulator has to answer it identically.
+
+The only request that carries `"cleanup": true` is the file delete. It stays in the file - which is a log of the run - and it is left out of the generated table, because removing a file is not something `@sasjs/adapter` offers: the client creates, reads and replaces files and never deletes one.
+
+The folder delete is a different case, and recording it is deliberate: `deleteFolder` is a public method, so a client does call it, and the emulator has to answer what it sends. It comes back as a `GET /folders/folders/@myRecycleBin` and a `PATCH /folders/folders/{id}` that moves the folder there - not a `DELETE`, which is not the verb a folder removal uses.
+
+The execute step also prints the estate's `sysvlong`, which is the version the capture describes and therefore what `VIYA_TARGET_VERSION` is pinned to. It runs last on purpose: `@sasjs/adapter` 6.0.2 treats a brand-new one-hour token as expiring and refreshes it before submitting the job, and the refresh rotates the token pair, so every step that needs the original token has to run before it. That is why `VIYA_REFRESH_TOKEN` matters for this pass - without one, the refresh has nothing to present and the estate answers `Unable to obtain new access token`.
 
 ## What leaves the file, and what stops it
 
@@ -43,9 +50,16 @@ Two kinds of fact are removed before anything is written:
 
 The finished text is then read back and searched for what a scrubber cannot know: the estate host, a token-shaped value, any address other than loopback, and the run's own secrets. If anything is found the file is **not written**: the categories and counts are printed, the script exits 3, and nothing is left on disk. Both directions are exercised - a clean run writes, a stand-in estate answering with an address in a field is refused with `address (1)`.
 
+## Checking the pass without an estate
+
+    npm test
+
+Two suites run under `node --test`: the scrubber, and the calls themselves against a stand-in client. The second exists because an argument order cannot be reviewed by eye and fails quietly - `createFolder` takes `(name, parentPath, parentUri, token)`, and a call that passes a full path and a token instead puts the token in `parentFolderPath`, so the request goes out with no `Authorization` header, the estate answers `401`, and the step still reports `ok`.
+
 ## What it does not do
 
 - It does not create, modify or delete anything outside the folder names it generates, and it deletes those.
+- It leaves no compute session behind: the execute step removes the session the adapter opens, because `expectWebout: false` makes the adapter return before its own `clearSession`.
 - It does not need the CLI, a browser, or a project checkout.
 - It does not record request or response bodies in full: bodies are capped at 24 KB and are redacted.
 - It does not commit anything. `capture/` and `node_modules/` are ignored, so a capture is a file to send back, never a file to push.

@@ -58,24 +58,32 @@ export const idFor = (path: string, kind = 'folder'): string => {
   ].join('-')
 }
 
-/** The path a folder id stands for, as this process has handed out. */
-const pathsById = new Map<string, string>()
+const linksFor = (uri: string, collection = false) => {
+  const self = {
+    href: uri,
+    uri,
+    rel: 'self',
+    method: 'GET',
+    type: 'application/vnd.sas.folder'
+  }
 
-const linksFor = (uri: string) => [
-  { href: uri, rel: 'self', method: 'GET', type: 'application/vnd.sas.folder' },
-  {
+  const members = {
     href: `${uri}/members`,
+    uri: `${uri}/members`,
     rel: 'members',
     method: 'GET',
-    type: 'application/vnd.sas.collection'
+    type: 'application/vnd.sas.collection',
+    itemType: 'folder'
   }
-]
+
+  // a collection answer leads with the collection link, which carries the
+  // itemType its capture recorded
+  return collection ? [members, self] : [self, members]
+}
 
 const folderBody = async (drive: DriveService, path: string) => {
   const listing = await drive.list(path)
   const id = idFor(path)
-
-  pathsById.set(id, path)
 
   const name = path.split('/').filter(Boolean).pop() ?? ''
   const parent = path.split('/').slice(0, -1).join('/') || '/'
@@ -83,6 +91,7 @@ const folderBody = async (drive: DriveService, path: string) => {
   return {
     id,
     name,
+    description: '',
     type: 'folder',
     version: 1,
     createdBy: EMULATED_USER.id,
@@ -99,11 +108,10 @@ const recycleBin = () => {
   const path = '@myRecycleBin'
   const id = idFor(path)
 
-  pathsById.set(id, path)
-
   return {
     id,
     name: 'Recycle Bin',
+    description: 'Recycle Bin',
     type: 'trashFolder',
     version: 1,
     createdBy: EMULATED_USER.id,
@@ -137,13 +145,46 @@ const pathFromQuery = (request: {
   return path
 }
 
-const pathFromId = (id: string): string => {
-  const path = pathsById.get(id)
+/** The recycle-bin alias the emulator answers, which is also a valid parent. */
+const RECYCLE_BIN_ALIAS = '/folders/folders/@myRecycleBin'
+
+const isRecycleBin = (uri: string | undefined): boolean =>
+  !!uri &&
+  (uri === RECYCLE_BIN_ALIAS || uri.endsWith(`/${idFor('@myRecycleBin')}`))
+
+/**
+ * The path a folder id stands for, found by walking the drive.
+ *
+ * An id is derived from a path, so the drive is the index: a map would be a
+ * second source of truth that goes stale the moment a folder is renamed or
+ * moved - and would answer 404 for every id after a restart, which is the
+ * opposite of "a client stores an id and asks for it later".
+ */
+const pathForId = async (drive: DriveService, id: string): Promise<string> => {
+  const walk = (node: {
+    isFolder: boolean
+    relativePath: string
+    children: unknown[]
+  }): string | undefined => {
+    if (node.isFolder && idFor(node.relativePath) === id)
+      return node.relativePath
+
+    for (const child of node.children as (typeof node)[]) {
+      const hit = walk(child)
+
+      if (hit) return hit
+    }
+
+    return undefined
+  }
+
+  const { tree } = await drive.tree('/')
+  const path = walk(tree as never)
 
   if (!path)
     throw new ApiError(
       404,
-      `No folder matches the id ${id}. The emulated estate hands out ids for paths it has answered for; a restart forgets them.`
+      `No folder matches the id ${id}. Ids are derived from paths, so an id that names no folder is one no folder ever had.`
     )
 
   return path
@@ -183,6 +224,7 @@ export const VIYA_HANDLERS: Record<
         links: [
           {
             href: `/identities/users/${id}`,
+            uri: `/identities/users/${id}`,
             rel: 'self',
             method: 'GET',
             type: 'application/vnd.sas.identity.user'
@@ -217,15 +259,24 @@ export const VIYA_HANDLERS: Record<
     body: recycleBin()
   }),
 
-  'GET /folders/folders/{}': async ({ services, params }) => ({
-    status: 200,
-    body: await folderBody(requireDrive(services), pathFromId(params.id))
-  }),
+  'GET /folders/folders/{}': async ({ services, params }) => {
+    // the bin is addressed by id too, and it is not in the drive's tree
+    if (params.id === idFor('@myRecycleBin'))
+      return { status: 200, body: recycleBin() }
 
-  'GET /folders/folders/{}/members': async ({ services, params }) => {
     const drive = requireDrive(services)
-    const path = pathFromId(params.id)
+
+    return {
+      status: 200,
+      body: await folderBody(drive, await pathForId(drive, params.id))
+    }
+  },
+
+  'GET /folders/folders/{}/members': async ({ services, params, request }) => {
+    const drive = requireDrive(services)
+    const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
+    const limit = Number(request.query?.limit ?? 0) || 0
 
     const items = [
       ...listing.folders.map((name) => ({
@@ -238,6 +289,7 @@ export const VIYA_HANDLERS: Record<
         creationTimeStamp: EMULATED_NOW,
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
+        uri: `${path}/${name}`.replace(/\/{2,}/g, '/'),
         links: linksFor(
           `/folders/folders/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'))}`
         )
@@ -253,15 +305,30 @@ export const VIYA_HANDLERS: Record<
         creationTimeStamp: EMULATED_NOW,
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
+        added: EMULATED_NOW,
+        uri: `${path}/${name}`.replace(/\/{2,}/g, '/'),
         links: linksFor(
           `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`
         )
       }))
     ]
 
+    const page = limit > 0 ? items.slice(0, limit) : items
+
+    // the envelope is what the capture recorded, including the paging fields a
+    // client reads to decide whether to ask for more
     return {
       status: 200,
-      body: { accept: 'application/json', count: items.length, items }
+      body: {
+        accept: 'application/json',
+        name: 'members',
+        start: 0,
+        limit: limit || page.length,
+        count: page.length,
+        version: 2,
+        items: page,
+        links: linksFor(`/folders/folders/${idFor(path)}`, true)
+      }
     }
   },
 
@@ -274,8 +341,12 @@ export const VIYA_HANDLERS: Record<
 
     if (!body.name) throw new ApiError(400, 'A folder name is required.')
 
-    const parent = body.parentFolderUri
-      ? pathFromId(body.parentFolderUri.split('/').pop() as string)
+    // the capture records the parent as a QUERY parameter, with the name in the
+    // body: a handler that read the body alone put every folder at the root
+    const parentUri = request.query?.parentFolderUri ?? body.parentFolderUri
+
+    const parent = parentUri
+      ? await pathForId(drive, String(parentUri).split('/').pop() as string)
       : '/'
     const path = `${parent}/${body.name}`.replace(/\/{2,}/g, '/')
 
@@ -286,22 +357,33 @@ export const VIYA_HANDLERS: Record<
 
   'PATCH /folders/folders/{}': async ({ services, request, params }) => {
     const drive = requireDrive(services)
-    const path = pathFromId(params.id)
+    const path = await pathForId(drive, params.id)
     const body = (request.body ?? {}) as {
       name?: string
       parentFolderUri?: string
     }
 
     // the adapter removes a folder by moving it to the recycle bin, which is the
-    // shape the capture recorded for this verb
-    if (body.parentFolderUri?.endsWith(`/${idFor('@myRecycleBin')}`)) {
+    // shape the capture recorded for this verb. Both spellings arrive: the bin's
+    // id, and the alias the emulator itself answers with
+    if (isRecycleBin(body.parentFolderUri)) {
+      const removed = await folderBody(drive, path)
+
       await drive.rmdir(path)
 
-      return { status: 200, body: await folderBody(drive, '/') }
+      // the answer describes the folder that was moved, not the drive root -
+      // a client reads the id and parent from it
+      return {
+        status: 200,
+        body: { ...removed, parentFolderUri: String(body.parentFolderUri) }
+      }
     }
 
     if (body.parentFolderUri) {
-      const parent = pathFromId(body.parentFolderUri.split('/').pop() as string)
+      const parent = await pathForId(
+        drive,
+        body.parentFolderUri.split('/').pop() as string
+      )
       const moved = `${parent}/${path.split('/').pop()}`
 
       await drive.rename(path, moved)

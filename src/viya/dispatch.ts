@@ -43,14 +43,18 @@ const compiled = VIYA_TABLE.filter((operation) =>
         .split('/')
         .map((segment) => (segment === '{}' ? '([^/]+)' : escape(segment)))
         .join('/') +
-      '$'
+      '$',
+    // the static segments ignore case, as the hosts do
+    'i'
   )
 }))
 
 const exact = new Map<string, ViyaOperation>()
 for (const operation of VIYA_TABLE)
   if (!operation.path.includes('{}'))
-    exact.set(`${operation.method} ${operation.path}`, operation)
+    // keyed in lower case, because the hosts are: express's `case sensitive
+    // routing` is off and the emulated estate has to match what they serve
+    exact.set(`${operation.method} ${operation.path}`.toLowerCase(), operation)
 
 /** The operation a request names, ignoring case in the static segments. */
 export const findViyaOperation = (
@@ -59,7 +63,7 @@ export const findViyaOperation = (
 ): ViyaMatch | undefined => {
   const verb = method.toUpperCase()
   const clean = path.split('?')[0].replace(/\/+$/, '') || '/'
-  const staticHit = exact.get(`${verb} ${clean}`)
+  const staticHit = exact.get(`${verb} ${clean}`.toLowerCase())
 
   if (staticHit) return { operation: staticHit, segments: [] }
 

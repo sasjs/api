@@ -113,7 +113,8 @@ describe('the folder family, through the drive', () => {
     const shared = services()
 
     const answer = await dispatchViya(shared, 'POST', '/folders/folders', {
-      body: { name: 'emulated', parentFolderUri: '' }
+      query: { parentFolderUri: '' },
+      body: { name: 'emulated' }
     })
 
     return { shared, answer }
@@ -266,7 +267,8 @@ describe('the folder mutations the adapter performs', () => {
   const seeded = async () => {
     const shared = services()
     const { body } = await dispatchViya(shared, 'POST', '/folders/folders', {
-      body: { name: 'app', parentFolderUri: '' }
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
     })
 
     return { shared, id: (body as { id: string }).id }
@@ -318,7 +320,8 @@ describe('the folder mutations the adapter performs', () => {
   it('moves a folder when the client sends a parent', async () => {
     const { shared, id } = await seeded()
     const parent = await dispatchViya(shared, 'POST', '/folders/folders', {
-      body: { name: 'archive', parentFolderUri: '' }
+      query: { parentFolderUri: '' },
+      body: { name: 'archive' }
     })
     const parentId = (parent.body as { id: string }).id
 
@@ -493,7 +496,8 @@ describe('a folder that holds a folder', () => {
     const shared = services()
 
     await dispatchViya(shared, 'POST', '/folders/folders', {
-      body: { name: 'app', parentFolderUri: '' }
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
     })
 
     const child = await dispatchViya(shared, 'POST', '/folders/folders', {
@@ -566,7 +570,8 @@ describe('the folder refusals a client earns', () => {
     const shared = services()
 
     await dispatchViya(shared, 'POST', '/folders/folders', {
-      body: { name: 'app', parentFolderUri: '' }
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
     })
 
     const { body } = await dispatchViya(
@@ -583,7 +588,7 @@ describe('the folder refusals a client earns', () => {
 
   it('refuses a folder with no name', async () => {
     const answer = await dispatchViya(services(), 'POST', '/folders/folders', {
-      body: { parentFolderUri: '' }
+      query: { parentFolderUri: '' }
     })
 
     expect(answer.status).toBe(400)
@@ -597,5 +602,76 @@ describe('the folder refusals a client earns', () => {
 
     expect(answer.status).toBe(200)
     expect((answer.body as { id: string }).id).toBe(id)
+  })
+})
+
+describe('the parent the client actually sends', () => {
+  it('creates the folder under the parent named in the query, not the root', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'parent' }
+    })
+
+    const parent = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/parent' }
+    })
+    const parentId = (parent.body as { id: string }).id
+
+    // the capture records the parent as a query parameter, with the name in the
+    // body - a handler reading only the body put every folder at the root
+    const answer = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: `/folders/folders/${parentId}` },
+      body: { name: 'child' }
+    })
+
+    expect(answer.status).toBe(201)
+
+    const under = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/parent/child' }
+    })
+
+    expect(under.status).toBe(200)
+  })
+})
+
+describe('what a removal answers', () => {
+  it('names the folder it removed, with the bin as its parent', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'doomed' }
+    })
+
+    const item = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/doomed' }
+    })
+    const id = (item.body as { id: string }).id
+
+    const removed = await dispatchViya(
+      shared,
+      'PATCH',
+      `/folders/folders/${id}`,
+      {
+        body: { parentFolderUri: '/folders/folders/@myRecycleBin' }
+      }
+    )
+
+    // the alias is a valid parent, and the answer is about the folder that moved
+    expect(removed.status).toBe(200)
+    expect((removed.body as { id: string }).id).toBe(id)
+    expect((removed.body as { parentFolderUri: string }).parentFolderUri).toBe(
+      '/folders/folders/@myRecycleBin'
+    )
+  })
+})
+
+describe('the static segments ignore case', () => {
+  it('answers /Types/Types as /types/types does', async () => {
+    const answer = await dispatchViya(services(), 'GET', '/Types/Types')
+
+    expect(answer.status).toBe(200)
   })
 })

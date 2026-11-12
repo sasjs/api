@@ -124,13 +124,18 @@ const requestShape = (entry) => {
   }
 
   if (contentType.includes('multipart/form-data')) {
-    // anchored on the disposition parameter: a bare `name="..."` also matches
-    // the `name=` inside `filename="..."`, which would put an uploaded file's
-    // own name - a value, with the run's timestamp in it - into the table as a
-    // part the client never sends
-    const names = [...trimmed.matchAll(/(?:^|;\s*)name="([^"]+)"/g)].map(
-      (match) => match[1]
-    )
+    // The disposition HEADERS, and nothing else. Reading the whole body treats a
+    // part's contents as structure: an uploaded text file containing
+    // `; name="memory"` was read as a part called `memory`. A line scan keeps
+    // the headers and drops the payload, which is the same rule the filename
+    // fix enforced one level up - structure in the table, values never.
+    const headers = trimmed
+      .split(/\r?\n/)
+      .filter((line) => /^content-disposition:/i.test(line.trim()))
+
+    const names = headers
+      .flatMap((line) => [...line.matchAll(/(?:^|;\s*)name="([^"]+)"/g)])
+      .map((match) => match[1])
 
     return names.length ? { multipart: [...new Set(names)].sort() } : undefined
   }

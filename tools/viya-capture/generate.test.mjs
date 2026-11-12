@@ -362,3 +362,39 @@ test('a multipart body is recorded as its part names', () => {
     'a part filename is a value: the uploaded file name never reaches the table'
   )
 })
+
+test('a part name inside a part’s contents is not a part', () => {
+  // an uploaded text file can contain `; name="memory"`, and reading the whole
+  // body treats that payload as structure - the same rule the filename fix
+  // enforced, one level further in
+  const [operation] = operationsOf({
+    steps: [
+      {
+        step: 'files/create',
+        request: {
+          method: 'POST',
+          path: '/files/files',
+          headers: {
+            'content-type':
+              'multipart/form-data; boundary=--------------------------1'
+          },
+          body:
+            '----------------------------1\r\n' +
+            'Content-Disposition: form-data; name="file"; filename="notes.txt"\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'a comment; name="memory" in the payload\r\n' +
+            '----------------------------1\r\n' +
+            'Content-Disposition: form-data; name="parentFolderUri"\r\n\r\n' +
+            '/Public/app\r\n' +
+            '----------------------------1--'
+        },
+        response: { status: 201, body: JSON.stringify({ id: 'x' }) }
+      }
+    ]
+  })
+
+  assert.deepEqual(operation.request.body, {
+    multipart: ['file', 'parentFolderUri']
+  })
+  assert.equal(JSON.stringify(operation).includes('memory'), false)
+})

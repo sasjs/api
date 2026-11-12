@@ -877,3 +877,55 @@ describe('a create that names its parent in the body', () => {
     expect(created.status).toBe(404)
   })
 })
+
+describe('a path the client spells with a doubled slash', () => {
+  it('answers the folder, and the id it answers is the one by-id finds', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    // the adapter joins a root of '/' to '/app' and sends '//app'
+    const byPath = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '//app' }
+    })
+    const id = (byPath.body as { id: string }).id
+
+    const byId = await dispatchViya(shared, 'GET', `/folders/folders/${id}`)
+    const members = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${id}/members`
+    )
+
+    // the id an answer gave must be an id the next call can use: that is the
+    // whole reason an id is derived from the path rather than minted
+    expect(byId.status).toBe(200)
+    expect(members.status).toBe(200)
+  })
+
+  it('is the same id as the single-slash spelling', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    const doubled = await dispatchViya(
+      shared,
+      'GET',
+      '/folders/folders/@item',
+      { query: { path: '//app' } }
+    )
+    const single = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/app' }
+    })
+
+    expect((doubled.body as { id: string }).id).toBe(
+      (single.body as { id: string }).id
+    )
+  })
+})

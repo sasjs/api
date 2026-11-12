@@ -17,13 +17,24 @@ import { ApiError } from '../types.js'
 import { normaliseServerUrl } from './seed.js'
 import { seedOf } from './seed.js'
 import { estateFor, type EmulatedJob } from './sessions.js'
-import { EMULATED_NOW, EMULATED_USER, idFor } from './ids.js'
+import { EMULATED_USER, idFor } from './ids.js'
 
 /** The name the emulator answers when a client asks for no particular context. */
 export const DEFAULT_CONTEXT_NAME = 'Emulated Compute Context'
 
 /** The one context id this estate mints, whatever name it is asked for. */
 export const EMULATED_CONTEXT_ID = idFor('emulated-context', 'context')
+
+/**
+ * The links a client follows, by rel.
+ *
+ * The rels are not decoration: the adapter reads `state` to poll a session and a
+ * job, `log` to fetch the log, `up` to reach the session from a job. A body that
+ * carried only `self` answered 201 and then failed the client, which is how the
+ * conformance harness found this.
+ */
+const relLinks = (type: string, rels: Array<[rel: string, href: string]>) =>
+  rels.map(([rel, href]) => ({ href, uri: href, rel, method: 'GET', type }))
 
 const linksFor = (
   uri: string,
@@ -88,9 +99,10 @@ const contextBody = (name: string) => ({
 
 const sessionBody = (
   services: Services,
-  id: string,
+  session: { id: string; createdAt: string },
   autoExecLines: string[]
 ) => {
+  const { id } = session
   const uri = `/compute/sessions/${id}`
 
   return {
@@ -107,12 +119,19 @@ const sessionBody = (
       sessionInactiveTimeout: 3600
     },
     environment: { autoExecLines },
-    creationTimeStamp: EMULATED_NOW,
+    // the real clock: the adapter computes a session's age from this stamp and
+    // expires it against sessionInactiveTimeout
+    creationTimeStamp: session.createdAt,
     serviceAPIVersion: 1,
     sessionConditionCode: 0,
     stateElapsedTime: 0,
     version: 2,
-    links: linksFor(uri, 'application/vnd.sas.compute.session')
+    links: relLinks('application/vnd.sas.compute.session', [
+      ['self', uri],
+      ['state', `${uri}/state`],
+      ['log', `${uri}/log`],
+      ['jobs', `${uri}/jobs`]
+    ])
   }
 }
 
@@ -138,7 +157,12 @@ const jobBody = (job: EmulatedJob) => {
     },
     statistics: { systemCpuTime: 0.01, userCpuTime: 0.02 },
     version: 2,
-    links: linksFor(uri, 'application/vnd.sas.compute.job')
+    links: relLinks('application/vnd.sas.compute.job', [
+      ['self', uri],
+      ['state', `${uri}/state`],
+      ['log', `${uri}/log`],
+      ['up', `/compute/sessions/${job.sessionId}`]
+    ])
   }
 }
 
@@ -222,7 +246,7 @@ export const COMPUTE_HANDLERS: Record<
       status: 201,
       body: sessionBody(
         services,
-        session.id,
+        session,
         body.environment?.autoExecLines ?? []
       )
     }
@@ -231,7 +255,9 @@ export const COMPUTE_HANDLERS: Record<
   'GET /compute/sessions/{}/state': async ({ services, params }) => {
     sessionOf(services, params.id)
 
-    return { status: 200, body: { state: 'idle' } }
+    // a bare enum, not an object: the adapter calls `.trim()` on the answer, and
+    // the capture recorded no shape here because there is no JSON body
+    return { status: 200, body: 'idle' }
   },
 
   'DELETE /compute/sessions/{}': async ({ services, params }) => {
@@ -264,7 +290,7 @@ export const COMPUTE_HANDLERS: Record<
 
     return {
       status: 200,
-      body: { state: jobOf(services, sessionId, jobId).state }
+      body: jobOf(services, sessionId, jobId).state
     }
   },
 

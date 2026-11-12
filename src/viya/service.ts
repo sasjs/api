@@ -19,7 +19,7 @@ import type { DriveService } from '../drive/service.js'
 import { COMPUTE_HANDLERS } from './compute.js'
 import { FILE_HANDLERS } from './files.js'
 
-import { idFor, EMULATED_NOW, EMULATED_USER } from './ids.js'
+import { idFor, normalisePath, EMULATED_NOW, EMULATED_USER } from './ids.js'
 
 const linksFor = (uri: string, collection = false) => {
   const self = {
@@ -105,7 +105,7 @@ const pathFromQuery = (request: {
 
   if (!path) throw new ApiError(400, 'The path parameter is required.')
 
-  return path
+  return normalisePath(path)
 }
 
 /** The recycle-bin alias the emulator answers, which is also a valid parent. */
@@ -331,7 +331,7 @@ export const VIYA_HANDLERS: Record<
     const parent = parentUri
       ? await pathForId(drive, String(parentUri).split('/').pop() as string)
       : '/'
-    const path = `${parent}/${body.name}`.replace(/\/{2,}/g, '/')
+    const path = normalisePath(`${parent}/${body.name}`)
 
     await drive.mkdir(path)
 
@@ -379,7 +379,7 @@ export const VIYA_HANDLERS: Record<
               body.parentFolderUri.split('/').pop() as string
             )
 
-    const target = `${parent}/${name}`.replace(/\/{2,}/g, '/')
+    const target = normalisePath(`${parent}/${name}`)
 
     if (target !== path) await drive.rename(path, target)
 

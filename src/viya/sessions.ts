@@ -14,7 +14,6 @@
  * not misled about what ran.
  */
 import { drawFrom, drawInt, generator, hash } from './seed.js'
-import { EMULATED_NOW } from './ids.js'
 
 /** One submitted job, and what the emulator answered for it. */
 export interface EmulatedJob {
@@ -31,6 +30,8 @@ export interface EmulatedJob {
 
 export interface EmulatedSession {
   id: string
+  /** When it was created, on the real clock: a client expires sessions by age. */
+  createdAt: string
   jobs: Map<string, EmulatedJob>
   /** How many jobs this session has accepted, so ids are stable per session. */
   submitted: number
@@ -40,7 +41,14 @@ export interface EmulatedSession {
 export interface SubmittedJob {
   name?: string
   description?: string
-  code?: string
+  /**
+   * The program.
+   *
+   * A string or a list of lines: `@sasjs/adapter` posts an array of lines, and
+   * the capture recorded a string because the recorder posted one. Both are the
+   * same program, so both are accepted.
+   */
+  code?: string | string[]
 }
 
 /**
@@ -52,7 +60,8 @@ export interface SubmittedJob {
  * generator is re-seeded from the code for each job so that one job's log does not
  * depend on how many jobs ran before it.
  */
-export const logFor = (seed: number, code: string): string[] => {
+export const logFor = (seed: number, program: string | string[]): string[] => {
+  const code = Array.isArray(program) ? program.join('\n') : program
   // seeded from the program's TEXT, not its length: two programs of the same
   // length are two programs, and a fixture that names the numbers would be
   // right for both of them otherwise
@@ -93,6 +102,7 @@ export class EmulatedEstate {
   create(): EmulatedSession {
     const session: EmulatedSession = {
       id: `emulated-${this.seed.toString(16)}-ses${String(this.created++).padStart(4, '0')}`,
+      createdAt: new Date().toISOString(),
       jobs: new Map(),
       submitted: 0
     }
@@ -122,8 +132,11 @@ export class EmulatedEstate {
       // program answers the same lines whatever session it was submitted in
       log: logFor(this.seed, code),
       state: 'completed',
-      creationTimeStamp: EMULATED_NOW,
-      completedTimeStamp: EMULATED_NOW,
+      // the real clock, unlike a folder's: a client computes a session's age
+      // from this stamp and expires it, so a fixed instant in the past is a
+      // session that is born expired
+      creationTimeStamp: new Date().toISOString(),
+      completedTimeStamp: new Date().toISOString(),
       sessionId: session.id
     }
 

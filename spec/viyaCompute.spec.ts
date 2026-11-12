@@ -181,7 +181,9 @@ describe('a compute session', () => {
     )
 
     expect(answer.status).toBe(200)
-    expect(answer.body).toEqual({ state: 'idle' })
+    // a bare enum: the adapter trims the string, and the capture recorded no
+    // JSON shape because the body is not JSON
+    expect(answer.body).toBe('idle')
   })
 
   it('is deleted, and then it is gone', async () => {
@@ -315,7 +317,7 @@ describe('a job and its generated log', () => {
       `/compute/sessions/${sessionId}/jobs/${jobId}/state`
     )
 
-    expect(answer.body).toEqual({ state: 'completed' })
+    expect(answer.body).toBe('completed')
   })
 
   it('refuses a job nobody submitted', async () => {
@@ -508,5 +510,93 @@ describe('two programs of the same length', () => {
     expect(first.filter((line) => line.includes('observations'))).not.toEqual(
       second.filter((line) => line.includes('observations'))
     )
+  })
+})
+
+describe('what a real client reads', () => {
+  // these four came from driving @sasjs/adapter's own client against this
+  // emulator: each one was a 500 or a wrong answer the adapter's unit suite
+  // could not see, because it mocks the responses it asserts
+  it('carries the rels the adapter follows on a session', async () => {
+    const target = services()
+    const answer = await dispatchViya(
+      target,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+      { body: {} }
+    )
+
+    const rels = (answer.body as { links: Array<{ rel: string }> }).links.map(
+      (link) => link.rel
+    )
+
+    expect(rels).toContain('state')
+    expect(rels).toContain('log')
+  })
+
+  it('carries the rels the adapter follows on a job', async () => {
+    const target = services()
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    const links = (
+      submitted.body as { links: Array<{ rel: string; href: string }> }
+    ).links
+    const rels = links.map((link) => link.rel)
+
+    expect(rels).toEqual(expect.arrayContaining(['self', 'state', 'log', 'up']))
+    expect(links.find((link) => link.rel === 'log')?.href).toBe(
+      `/compute/sessions/${sessionId}/jobs/${(submitted.body as { id: string }).id}/log`
+    )
+  })
+
+  it('accepts the program as an array of lines, which is what the adapter posts', async () => {
+    const target = services()
+    const sessionId = await sessionOn(target)
+
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a;', '  x = 1;', 'run;'] } }
+    )
+
+    expect(submitted.status).toBe(201)
+
+    const lines = await logOn(
+      target,
+      sessionId,
+      (submitted.body as { id: string }).id
+    )
+
+    // an array is the same program as the equivalent string, so the log echoes
+    // it line by line rather than failing on `.split`
+    expect(lines.join('\n')).toContain('data a;')
+    expect(lines.join('\n')).toContain('  x = 1;')
+  })
+
+  it('stamps a session with the real clock, because a client expires it by age', async () => {
+    const target = services()
+    const before = Date.now()
+    const answer = await dispatchViya(
+      target,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+      { body: {} }
+    )
+
+    const created = Date.parse(
+      (answer.body as { creationTimeStamp: string }).creationTimeStamp
+    )
+
+    // an emulated stamp of 2026-01-01 makes every session older than the client's
+    // inactivity timeout, so the client discards it as expired
+    expect(created).toBeGreaterThanOrEqual(before - 1000)
+    expect(created).toBeLessThanOrEqual(Date.now() + 1000)
   })
 })

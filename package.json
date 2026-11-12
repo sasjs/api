@@ -48,7 +48,8 @@
     "check:viya": "node scripts/viya-generate.mjs --check",
     "check:builds": "node scripts/check-builds.mjs",
     "audit:gate": "node scripts/audit.mjs",
-    "check:appstream": "node scripts/appstream-browser-check.cjs"
+    "check:appstream": "node scripts/appstream-browser-check.cjs",
+    "conformance": "node tools/viya-conformance/conformance.mjs"
   },
   "devDependencies": {
     "@semantic-release/commit-analyzer": "13.0.1",

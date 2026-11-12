@@ -47,3 +47,18 @@ export const idFor = (path: string, kind = 'folder'): string => {
     hex.slice(20, 32)
   ].join('-')
 }
+
+/**
+ * One folder path, however it was spelled.
+ *
+ * The adapter joins a root of '/' to a path of '/app' and sends '//app', which is
+ * a different string and - because an id is derived from the path - a different
+ * id. A client that then asks for that id is asking about a folder the drive does
+ * not have, so every path is collapsed to one spelling before anything derives
+ * from it.
+ */
+export const normalisePath = (path: string): string => {
+  const collapsed = `/${path}`.replace(/\/{2,}/g, '/')
+
+  return collapsed.length > 1 ? collapsed.replace(/\/+$/, '') : collapsed
+}

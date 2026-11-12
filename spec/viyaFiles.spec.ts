@@ -179,7 +179,7 @@ describe('a file renamed', () => {
 
     expect((renamed.body as { name: string }).name).toBe('new.sas')
     expect(newId).toBe(idFor('/app/new.sas', 'file'))
-    expect(content.body).toBe('%put hi;')
+    expect(content.contents).toBe('%put hi;')
   })
 
   it('leaves the old id answering nothing, because the id was the path', async () => {
@@ -219,7 +219,10 @@ describe('file content', () => {
       `/files/files/${id}/content`
     )
 
-    expect(answer.body).toBe('<html></html>')
+    // `contents`, the field ApiResponse reserves for a raw body: a host that maps
+    // `body` JSON-encodes the file and answers `"<html></html>"`
+    expect(answer.contents).toBe('<html></html>')
+    expect(answer.body).toBeUndefined()
     expect(answer.headers['content-type']).toBe('text/html')
   })
 
@@ -249,7 +252,7 @@ describe('file content', () => {
       `/files/files/${id}/content`
     )
 
-    expect(content.body).toBe('%put second;')
+    expect(content.contents).toBe('%put second;')
   })
 
   it('refuses a replace with nothing in it', async () => {

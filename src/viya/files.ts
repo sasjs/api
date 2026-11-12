@@ -12,6 +12,7 @@
 import type { ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
+import { requireDrive } from './ports.js'
 import type { TreeNode } from '../types.js'
 import { EMULATED_NOW, EMULATED_USER, idFor } from './ids.js'
 
@@ -249,11 +250,12 @@ export const FILE_HANDLERS: Record<
     const path = await pathForFileId(drive, params.id)
     const read = await drive.read(path)
 
-    // the estate answers the bytes, and the shape is whatever the file holds -
-    // the capture recorded no JSON shape because there is none
+    // `contents`, not `body`: ApiResponse reserves that field for a raw body,
+    // e.g. the driver route that answers with the file itself. A host that maps
+    // `body` JSON-encodes the string and declares text/html over a quoted value.
     return {
       status: 200,
-      body: read.contents,
+      contents: read.contents,
       headers: {
         'content-type': contentTypeOf(path.split('/').pop() as string)
       }
@@ -281,10 +283,3 @@ export const FILE_HANDLERS: Record<
     return { status: 200, body: fileBody(await bodyOf(drive, path)) }
   }
 }
-
-/**
- * The drive. It is required on `Services`, so there is no absent case to answer:
- * a host that mounts the emulator has one, and a branch for the other would be a
- * branch nothing can reach.
- */
-const requireDrive = (services: Services): DriveService => services.drive

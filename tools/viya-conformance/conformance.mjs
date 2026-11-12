@@ -98,7 +98,9 @@ const start = async () => {
     })
 
     const headers = { ...(answer.headers ?? {}) }
-    const isText = typeof answer.body === 'string'
+    // `contents` is the raw-body field; `body` is JSON
+    const payload = answer.contents ?? answer.body
+    const isText = typeof payload === 'string'
 
     headers['content-type'] =
       isText || answer.body === undefined

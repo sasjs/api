@@ -16,6 +16,7 @@
 import type { ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
+import { requireDrive } from './ports.js'
 import { COMPUTE_HANDLERS } from './compute.js'
 import { FILE_HANDLERS } from './files.js'
 
@@ -86,16 +87,6 @@ const recycleBin = () => {
     properties: { allowMove: 'false' },
     links: linksFor(`/folders/folders/${id}`)
   }
-}
-
-const requireDrive = (services: Services): DriveService => {
-  if (!services.drive)
-    throw new ApiError(
-      501,
-      'This host has no drive, so it cannot answer a folder operation.'
-    )
-
-  return services.drive
 }
 
 const pathFromQuery = (request: {

@@ -222,22 +222,6 @@ describe('the folder family, through the drive', () => {
 })
 
 describe('the refusals a host meets', () => {
-  it('tells a host with no drive what it is missing, and still stamps the header', async () => {
-    // a host always has a drive by type; the guard is for one that does not
-    const answer = await dispatchViya(
-      {} as unknown as Services,
-      'GET',
-      '/folders/folders/@item',
-      { query: { path: '/Public' } }
-    )
-
-    expect(answer.status).toBe(501)
-    expect(String((answer.body as { message: string }).message)).toMatch(
-      /drive/i
-    )
-    expect(answer.headers).toEqual(header)
-  })
-
   it('answers 404 for an id it has not handed out, and says why', async () => {
     const answer = await dispatchViya(
       services(),

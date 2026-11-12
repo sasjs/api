@@ -23,8 +23,15 @@ export interface EmulatedJob {
   log: string[]
   /** What the host's engine returned, when the host ran the program. */
   webout?: string
-  /** The state every job is in: the emulator does not fail on purpose. */
-  state: 'completed'
+  /**
+   * Where the job is.
+   *
+   * A job with no engine is completed the moment it is accepted: there is
+   * nothing to run. A job a host runs is `running` until the host answers,
+   * because the client polls this and a submission that answered `completed`
+   * would be a lie about work that had not happened.
+   */
+  state: 'running' | 'completed' | 'failed'
   creationTimeStamp: string
   completedTimeStamp: string
   sessionId: string

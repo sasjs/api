@@ -58,11 +58,6 @@ export const UNRECORDED: UnrecordedOperation[] = [
 
   // Compute operations the scripted passes do not reach.
   {
-    path: '/compute/sessions/{}/filerefs/_webout/content',
-    reason:
-      'no capture: the adapter reads the webout fileref only when a run expects one (`expectWebout`); the execute pass submits a `%put` and reads the log'
-  },
-  {
     path: '/compute/sessions/{}/variables/{}',
     reason:
       "no capture: the adapter reads a session variable only to report a submitted job's pid (`printPid`), which the pass does not set"

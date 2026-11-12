@@ -279,19 +279,35 @@ export const COMPUTE_HANDLERS: Record<
     const job = estateOf(services).submit(session, body)
     const execute = services.viya?.execute
 
-    // a host with an engine runs the program and the answer is what it produced;
-    // a host without one keeps the generated log, which says so in its first line
-    if (execute) {
-      const ran = await execute({
-        program: body.code ?? '',
-        variables: body.variables,
-        name: body.name,
-        sessionId: session.id
-      })
+    // a host with an engine runs the program; a host without one has already
+    // finished, because there was nothing to run
+    if (!execute) return { status: 201, body: jobBody(job) }
 
-      job.webout = ran.webout
-      job.log = ran.log.split('\n')
-    }
+    // the 201 is the submission, not the run: the client polls the state link,
+    // and `waitForResult: false` is documented to return here and poll later
+    job.state = 'running'
+
+    void execute({
+      program: body.code ?? '',
+      variables: body.variables,
+      name: body.name,
+      sessionId: session.id
+    })
+      .then((ran) => {
+        job.log = ran.log.split('\n')
+        job.state = ran.state ?? 'completed'
+
+        if (ran.webout !== undefined) job.webout = ran.webout
+
+        job.completedTimeStamp = new Date().toISOString()
+      })
+      .catch((error: unknown) => {
+        // a run that threw is a failed job with the reason in its log, because a
+        // client reads the failure from the state and the log together
+        job.state = 'failed'
+        job.log = [`ERROR: ${(error as Error).message}`]
+        job.completedTimeStamp = new Date().toISOString()
+      })
 
     return { status: 201, body: jobBody(job) }
   },

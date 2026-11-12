@@ -27,7 +27,9 @@ export const DECLARED: DeclaredOperation[] = [
     method: 'GET',
     path: '/compute/sessions/{}/filerefs/_webout/content',
     steps: [],
-    statuses: [200],
+    // what this emulator answers, not what an estate did: 200 with the webout,
+    // 404 when no program has run in the session
+    statuses: [200, 404],
     queries: [],
     request: { queries: [], body: undefined },
     // the body is the program's `_webout`, which is whatever the program wrote:

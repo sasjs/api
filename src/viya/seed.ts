@@ -40,7 +40,23 @@ export interface ViyaExecutor {
     name?: string
     /** The session the job belongs to. */
     sessionId: string
-  }): Promise<{ webout: string; log: string }>
+  }): Promise<ViyaRun>
+}
+
+/** What an engine answers for one program. */
+export interface ViyaRun {
+  /** The program's `_webout` content, when it produced one. */
+  webout?: string
+  /** The log the program produced, as one string with lines separated by `\n`. */
+  log: string
+  /**
+   * How the run ended.
+   *
+   * A client decides a service failed from the job's state, not from the log, so
+   * a run that failed has to say so - otherwise the webout it did not produce
+   * reads as data. Absent, the run completed.
+   */
+  state?: 'completed' | 'failed'
 }
 
 export interface ViyaSeedSettings {

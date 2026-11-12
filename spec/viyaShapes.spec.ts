@@ -204,6 +204,8 @@ describe('the answers and the shapes the captures recorded', () => {
     // when a handler is added without one
     const covered = [
       'DELETE /compute/sessions/{}',
+      // declared, not captured: checked below with an executor supplied
+      'GET /compute/sessions/{}/filerefs/_webout/content',
       'GET /files/files/{}',
       'GET /files/files/{}/content',
       'PATCH /files/files/{}',

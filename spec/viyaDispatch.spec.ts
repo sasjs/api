@@ -1,4 +1,4 @@
-import { VIYA_TABLE } from '../src/viya/table.js'
+import { VIYA_OPERATIONS } from '../src/viya/declared.js'
 import { VIYA_OVERLAY } from '../src/viya/overlay.js'
 import { VIYA_HANDLERS } from '../src/viya/service.js'
 import { dispatchViya } from '../src/viya/dispatch.js'
@@ -29,14 +29,16 @@ const header = emulatedHeaders()
 
 describe('the Viya overlay', () => {
   it('decides every operation the table states', () => {
-    for (const operation of VIYA_TABLE) {
+    for (const operation of VIYA_OPERATIONS) {
       expect(VIYA_OVERLAY[operation.id]).toBeTruthy()
       expect(typeof VIYA_OVERLAY[operation.id].implemented).toBe('boolean')
     }
   })
 
   it('decides nothing the table does not state', () => {
-    const known = new Set(VIYA_TABLE.map((operation) => operation.id))
+    // the declared rows are operations too: an entry for one of those states a
+    // decision just as a captured row does
+    const known = new Set(VIYA_OPERATIONS.map((operation) => operation.id))
 
     for (const id of Object.keys(VIYA_OVERLAY)) expect(known.has(id)).toBe(true)
   })

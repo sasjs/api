@@ -11,7 +11,7 @@
  * A declined row is not a TODO. The reason names what is missing, so a caller
  * that reaches it learns why rather than that something is unimplemented.
  */
-import { VIYA_TABLE } from './table.js'
+import { VIYA_OPERATIONS } from './declared.js'
 
 export interface ViyaOverlayEntry {
   implemented: boolean
@@ -58,7 +58,10 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'PUT /files/files/{}/content': { implemented: true },
 
   // declined: the host owns the token port
-  'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH }
+  'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH },
+
+  // declared, not captured: the webout an application's service returns
+  'GET /compute/sessions/{}/filerefs/_webout/content': { implemented: true }
 }
 
 /**
@@ -78,7 +81,7 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
  */
 export const assertOverlayEntries = (
   overlay: Record<string, ViyaOverlayEntry>,
-  operations: Array<{ id: string }> = VIYA_TABLE
+  operations: Array<{ id: string }> = VIYA_OPERATIONS
 ): void => {
   const known = new Set(operations.map((operation) => operation.id))
 

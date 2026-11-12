@@ -600,3 +600,102 @@ describe('what a real client reads', () => {
     expect(created).toBeLessThanOrEqual(Date.now() + 1000)
   })
 })
+
+describe('a host with an engine', () => {
+  const withEngine = (webout: string) => {
+    const shared = services()
+
+    // the port a server fills with its own runtime: it runs the program and
+    // returns what the program produced
+    shared.viya = {
+      ...(shared.viya ?? {}),
+      execute: async ({ program, sessionId }) => ({
+        webout,
+        log: `NOTE: ran ${Array.isArray(program) ? program.length : 1} line(s) in ${sessionId}`
+      })
+    }
+
+    return shared
+  }
+
+  it('runs the program and serves its webout on the fileref route', async () => {
+    const target = withEngine('[{"COL1":"hello"}]')
+    const sessionId = await sessionOn(target)
+
+    await dispatchViya(target, 'POST', `/compute/sessions/${sessionId}/jobs`, {
+      body: { code: ['%put hi;'], name: '/app/services/getdata' }
+    })
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(200)
+    expect(answer.contents).toBe('[{"COL1":"hello"}]')
+    expect(answer.headers['content-type']).toBe('text/plain')
+  })
+
+  it('answers the log the engine produced, not a generated one', async () => {
+    const target = withEngine('{}')
+    const sessionId = await sessionOn(target)
+
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a;', 'run;'] } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+    const lines = await logOn(target, sessionId, jobId)
+
+    expect(lines.join('\n')).toContain('ran 2 line(s)')
+    expect(lines.join('\n')).not.toContain('generated, not produced by SAS')
+  })
+
+  it('passes the variables and the job name through to the engine', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const target = services()
+
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async (request) => {
+        seen.push(request as unknown as Record<string, unknown>)
+
+        return { webout: '{}', log: '' }
+      }
+    }
+
+    const sessionId = await sessionOn(target)
+
+    await dispatchViya(target, 'POST', `/compute/sessions/${sessionId}/jobs`, {
+      body: {
+        code: ['%put hi;'],
+        name: '/app/services/getdata',
+        variables: { _program: '/app/services/getdata', _debug: '131' }
+      }
+    })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({
+      name: '/app/services/getdata',
+      variables: { _program: '/app/services/getdata', _debug: '131' },
+      sessionId
+    })
+  })
+
+  it('refuses a webout when no engine ran anything', async () => {
+    const target = services()
+    const sessionId = await sessionOn(target)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    // an empty body would parse as no data; a 404 says nothing has run
+    expect(answer.status).toBe(404)
+  })
+})

@@ -270,13 +270,52 @@ export const COMPUTE_HANDLERS: Record<
 
   'POST /compute/sessions/{}/jobs': async ({ services, params, request }) => {
     const session = sessionOf(services, params.id)
+    const body = (request.body ?? {}) as {
+      code?: string | string[]
+      name?: string
+      variables?: Record<string, string>
+    }
 
-    const job = estateOf(services).submit(
-      session,
-      (request.body ?? {}) as { code?: string; name?: string }
-    )
+    const job = estateOf(services).submit(session, body)
+    const execute = services.viya?.execute
+
+    // a host with an engine runs the program and the answer is what it produced;
+    // a host without one keeps the generated log, which says so in its first line
+    if (execute) {
+      const ran = await execute({
+        program: body.code ?? '',
+        variables: body.variables,
+        name: body.name,
+        sessionId: session.id
+      })
+
+      job.webout = ran.webout
+      job.log = ran.log.split('\n')
+    }
 
     return { status: 201, body: jobBody(job) }
+  },
+
+  'GET /compute/sessions/{}/filerefs/_webout/content': async ({
+    services,
+    params
+  }) => {
+    const session = sessionOf(services, params.id)
+    const webout = [...session.jobs.values()]
+      .reverse()
+      .find((job) => job.webout !== undefined)?.webout
+
+    if (webout === undefined)
+      throw new ApiError(
+        404,
+        'The session has no `_webout`: the host that mounts the emulator supplied no engine, so no program has run.'
+      )
+
+    return {
+      status: 200,
+      contents: webout,
+      headers: { 'content-type': 'text/plain' }
+    }
   },
 
   'GET /compute/sessions/{}/jobs/{}': async ({ services, params }) => {

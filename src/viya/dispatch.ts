@@ -13,7 +13,8 @@
  */
 import type { ApiRequest, ApiResponse, Services } from '../host/dispatch.js'
 import { isApiError } from '../types.js'
-import { VIYA_TABLE, type ViyaOperation } from './table.js'
+import type { ViyaOperation } from './table.js'
+import { VIYA_OPERATIONS } from './declared.js'
 import { VIYA_OVERLAY } from './overlay.js'
 import { VIYA_HANDLERS } from './service.js'
 import { emulatedHeaders } from './version.js'
@@ -33,7 +34,7 @@ export interface ViyaMatch {
 const escape = (segment: string) =>
   segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const compiled = VIYA_TABLE.filter((operation) =>
+const compiled = VIYA_OPERATIONS.filter((operation) =>
   operation.path.includes('{}')
 ).map((operation) => ({
   operation,
@@ -50,7 +51,7 @@ const compiled = VIYA_TABLE.filter((operation) =>
 }))
 
 const exact = new Map<string, ViyaOperation>()
-for (const operation of VIYA_TABLE)
+for (const operation of VIYA_OPERATIONS)
   if (!operation.path.includes('{}'))
     // keyed in lower case, because the hosts are: express's `case sensitive
     // routing` is off and the emulated estate has to match what they serve

@@ -21,6 +21,8 @@ export interface EmulatedJob {
   name: string
   /** The lines the emulated log returns, in order. */
   log: string[]
+  /** What the host's engine returned, when the host ran the program. */
+  webout?: string
   /** The state every job is in: the emulator does not fail on purpose. */
   state: 'completed'
   creationTimeStamp: string

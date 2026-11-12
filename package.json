@@ -42,6 +42,8 @@
     "lint:fix": "prettier --write \"{src,spec,scripts,tools}/**/*.{ts,mjs,cjs,md}\" \"*.{json,md}\"",
     "sync:routes": "node scripts/sync-routes.mjs",
     "check:routes": "node scripts/sync-routes.mjs --check",
+    "sync:scope": "node scripts/viya-scope.mjs",
+    "check:scope": "node scripts/viya-scope.mjs --check",
     "check:builds": "node scripts/check-builds.mjs",
     "audit:gate": "node scripts/audit.mjs",
     "check:appstream": "node scripts/appstream-browser-check.cjs"

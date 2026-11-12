@@ -124,6 +124,11 @@ jobs:
       - name: Route table matches the published spec
         run: npm run check:routes
 
+      # the emulator's scope is the client's call surface, so the surface is
+      # measured from the pinned adapter rather than asserted in a document
+      - name: Viya scope matches the adapter
+        run: npm run check:scope
+
       - name: Typecheck
         run: npx tsc -p tsconfig.json
 

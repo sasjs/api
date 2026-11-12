@@ -53,6 +53,11 @@ export { ROUTES, routeById, findRoute } from './routes/index.js'
 export type { RouteMatch } from './routes/index.js'
 export { OVERLAY, TAG_CAPABILITIES } from './routes/overlay.js'
 export type { RouteOverlay } from './routes/overlay.js'
+
+// the client's call surface, and this package's decision about each entry: a
+// host that refuses an out-of-scope path reads the same statement the guard does
+export { SURFACE, SURFACE_ADAPTER_VERSION } from './viya/surface.js'
+export type { SurfaceEntry, SurfaceFamily } from './viya/surface.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
 
 // a host gating its own middleware reads the same decision the inventory reports

@@ -285,7 +285,9 @@ export const VIYA_HANDLERS: Record<
           accept: 'application/json',
           name: 'members',
           start: 0,
-          limit: 0,
+          // the query value is echoed as the sibling branch echoes it: a caller
+          // that asked for five and is told zero cannot tell what happened
+          limit,
           count: 0,
           version: 2,
           items: [],

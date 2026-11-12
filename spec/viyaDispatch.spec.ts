@@ -729,26 +729,35 @@ describe('a folder moved back to the root', () => {
     })
     const parentId = (parent.body as { id: string }).id
 
-    await dispatchViya(shared, 'POST', '/folders/folders', {
+    // created UNDER the parent, so a move to the root has somewhere to come from
+    const nested = await dispatchViya(shared, 'POST', '/folders/folders', {
       query: { parentFolderUri: `/folders/folders/${parentId}` },
-      body: { name: 'app' }
-    })
-
-    const moved = await dispatchViya(shared, 'POST', '/folders/folders', {
-      query: { parentFolderUri: '' },
       body: { name: 'elsewhere' }
     })
-    const movedId = (moved.body as { id: string }).id
+    const nestedId = (nested.body as { id: string }).id
 
-    await dispatchViya(shared, 'PATCH', `/folders/folders/${movedId}`, {
+    const before = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/parent/elsewhere' }
+    })
+
+    expect(before.status).toBe(200)
+
+    await dispatchViya(shared, 'PATCH', `/folders/folders/${nestedId}`, {
       body: { parentFolderUri: '' }
     })
 
     const atRoot = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
       query: { path: '/elsewhere' }
     })
+    const stillNested = await dispatchViya(
+      shared,
+      'GET',
+      '/folders/folders/@item',
+      { query: { path: '/parent/elsewhere' } }
+    )
 
     expect(atRoot.status).toBe(200)
+    expect(stillNested.status).toBe(404)
   })
 })
 
@@ -816,5 +825,27 @@ describe('the emulated header cannot be overwritten', () => {
     } finally {
       VIYA_HANDLERS['GET /types/types'] = saved
     }
+  })
+})
+
+describe('the bin echoes the paging it was asked for', () => {
+  it('answers the query limit while its count stays zero', async () => {
+    const shared = services()
+    const bin = await dispatchViya(
+      shared,
+      'GET',
+      '/folders/folders/@myRecycleBin'
+    )
+    const id = (bin.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${id}/members`,
+      { query: { limit: '5' } }
+    )
+
+    expect((answer.body as { limit: number }).limit).toBe(5)
+    expect((answer.body as { count: number }).count).toBe(0)
   })
 })

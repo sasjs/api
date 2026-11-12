@@ -34,12 +34,6 @@ const shapeOfRow = (id: string) =>
  * rather than passing silently.
  */
 const assertShape = (shape: unknown, body: unknown, where: string): void => {
-  if (shape === 'null') {
-    expect(`${where}: ${body === null}`).toBe(`${where}: true`)
-
-    return
-  }
-
   if (shape === 'object') {
     expect(`${where}: ${typeof body}`).toBe(`${where}: object`)
 

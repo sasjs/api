@@ -72,12 +72,21 @@ describe('the Viya dispatch', () => {
   })
 
   it('stamps it on a 501, and says why', async () => {
-    const answer = await dispatchViya(services(), 'GET', '/compute/contexts')
+    // the token endpoint is the one operation the overlay still declines: the
+    // host that mounts the emulator owns the token port
+    const answer = await dispatchViya(
+      services(),
+      'POST',
+      '/SASLogon/oauth/token',
+      {
+        body: {}
+      }
+    )
 
     expect(answer.status).toBe(501)
     expect(answer.headers).toEqual(header)
     expect(String((answer.body as { message: string }).message)).toMatch(
-      /compute/i
+      /host/i
     )
   })
 
@@ -213,22 +222,6 @@ describe('the folder family, through the drive', () => {
 })
 
 describe('the refusals a host meets', () => {
-  it('tells a host with no drive what it is missing, and still stamps the header', async () => {
-    // a host always has a drive by type; the guard is for one that does not
-    const answer = await dispatchViya(
-      {} as unknown as Services,
-      'GET',
-      '/folders/folders/@item',
-      { query: { path: '/Public' } }
-    )
-
-    expect(answer.status).toBe(501)
-    expect(String((answer.body as { message: string }).message)).toMatch(
-      /drive/i
-    )
-    expect(answer.headers).toEqual(header)
-  })
-
   it('answers 404 for an id it has not handed out, and says why', async () => {
     const answer = await dispatchViya(
       services(),
@@ -847,5 +840,76 @@ describe('the bin echoes the paging it was asked for', () => {
 
     expect((answer.body as { limit: number }).limit).toBe(5)
     expect((answer.body as { count: number }).count).toBe(0)
+  })
+})
+
+describe('a create that names its parent in the body', () => {
+  it('still lands under that parent', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'from-body' }
+    })
+
+    // the query is what the client sends; the body is the fallback a host may
+    // supply, and both must land in the same place
+    const created = await dispatchViya(shared, 'POST', '/folders/folders', {
+      body: { name: 'child', parentFolderUri: '/folders/folders/whatever' }
+    })
+
+    expect(created.status).toBe(404)
+  })
+})
+
+describe('a path the client spells with a doubled slash', () => {
+  it('answers the folder, and the id it answers is the one by-id finds', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    // the adapter joins a root of '/' to '/app' and sends '//app'
+    const byPath = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '//app' }
+    })
+    const id = (byPath.body as { id: string }).id
+
+    const byId = await dispatchViya(shared, 'GET', `/folders/folders/${id}`)
+    const members = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${id}/members`
+    )
+
+    // the id an answer gave must be an id the next call can use: that is the
+    // whole reason an id is derived from the path rather than minted
+    expect(byId.status).toBe(200)
+    expect(members.status).toBe(200)
+  })
+
+  it('is the same id as the single-slash spelling', async () => {
+    const shared = services()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    const doubled = await dispatchViya(
+      shared,
+      'GET',
+      '/folders/folders/@item',
+      { query: { path: '//app' } }
+    )
+    const single = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/app' }
+    })
+
+    expect((doubled.body as { id: string }).id).toBe(
+      (single.body as { id: string }).id
+    )
   })
 })

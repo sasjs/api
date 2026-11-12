@@ -16,47 +16,11 @@
 import type { ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
+import { requireDrive } from './ports.js'
+import { COMPUTE_HANDLERS } from './compute.js'
+import { FILE_HANDLERS } from './files.js'
 
-/** The emulated clock: a fixed instant, so a body is reproducible. */
-export const EMULATED_NOW = '2026-01-01T00:00:00.000Z'
-
-/** The caller the emulated estate reports when a host does not name one. */
-export const EMULATED_USER = { id: 'emulated-user', name: 'Emulated User' }
-
-/**
- * A uuid shape from a string, deterministically.
- *
- * Two 32-bit FNV-1a passes give enough of a hash to fill a uuid's fields, and the
- * version/variant nibbles are set so the result is a well-formed v4-shaped id.
- * Collisions are possible in principle and irrelevant here: the id is a handle
- * the emulator hands back, not a uniqueness guarantee.
- */
-export const idFor = (path: string, kind = 'folder'): string => {
-  const hash = (input: string, seed: number) => {
-    let value = seed
-    for (let index = 0; index < input.length; index++) {
-      value ^= input.charCodeAt(index)
-      value = Math.imul(value, 16777619) >>> 0
-    }
-    return value.toString(16).padStart(8, '0')
-  }
-
-  const raw =
-    hash(`${kind}:${path}`, 2166136261) +
-    hash(`${kind}:${path}`, 2246822519) +
-    hash(`${kind}:${path}`, 3266489917) +
-    hash(`${kind}:${path}`, 668265263)
-
-  const hex = raw.slice(0, 32)
-
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `4${hex.slice(13, 16)}`,
-    `a${hex.slice(17, 20)}`,
-    hex.slice(20, 32)
-  ].join('-')
-}
+import { idFor, normalisePath, EMULATED_NOW, EMULATED_USER } from './ids.js'
 
 const linksFor = (uri: string, collection = false) => {
   const self = {
@@ -125,16 +89,6 @@ const recycleBin = () => {
   }
 }
 
-const requireDrive = (services: Services): DriveService => {
-  if (!services.drive)
-    throw new ApiError(
-      501,
-      'This host has no drive, so it cannot answer a folder operation.'
-    )
-
-  return services.drive
-}
-
 const pathFromQuery = (request: {
   query?: Record<string, string | undefined>
 }) => {
@@ -142,7 +96,7 @@ const pathFromQuery = (request: {
 
   if (!path) throw new ApiError(400, 'The path parameter is required.')
 
-  return path
+  return normalisePath(path)
 }
 
 /** The recycle-bin alias the emulator answers, which is also a valid parent. */
@@ -368,7 +322,7 @@ export const VIYA_HANDLERS: Record<
     const parent = parentUri
       ? await pathForId(drive, String(parentUri).split('/').pop() as string)
       : '/'
-    const path = `${parent}/${body.name}`.replace(/\/{2,}/g, '/')
+    const path = normalisePath(`${parent}/${body.name}`)
 
     await drive.mkdir(path)
 
@@ -416,10 +370,14 @@ export const VIYA_HANDLERS: Record<
               body.parentFolderUri.split('/').pop() as string
             )
 
-    const target = `${parent}/${name}`.replace(/\/{2,}/g, '/')
+    const target = normalisePath(`${parent}/${name}`)
 
     if (target !== path) await drive.rename(path, target)
 
     return { status: 200, body: await folderBody(drive, target) }
-  }
+  },
+
+  ...COMPUTE_HANDLERS,
+
+  ...FILE_HANDLERS
 }

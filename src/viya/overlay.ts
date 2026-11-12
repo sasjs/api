@@ -20,16 +20,6 @@ export interface ViyaOverlayEntry {
 }
 
 /**
- * The reason the session and file families carry.
- *
- * They need the session port and the file content routes, which this slice does
- * not mount. Saying it once is better than saying it thirteen times in slightly
- * different words.
- */
-const NEEDS_RUNTIME =
-  'The emulated estate answers folders, identities and types today. This operation needs the session or file port, which the host mounting the emulator has not supplied.'
-
-/**
  * The token endpoint is the host's.
  *
  * A host that mounts the emulator owns the token port - it is the thing that
@@ -50,38 +40,22 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'GET /identities/users/@currentUser': { implemented: true },
   'GET /types/types': { implemented: true },
 
-  // declined: the session and file ports
-  'GET /compute/contexts': { implemented: false, reason: NEEDS_RUNTIME },
-  'POST /compute/contexts/{}/sessions': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'DELETE /compute/sessions/{}': { implemented: false, reason: NEEDS_RUNTIME },
-  'POST /compute/sessions/{}/jobs': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'GET /compute/sessions/{}/jobs/{}': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'GET /compute/sessions/{}/jobs/{}/log/content': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'GET /compute/sessions/{}/jobs/{}/state': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'GET /compute/sessions/{}/state': {
-    implemented: false,
-    reason: NEEDS_RUNTIME
-  },
-  'POST /files/files': { implemented: false, reason: NEEDS_RUNTIME },
-  'GET /files/files/{}': { implemented: false, reason: NEEDS_RUNTIME },
-  'PATCH /files/files/{}': { implemented: false, reason: NEEDS_RUNTIME },
-  'GET /files/files/{}/content': { implemented: false, reason: NEEDS_RUNTIME },
-  'PUT /files/files/{}/content': { implemented: false, reason: NEEDS_RUNTIME },
+  // answered here: compute
+  'GET /compute/contexts': { implemented: true },
+  'POST /compute/contexts/{}/sessions': { implemented: true },
+  'DELETE /compute/sessions/{}': { implemented: true },
+  'POST /compute/sessions/{}/jobs': { implemented: true },
+  'GET /compute/sessions/{}/jobs/{}': { implemented: true },
+  'GET /compute/sessions/{}/jobs/{}/log/content': { implemented: true },
+  'GET /compute/sessions/{}/jobs/{}/state': { implemented: true },
+  'GET /compute/sessions/{}/state': { implemented: true },
+
+  // answered here: files
+  'POST /files/files': { implemented: true },
+  'GET /files/files/{}': { implemented: true },
+  'PATCH /files/files/{}': { implemented: true },
+  'GET /files/files/{}/content': { implemented: true },
+  'PUT /files/files/{}/content': { implemented: true },
 
   // declined: the host owns the token port
   'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH }

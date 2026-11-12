@@ -6,6 +6,7 @@ import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { createIdentityService } from '../src/identity/service.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
+import { EMULATED_CONTEXT_ID } from '../src/viya/compute.js'
 import type { Services } from '../src/host/dispatch.js'
 
 /**
@@ -19,7 +20,8 @@ import type { Services } from '../src/host/dispatch.js'
  */
 const services = (): Services => ({
   drive: createDriveService(new MemoryDriveStore()),
-  identity: createIdentityService(new MemoryIdentityStore(DEFAULT_IDENTITY))
+  identity: createIdentityService(new MemoryIdentityStore(DEFAULT_IDENTITY)),
+  viya: { serverUrl: 'http://localhost:5000' }
 })
 
 const shapeOfRow = (id: string) =>
@@ -201,6 +203,19 @@ describe('the answers and the shapes the captures recorded', () => {
     // the fixtures above name one operation each; this states which are missing
     // when a handler is added without one
     const covered = [
+      'DELETE /compute/sessions/{}',
+      'GET /files/files/{}',
+      'GET /files/files/{}/content',
+      'PATCH /files/files/{}',
+      'POST /files/files',
+      'PUT /files/files/{}/content',
+      'GET /compute/contexts',
+      'GET /compute/sessions/{}/jobs/{}',
+      'GET /compute/sessions/{}/jobs/{}/log/content',
+      'GET /compute/sessions/{}/jobs/{}/state',
+      'GET /compute/sessions/{}/state',
+      'POST /compute/contexts/{}/sessions',
+      'POST /compute/sessions/{}/jobs',
       'GET /folders/folders/@item',
       'GET /folders/folders/@myRecycleBin',
       'GET /folders/folders/{}',
@@ -212,5 +227,170 @@ describe('the answers and the shapes the captures recorded', () => {
     ].sort()
 
     expect(implemented).toEqual(covered)
+  })
+})
+
+/**
+ * The compute family, held to its rows the same way.
+ *
+ * These are the answers a `serverType=SASVIYA` client cannot proceed without, so
+ * a field the estate recorded and the emulator forgets is the difference between
+ * a client that runs and one that throws.
+ */
+describe('the compute answers, against their captured shapes', () => {
+  const withSession = async () => {
+    const shared = services()
+    const created = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+      { body: {} }
+    )
+
+    return { shared, created, id: (created.body as { id: string }).id }
+  }
+
+  it('answers the context list with every recorded key', async () => {
+    const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
+      query: { filter: "eq(name,'Mine')" }
+    })
+
+    assertShape(shapeOfRow('GET /compute/contexts'), answer.body, 'contexts')
+  })
+
+  it('answers a created session with every recorded key', async () => {
+    const { created } = await withSession()
+
+    expect(created.status).toBe(201)
+    assertShape(
+      shapeOfRow('POST /compute/contexts/{}/sessions'),
+      created.body,
+      'session'
+    )
+  })
+
+  it('answers a submitted job with every recorded key', async () => {
+    const { shared, id } = await withSession()
+    const answer = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/sessions/${id}/jobs`,
+      { body: { code: 'data a; run;', name: 'job' } }
+    )
+
+    expect(answer.status).toBe(201)
+    assertShape(
+      shapeOfRow('POST /compute/sessions/{}/jobs'),
+      answer.body,
+      'job'
+    )
+  })
+
+  it('answers a job read back with every recorded key', async () => {
+    const { shared, id } = await withSession()
+    const submitted = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/sessions/${id}/jobs`,
+      { body: { code: 'data a; run;' } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'GET',
+      `/compute/sessions/${id}/jobs/${jobId}`
+    )
+
+    assertShape(
+      shapeOfRow('GET /compute/sessions/{}/jobs/{}'),
+      answer.body,
+      'job'
+    )
+  })
+
+  it('answers a log with every recorded key', async () => {
+    const { shared, id } = await withSession()
+    const submitted = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/sessions/${id}/jobs`,
+      { body: { code: 'data a; run;' } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'GET',
+      `/compute/sessions/${id}/jobs/${jobId}/log/content`
+    )
+
+    assertShape(
+      shapeOfRow('GET /compute/sessions/{}/jobs/{}/log/content'),
+      answer.body,
+      'log'
+    )
+  })
+})
+
+/**
+ * The file family, held to its rows.
+ *
+ * Three of the five carry the same recorded file body, so one upload is enough to
+ * check them - and the content route records no shape, because its body is
+ * whatever the file holds.
+ */
+describe('the file answers, against their captured shapes', () => {
+  const uploaded = async () => {
+    const shared = services()
+    const folder = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    const answer = await dispatchViya(shared, 'POST', '/files/files', {
+      query: { parentFolderUri: (folder.body as { id: string }).id },
+      file: { name: 'program.sas', contents: 'data a; run;' }
+    })
+
+    return { shared, answer, id: (answer.body as { id: string }).id }
+  }
+
+  it('answers an upload with every recorded key', async () => {
+    const { answer } = await uploaded()
+
+    assertShape(shapeOfRow('POST /files/files'), answer.body, 'upload')
+  })
+
+  it('answers a file read back with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(shared, 'GET', `/files/files/${id}`)
+
+    assertShape(shapeOfRow('GET /files/files/{}'), answer.body, 'file')
+  })
+
+  it('answers a rename with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(shared, 'PATCH', `/files/files/${id}`, {
+      body: { name: 'renamed.sas' }
+    })
+
+    assertShape(shapeOfRow('PATCH /files/files/{}'), answer.body, 'rename')
+  })
+
+  it('answers a replace with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(
+      shared,
+      'PUT',
+      `/files/files/${id}/content`,
+      { file: { name: 'program.sas', contents: 'data b; run;' } }
+    )
+
+    assertShape(
+      shapeOfRow('PUT /files/files/{}/content'),
+      answer.body,
+      'replace'
+    )
   })
 })

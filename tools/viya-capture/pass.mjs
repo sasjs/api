@@ -13,18 +13,27 @@
  * Every function takes a `runStep(name, action)` and a `runCleanup(name, action)`
  * from the caller: the first records a call as part of the contract, the second
  * is for removing what the pass made, and its requests stay out of the table.
+ *
+ * `runStep` swallows a refusal and returns undefined, so a step that hands its
+ * result to the next step has to check it. Doing that is the difference between
+ * "the folder was created" and "a 201 was recorded somewhere" - and the defect
+ * above was exactly a silent failure that still logged `ok`.
  */
 
 /** The name of the throwaway folder a content pass works in. */
 export const folderNameFor = (started) => `capture-${started}`
 
 /**
- * The folder family: create one folder under the application, then remove it.
+ * The folder family: create one folder under the application.
  *
  * `createFolder` takes the new folder's NAME and the parent's PATH as separate
  * arguments. Handing it a full path and a token instead is the mistake above:
  * the token lands in `parentFolderPath`, so the request carries no credential
  * and the estate refuses it.
+ *
+ * `created` says whether the estate answered with a folder. A caller that
+ * ignores it writes file steps, and their 404s, into the folder the run never
+ * made.
  */
 export const folderPass = async ({
   client,
@@ -35,23 +44,24 @@ export const folderPass = async ({
 }) => {
   const folderPath = `${appLoc}/${folderName}`
 
-  await runStep('folders/create', () =>
+  const created = await runStep('folders/create', () =>
     client.createFolder(folderName, appLoc, undefined, token)
   )
 
-  return { folderPath }
+  return { folderPath, created: Boolean(created) }
 }
 
-/** Removes the folder a pass created. Recorded as cleanup, never as contract. */
-export const removeFolder = async ({
-  client,
-  token,
-  folderPath,
-  runCleanup
-}) => {
-  await runCleanup('folders/delete', () =>
-    client.deleteFolder(folderPath, token)
-  )
+/**
+ * Removes the folder a pass created.
+ *
+ * A recorded step, not a cleanup: `deleteFolder` is a public
+ * `SASViyaApiClient` method, so a client does call it and the emulator has to
+ * answer what it sends - the `GET /folders/folders/@myRecycleBin` and the
+ * `PATCH` that moves the folder there. The only delete in this tool that is
+ * outside the adapter's surface is the file one, in `filePass`.
+ */
+export const removeFolder = async ({ client, token, folderPath, runStep }) => {
+  await runStep('folders/delete', () => client.deleteFolder(folderPath, token))
 }
 
 /**
@@ -130,4 +140,53 @@ export const filePass = async ({
     )
 
   return { fileId: created?.id }
+}
+
+/**
+ * The whole content family, in the order the estate allows.
+ *
+ * A refused folder create ends the pass. Continuing would run the file steps
+ * against a folder that does not exist, and their 404s would be recorded as
+ * contract rows describing a folder nobody made - the same class of quiet
+ * wrongness as the defect at the top of this file.
+ *
+ * The folder is removed after the file inside it, because the estate refuses to
+ * delete a folder that still has members (11516) and offers no recursive
+ * delete.
+ */
+export const contentPass = async ({
+  client,
+  requestClient,
+  token,
+  appLoc,
+  folderName,
+  allowFiles,
+  runStep,
+  runCleanup
+}) => {
+  const { folderPath, created } = await folderPass({
+    client,
+    token,
+    appLoc,
+    folderName,
+    runStep
+  })
+
+  if (!created) return { folderPath, created: false, fileId: undefined }
+
+  const { fileId } = allowFiles
+    ? await filePass({
+        client,
+        requestClient,
+        token,
+        folderPath,
+        fileName: `${folderName}.txt`,
+        runStep,
+        runCleanup
+      })
+    : {}
+
+  await removeFolder({ client, token, folderPath, runStep })
+
+  return { folderPath, created: true, fileId }
 }

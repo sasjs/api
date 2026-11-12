@@ -60,13 +60,7 @@ import {
   redactAuthorization,
   redactBody
 } from './redact.mjs'
-import {
-  executePass,
-  filePass,
-  folderNameFor,
-  folderPass,
-  removeFolder
-} from './pass.mjs'
+import { contentPass, executePass, folderNameFor } from './pass.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -376,31 +370,21 @@ if (ALLOW_EXECUTE && CONTEXT) {
 
 if (ALLOW_WRITES || ALLOW_FILES) {
   if (APP_LOC) {
-    const folderName = folderNameFor(started)
-
-    const { folderPath } = await folderPass({
+    const result = await contentPass({
       client,
+      requestClient,
       token: TOKEN,
       appLoc: APP_LOC,
-      folderName,
-      runStep
+      folderName: folderNameFor(started),
+      allowFiles: ALLOW_FILES,
+      runStep,
+      runCleanup
     })
 
-    if (ALLOW_FILES)
-      await filePass({
-        client,
-        requestClient,
-        token: TOKEN,
-        folderPath,
-        fileName: `${folderName}.txt`,
-        runStep,
-        runCleanup
-      })
-
-    // Remove the folder after the file inside it, because the estate refuses to
-    // delete a folder that still has members (11516) - there is no recursive
-    // delete to fall back on.
-    await removeFolder({ client, token: TOKEN, folderPath, runCleanup })
+    if (!result.created)
+      console.log(
+        '  content pass stopped: the folder create was refused, so no file or delete step ran'
+      )
   } else console.log('  folders/create: skipped, VIYA_APP_LOC is not set')
 }
 

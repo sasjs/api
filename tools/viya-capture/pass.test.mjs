@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  contentPass,
   executePass,
   filePass,
   folderNameFor,
@@ -90,22 +91,23 @@ test('the content folder is created with the name and the parent apart', async (
   )
 })
 
-test('a folder is removed through cleanup, so its delete stays out of the table', async () => {
+test('the folder delete is a recorded step, because the client calls it', async () => {
   const { client, calls } = fakeClient()
-  const { cleanups, runStep } = recorder()
+  const { cleanups, steps, runStep } = recorder()
 
   await removeFolder({
     client,
     token: 'the-token',
     folderPath: '/Public/app/capture-1',
-    runCleanup: async (name, action) => {
-      cleanups.push(name)
-
-      return action()
-    }
+    runStep
   })
 
-  assert.deepEqual(cleanups, ['folders/delete'])
+  assert.deepEqual(steps, ['folders/delete'])
+  assert.deepEqual(
+    cleanups,
+    [],
+    'deleteFolder is adapter surface, not tidying up'
+  )
   assert.deepEqual(calls[0].args, ['/Public/app/capture-1', 'the-token'])
 })
 
@@ -206,4 +208,59 @@ test('the execute family hands the adapter an auth config, not a bare token', as
   assert.equal(calls[0].args[2], 'Compute Reusable')
   assert.equal(calls[0].args[5], true, 'debug on, so the log comes back')
   assert.equal(result.log.includes('SYSVLONG'), true)
+})
+
+test('a refused folder create ends the content pass, so no 404 is recorded as contract', async () => {
+  const { client, calls } = fakeClient({
+    createFolder: async () => {
+      throw new Error('401')
+    }
+  })
+  const { cleanups, steps, runStep, runCleanup } = recorder()
+
+  const result = await contentPass({
+    client,
+    requestClient: { delete: async () => ({}) },
+    token: 'the-token',
+    appLoc: '/Public/app',
+    folderName: 'capture-1',
+    allowFiles: true,
+    runStep,
+    runCleanup
+  })
+
+  assert.equal(result.created, false)
+  assert.deepEqual(steps, ['folders/create'])
+  assert.deepEqual(cleanups, [])
+  assert.equal(
+    calls.some((call) => call.name === 'createFile'),
+    false,
+    'no file step runs against a folder that was never made'
+  )
+})
+
+test('a created folder is filled, then removed, in one pass', async () => {
+  const { client } = fakeClient()
+  const { cleanups, steps, runStep, runCleanup } = recorder()
+
+  const result = await contentPass({
+    client,
+    requestClient: { delete: async () => ({}) },
+    token: 'the-token',
+    appLoc: '/Public/app',
+    folderName: 'capture-1',
+    allowFiles: true,
+    runStep,
+    runCleanup
+  })
+
+  assert.equal(result.created, true)
+  assert.deepEqual(steps, [
+    'folders/create',
+    'files/create',
+    'files/content',
+    'files/replace',
+    'folders/delete'
+  ])
+  assert.deepEqual(cleanups, ['files/cleanup'])
 })

@@ -27,6 +27,7 @@
  *   VIYA_REFRESH_TOKEN                   record the refresh grant
  *   VIYA_ALLOW_EXECUTE=1                 create a session and run a program
  *   VIYA_ALLOW_WRITES=1                  create and delete one folder
+ *   VIYA_ALLOW_FILES=1                   create, read and replace one file
  *   VIYA_TLS_RELAX=1                     accept a self-signed certificate
  *   CAPTURE_PORT=8899                    local proxy port
  *
@@ -59,6 +60,7 @@ import {
   redactAuthorization,
   redactBody
 } from './redact.mjs'
+import { filePass, folderNameFor, folderPass, removeFolder } from './pass.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -72,6 +74,7 @@ const CONTEXT = process.env.VIYA_CONTEXT ?? ''
 const APP_LOC = process.env.VIYA_APP_LOC ?? ''
 const ALLOW_EXECUTE = process.env.VIYA_ALLOW_EXECUTE === '1'
 const ALLOW_WRITES = process.env.VIYA_ALLOW_WRITES === '1'
+const ALLOW_FILES = process.env.VIYA_ALLOW_FILES === '1'
 const TLS_RELAX = process.env.VIYA_TLS_RELAX === '1'
 
 if (!TARGET) {
@@ -88,6 +91,14 @@ const transport = upstream.protocol === 'http:' ? http : https
 
 const captures = []
 let step = 'startup'
+
+/**
+ * True while a step is removing what an earlier step created. Its requests are
+ * still recorded - the file is a log of the run - but they are marked, because
+ * a delete performed for tidiness is not part of the client's surface and must
+ * not reach the generated table.
+ */
+let cleanup = false
 
 /**
  * One scrubber for the run: the estate's names and this run's secrets. Every
@@ -116,7 +127,7 @@ const storedHeaders = (headers) =>
   )
 
 const record = (entry) => {
-  captures.push({ step, ...entry })
+  captures.push({ step, ...(cleanup ? { cleanup: true } : {}), ...entry })
 }
 
 /* -------------------------------------------------------------------- proxy */
@@ -234,6 +245,29 @@ const runStep = async (name, action) => {
   }
 }
 
+/**
+ * A step that removes what the pass created.
+ *
+ * Kept apart from `runStep` because the two say different things: a refused
+ * cleanup is a warning about the run, not a captured contract, and its requests
+ * carry the `cleanup` marker so the generator passes over them.
+ */
+const runCleanup = async (name, action) => {
+  step = name
+  cleanup = true
+
+  try {
+    await action()
+    console.log(`  ${name}: ok`)
+  } catch (error) {
+    console.log(
+      `  ${name}: ${String(error?.message ?? error).slice(0, 160)} (left behind)`
+    )
+  } finally {
+    cleanup = false
+  }
+}
+
 const started = Date.now()
 
 await new Promise((resolve) => proxy.listen(PORT, '127.0.0.1', resolve))
@@ -334,16 +368,34 @@ if (ALLOW_EXECUTE && CONTEXT) {
   }
 }
 
-if (ALLOW_WRITES && APP_LOC) {
-  const folderName = `capture-${started}`
+if (ALLOW_WRITES || ALLOW_FILES) {
+  if (APP_LOC) {
+    const folderName = folderNameFor(started)
 
-  await runStep('folders/create', () =>
-    client.createFolder(`${APP_LOC}/${folderName}`, TOKEN)
-  )
+    const { folderPath } = await folderPass({
+      client,
+      token: TOKEN,
+      appLoc: APP_LOC,
+      folderName,
+      runStep
+    })
 
-  await runStep('folders/delete', () =>
-    client.deleteFolder(`${APP_LOC}/${folderName}`, TOKEN)
-  )
+    if (ALLOW_FILES)
+      await filePass({
+        client,
+        requestClient,
+        token: TOKEN,
+        folderPath,
+        fileName: `${folderName}.txt`,
+        runStep,
+        runCleanup
+      })
+
+    // Remove the folder after the file inside it, because the estate refuses to
+    // delete a folder that still has members (11516) - there is no recursive
+    // delete to fall back on.
+    await removeFolder({ client, token: TOKEN, folderPath, runCleanup })
+  } else console.log('  folders/create: skipped, VIYA_APP_LOC is not set')
 }
 
 proxy.close()
@@ -359,6 +411,7 @@ const document = {
   appLoc: APP_LOC ? '<appLoc>' : null,
   allowExecute: ALLOW_EXECUTE,
   allowWrites: ALLOW_WRITES,
+  allowFiles: ALLOW_FILES,
   steps: captures
 }
 
@@ -397,6 +450,9 @@ const statuses = captures.reduce((counts, entry) => {
   return counts
 }, {})
 
+const cleaned = captures.filter((entry) => entry.cleanup).length
+
 console.log(
-  `\n${captures.length} requests recorded -> ${outFile}\nstatuses: ${JSON.stringify(statuses)}`
+  `\n${captures.length} requests recorded -> ${outFile}\nstatuses: ${JSON.stringify(statuses)}` +
+    (cleaned ? `\ncleanup requests, kept out of the table: ${cleaned}` : '')
 )

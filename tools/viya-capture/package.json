@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "capture": "node capture.mjs",
-    "test": "node --test redact.test.mjs"
+    "test": "node --test redact.test.mjs pass.test.mjs"
   },
   "dependencies": {
     "@sasjs/adapter": "6.0.2"

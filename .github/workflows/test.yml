@@ -89,7 +89,9 @@ jobs:
       - name: Capture tool (install, test, audit)
         run: |
           npm ci --prefix tools/viya-capture
-          node --test tools/viya-capture/redact.test.mjs
+          # the package's own `test` script, so a new suite is picked up by adding
+          # it to package.json rather than to this step as well
+          npm test --prefix tools/viya-capture
           # the same level the root tree is held to: a sub-project audited less
           # strictly than the repository it sits in is a hole, not a detail
           npm audit --prefix tools/viya-capture --omit=dev --audit-level=low

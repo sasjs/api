@@ -23,16 +23,19 @@ Add these when you have them:
 | `VIYA_APP_LOC`                         | records the folder item and its members                                                     |
 | `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it                                              |
 | `VIYA_ALLOW_WRITES=1`                  | creates and deletes one folder under `VIYA_APP_LOC`                                         |
+| `VIYA_ALLOW_FILES=1`                   | creates, reads and replaces one file in that folder, then removes it                        |
 | `VIYA_TLS_RELAX=1`                     | accepts a self-signed certificate                                                           |
 | `CAPTURE_PORT`                         | local proxy port, default 8899                                                              |
 
-The default pass is read-only. `VIYA_ALLOW_EXECUTE` and `VIYA_ALLOW_WRITES` are off unless set, and each one only touches what it creates.
+The default pass is read-only. `VIYA_ALLOW_EXECUTE`, `VIYA_ALLOW_WRITES` and `VIYA_ALLOW_FILES` are off unless set, and each one only touches what it creates.
 
 ## What it leaves behind
 
 `capture/viya-capture-<timestamp>.json`, and a summary line with the count of requests and the statuses seen. Send the file back; it is safe to share.
 
 A refused call is recorded too: a 401, a 403 or a 400 is as much a part of the contract as a 200, and the emulator has to answer it identically.
+
+Requests made to remove what a pass created carry `"cleanup": true`. They stay in the file - it is a log of the run - and they are left out of the generated table, because tidying up after the recorder is not something the client does. One of them is worth knowing about anyway: `deleteFolder` is a move into the recycle bin (`PATCH /folders/folders/{id}`), not a `DELETE`, so a folder the run creates comes back through a different verb than the one its name suggests.
 
 ## What leaves the file, and what stops it
 
@@ -42,6 +45,12 @@ Two kinds of fact are removed before anything is written:
 - **The environment.** The estate's origin becomes `https://<estate>` and its host becomes `<estate>` wherever they appear - including an absolute link inside a response body - and `VIYA_APP_LOC` becomes `<appLoc>`.
 
 The finished text is then read back and searched for what a scrubber cannot know: the estate host, a token-shaped value, any address other than loopback, and the run's own secrets. If anything is found the file is **not written**: the categories and counts are printed, the script exits 3, and nothing is left on disk. Both directions are exercised - a clean run writes, a stand-in estate answering with an address in a field is refused with `address (1)`.
+
+## Checking the pass without an estate
+
+    npm test
+
+Two suites run under `node --test`: the scrubber, and the calls themselves against a stand-in client. The second exists because an argument order cannot be reviewed by eye and fails quietly - `createFolder` takes `(name, parentPath, parentUri, token)`, and a call that passes a full path and a token instead puts the token in `parentFolderPath`, so the request goes out with no `Authorization` header, the estate answers `401`, and the step still reports `ok`.
 
 ## What it does not do
 

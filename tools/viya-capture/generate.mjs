@@ -17,6 +17,10 @@
  * a reason is the honest form, and the table states it.
  */
 
+/** Whether a status is one the client treats as a successful answer. */
+const isSuccess = (status) =>
+  typeof status === 'number' && status >= 200 && status < 300
+
 /** A path segment that is an identifier rather than a name. */
 const ID_SEGMENT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-ses\d+)?$/i
@@ -117,7 +121,8 @@ export const operationsOf = (capture) => {
         steps: new Set(),
         statuses: new Set(),
         queries: new Set(),
-        request: undefined,
+        requestQueries: new Set(),
+        requestBody: undefined,
         response: undefined,
         expected: undefined
       })
@@ -128,27 +133,33 @@ export const operationsOf = (capture) => {
     if (typeof entry.response?.status === 'number')
       operation.statuses.add(entry.response.status)
 
-    for (const name of queryOf(entry.request.query)) operation.queries.add(name)
+    for (const name of queryOf(entry.request.query)) {
+      operation.queries.add(name)
+      // the request is one observed call per row, but the parameter names are
+      // the union of what the client sent: a handler built from one row's names
+      // would omit a parameter, and nothing would say it was partial
+      operation.requestQueries.add(name)
+    }
 
     // the first successful answer is the one worth sketching: a 401 in the
-    // middle of a pass is a fact about that run, not about the operation
+    // middle of a pass is a fact about that run, not about the operation.
+    // Success is the whole 2xx range - a create answers 201 and a delete 204,
+    // and a test for exactly 200 recorded the refusal in front of it.
     if (
       !operation.response ||
-      (operation.response.status !== 200 && entry.response?.status === 200)
+      (!isSuccess(operation.response.status) &&
+        isSuccess(entry.response?.status))
     ) {
       operation.response = {
         status: entry.response?.status,
         shape: bodyShape(entry)
       }
       operation.expected = entry.response?.status
-      operation.request = {
-        queries: queryOf(entry.request.query),
-        body:
-          typeof entry.request.body === 'string' &&
-          entry.request.body.trim().startsWith('{')
-            ? shapeOf(JSON.parse(entry.request.body))
-            : undefined
-      }
+      operation.requestBody =
+        typeof entry.request.body === 'string' &&
+        entry.request.body.trim().startsWith('{')
+          ? shapeOf(JSON.parse(entry.request.body))
+          : undefined
     }
   }
 
@@ -160,7 +171,10 @@ export const operationsOf = (capture) => {
       steps: [...operation.steps].sort(),
       statuses: [...operation.statuses].sort((a, b) => a - b),
       queries: [...operation.queries].sort(),
-      request: operation.request,
+      request: {
+        queries: [...operation.requestQueries].sort(),
+        body: operation.requestBody
+      },
       shape: operation.response?.shape,
       expected: operation.expected
     }))
@@ -319,10 +333,32 @@ export const mergeOperations = (operationLists) => {
         ...new Set([...existing.queries, ...operation.queries])
       ].sort()
 
-      if (existing.expected === undefined) {
+      // the shape and the status are chosen independently: a run that recorded
+      // no body still has a status worth keeping, and a run with a body has a
+      // shape worth keeping whatever its status was
+      if (
+        (existing.expected === undefined ||
+          (!isSuccess(existing.expected) && isSuccess(operation.expected))) &&
+        operation.expected !== undefined
+      )
         existing.expected = operation.expected
+
+      if (existing.shape === undefined && operation.shape !== undefined)
         existing.shape = operation.shape
-      }
+
+      // `request` is one observed call, but its query names are unioned like
+      // `queries` above: a handler built from it would otherwise omit a
+      // parameter the client sent, with nothing marking it partial
+      if (existing.request && operation.request)
+        existing.request = {
+          queries: [
+            ...new Set([
+              ...existing.request.queries,
+              ...operation.request.queries
+            ])
+          ].sort(),
+          body: existing.request.body ?? operation.request.body
+        }
     }
 
   return [...merged.values()].sort((a, b) =>

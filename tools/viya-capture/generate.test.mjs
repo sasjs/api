@@ -162,3 +162,100 @@ test('the generated files are deterministic and carry no captured value', () => 
     )
   }
 })
+
+test('a success after a refusal keeps the success, whichever 2xx it is', () => {
+  // the first create is refused and the second answers 201; a test for exactly
+  // 200 kept the 401 and its error shape as the operation's answer
+  const operations = operationsOf({
+    steps: [
+      {
+        step: 'files/create',
+        request: { method: 'POST', path: '/files/files' },
+        response: { status: 401, body: JSON.stringify({ message: 'denied' }) }
+      },
+      {
+        step: 'files/create',
+        request: { method: 'POST', path: '/files/files' },
+        response: { status: 201, body: JSON.stringify({ id: 'the-file' }) }
+      }
+    ]
+  })
+
+  assert.equal(operations[0].expected, 201)
+  assert.deepEqual(operations[0].statuses, [201, 401])
+  assert.deepEqual(operations[0].shape, { id: 'string' })
+})
+
+test('a shape survives a run that recorded no body', () => {
+  const withoutBody = operationsOf({
+    steps: [
+      {
+        step: 'folders/item',
+        request: { method: 'GET', path: '/folders/folders/@item' },
+        response: { status: 200 }
+      }
+    ]
+  })
+
+  const withBody = operationsOf({
+    steps: [
+      {
+        step: 'folders/item',
+        request: { method: 'GET', path: '/folders/folders/@item' },
+        response: {
+          status: 200,
+          body: JSON.stringify({ id: 'x', name: 'app' })
+        }
+      }
+    ]
+  })
+
+  const merged = mergeOperations([withoutBody, withBody])
+
+  assert.deepEqual(merged[0].shape, { id: 'string', name: 'string' })
+
+  // and the other way round: the shape is not tied to which run came first
+  assert.deepEqual(mergeOperations([withBody, withoutBody])[0].shape, {
+    id: 'string',
+    name: 'string'
+  })
+})
+
+test('request query names are the union of the calls, like queries', () => {
+  const first = operationsOf({
+    steps: [
+      {
+        step: 'compute/contexts',
+        request: {
+          method: 'GET',
+          path: '/compute/contexts',
+          query: { limit: '1' }
+        },
+        response: { status: 200 }
+      }
+    ]
+  })
+
+  const second = operationsOf({
+    steps: [
+      {
+        step: 'compute/context-by-name',
+        request: {
+          method: 'GET',
+          path: '/compute/contexts',
+          query: { filter: 'x' }
+        },
+        response: { status: 200 }
+      }
+    ]
+  })
+
+  const merged = mergeOperations([first, second])
+
+  assert.deepEqual(merged[0].queries, ['filter', 'limit'])
+  assert.deepEqual(
+    merged[0].request.queries,
+    ['filter', 'limit'],
+    'a handler built from one row would omit a parameter with nothing marking it partial'
+  )
+})

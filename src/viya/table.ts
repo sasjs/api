@@ -45,7 +45,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     statuses: [200],
     queries: ['filter', 'limit'],
     request: {
-      queries: ['limit'],
+      queries: ['filter', 'limit'],
       body: undefined
     },
     shape: {
@@ -277,7 +277,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     statuses: [200],
     queries: ['wait'],
     request: {
-      queries: [],
+      queries: ['wait'],
       body: undefined
     },
     shape: undefined

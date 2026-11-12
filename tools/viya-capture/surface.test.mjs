@@ -101,3 +101,25 @@ test('a block comment ends where it says, and code after it still counts', () =>
 
   assert.deepEqual(literals, ['/types/types'])
 })
+
+test('an escaped-slash regex does not blank the rest of the line', () => {
+  // `/https?:\/\//` contains `//`; a scanner that reads it as a line comment
+  // loses every path after it on that line, silently - the under-report a scope
+  // guard exists to prevent
+  const literals = literalsIn(
+    "const b = u.replace(/https?:\\/\\//g, ''); const p = '/files/files'"
+  )
+
+  assert.deepEqual(literals, ['/files/files'])
+})
+
+test('a division is not a regex, and a regex in a class keeps its slashes', () => {
+  const literals = literalsIn(
+    [
+      "const ratio = total / count; const p = '/types/types'",
+      "const split = value.replace(/[/]/g, '-'); const q = '/folders/folders'"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals.sort(), ['/folders/folders', '/types/types'])
+})

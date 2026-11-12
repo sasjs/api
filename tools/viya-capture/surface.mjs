@@ -64,13 +64,81 @@ export const normalise = (literal) => {
  * a quote is exotic in a tsc build, and the cost of getting it wrong is a missed
  * literal, not an invented one.
  */
+/**
+ * The characters after which a `/` opens a regex literal rather than dividing.
+ *
+ * A regex is the case that made this scanner drop a call: `/https?:\/\//`
+ * contains `//`, so a scanner that only knew about quotes and comments read it
+ * as a line comment and blanked the rest of the line - path literals included,
+ * silently, which in a scope guard is the under-report the guard exists to
+ * prevent.
+ */
+const REGEX_PRECEDERS = new Set([
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '%',
+  '^',
+  '~',
+  '<',
+  '>'
+])
+
 export const stripComments = (source) => {
   let code = ''
   let index = 0
+  /** The last character that was code rather than whitespace or a comment. */
+  let previous = ''
 
   while (index < source.length) {
     const character = source[index]
     const next = source[index + 1]
+
+    const opensRegex =
+      character === '/' &&
+      (previous === '' || REGEX_PRECEDERS.has(previous)) &&
+      next !== '/' &&
+      next !== '*'
+
+    if (opensRegex) {
+      code += character
+      index += 1
+
+      let inClass = false
+
+      while (index < source.length) {
+        const inside = source[index]
+        code += inside
+        index += 1
+
+        if (inside === '\\') {
+          if (index < source.length) {
+            code += source[index]
+            index += 1
+          }
+          continue
+        }
+
+        if (inside === '[') inClass = true
+        else if (inside === ']') inClass = false
+        else if (inside === '/' && !inClass) break
+      }
+
+      previous = '/'
+      continue
+    }
 
     if (character === '/' && next === '/') {
       while (index < source.length && source[index] !== '\n') {
@@ -123,6 +191,8 @@ export const stripComments = (source) => {
 
     code += character
     index += 1
+
+    if (!/\s/.test(character)) previous = character
   }
 
   return code

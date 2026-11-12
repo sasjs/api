@@ -88,10 +88,19 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
 }
 
 /**
- * Refuse an overlay entry the table does not have.
+ * Refuse an overlay and a table that do not describe the same operations.
  *
- * Called at import, and exported so the refusal itself can be tested: a check
- * that only runs on import is a check nothing can pin.
+ * Both directions, because each covers a different mistake:
+ *
+ * - an entry the table does not have is a claim about a call no client makes,
+ *   which is what a stale entry becomes when an operation is retired;
+ * - a row with no entry is a capture that landed without a decision. One loop
+ *   is not enough: a re-capture that adds an operation would import cleanly and
+ *   answer 501 at run time, and `dispatch.ts` says the overlay refuses exactly
+ *   that.
+ *
+ * Called at import, and exported so the refusals themselves can be tested: a
+ * check that only runs on import is a check nothing can pin.
  */
 export const assertOverlayEntries = (
   overlay: Record<string, ViyaOverlayEntry>,
@@ -103,6 +112,12 @@ export const assertOverlayEntries = (
     if (!known.has(id))
       throw new Error(
         `src/viya/overlay.ts names an operation the table does not have: ${id}. The table is generated from a capture, so an entry for an operation nobody observed is a claim about a call no client makes.`
+      )
+
+  for (const operation of operations)
+    if (!(operation.id in overlay))
+      throw new Error(
+        `src/viya/overlay.ts has no decision for ${operation.id}. Every captured operation states whether this package implements it and, when it does not, the reason it does not: add \`{ implemented: false, reason: '...' }\` until a handler exists.`
       )
 }
 

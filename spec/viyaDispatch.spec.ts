@@ -421,13 +421,24 @@ describe('the dispatch when its own furniture is missing', () => {
   })
 })
 
-describe('the overlay refuses what the table does not have', () => {
-  it('throws, naming the operation', async () => {
+describe('the overlay and the table describe the same operations', () => {
+  it('refuses an entry the table does not have, naming it', async () => {
     const { assertOverlayEntries } = await import('../src/viya/overlay.js')
 
     expect(() =>
       assertOverlayEntries({ 'GET /jobs/executions': { implemented: true } })
     ).toThrow(/GET \/jobs\/executions/)
+  })
+
+  it('refuses a captured operation with no decision, naming it', async () => {
+    const { assertOverlayEntries } = await import('../src/viya/overlay.js')
+    const { VIYA_TABLE } = await import('../src/viya/table.js')
+
+    // a re-capture that adds an operation must not import cleanly and answer
+    // 501 at run time
+    expect(() => assertOverlayEntries({}, VIYA_TABLE)).toThrow(
+      /no decision for GET \/compute\/contexts/
+    )
   })
 })
 

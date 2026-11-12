@@ -69,6 +69,11 @@ export {
   VIYA_TARGET_VERSION,
   emulatedHeaders
 } from './viya/version.js'
+export { dispatchViya, findViyaOperation } from './viya/dispatch.js'
+export type { ViyaMatch, ViyaResponse } from './viya/dispatch.js'
+export { VIYA_OVERLAY } from './viya/overlay.js'
+export type { ViyaOverlayEntry } from './viya/overlay.js'
+export { VIYA_HANDLERS } from './viya/service.js'
 export { VIYA_CORPUS } from './corpus/viya/operations.js'
 export type { ViyaCase } from './corpus/viya/operations.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'

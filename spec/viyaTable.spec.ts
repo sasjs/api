@@ -36,6 +36,13 @@ const covers = (surfacePath: string, operationPath: string) => {
 
   if (declared.length > operation.length) return false
 
+  // a declared path may be a PREFIX only when it ends at an identifier: the
+  // client appends `/content` to a file URI it already holds, but `/SASLogon`
+  // is its own operation and does not become `/SASLogon/oauth/token`
+  const prefixAllowed = declared[declared.length - 1] === '{}'
+
+  if (!prefixAllowed && declared.length !== operation.length) return false
+
   return declared.every(
     (segment, index) =>
       segment === operation[index] ||

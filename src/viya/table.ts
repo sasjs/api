@@ -780,6 +780,30 @@ export const VIYA_TABLE: ViyaOperation[] = [
     }
   },
   {
+    id: 'POST /SASLogon/oauth/token',
+    method: 'POST',
+    path: '/SASLogon/oauth/token',
+    steps: ['auth/token-refresh'],
+    statuses: [200],
+    queries: [],
+    request: {
+      queries: [],
+      body: undefined
+    },
+    shape: {
+      access_token: 'string',
+      expires_in: 'number',
+      id_token: 'string',
+      jti: 'string',
+      refresh_expires_in: 'number',
+      refresh_revocable: 'boolean',
+      refresh_token: 'string',
+      revocable: 'boolean',
+      scope: 'string',
+      token_type: 'string'
+    }
+  },
+  {
     id: 'GET /types/types',
     method: 'GET',
     path: '/types/types',

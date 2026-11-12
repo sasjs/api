@@ -55,11 +55,6 @@ export const UNRECORDED: UnrecordedOperation[] = [
     reason:
       'no capture: the authorisation-code step needs a browser; the pass uses the password grant'
   },
-  {
-    path: '/SASLogon/oauth/token',
-    reason:
-      "no capture: the token is obtained before the adapter is pointed at the proxy. Recorded by the capture tool's own token pass when VIYA_CLIENT_ID and VIYA_CLIENT_SECRET are supplied"
-  },
 
   // Compute operations the scripted passes do not reach.
   {

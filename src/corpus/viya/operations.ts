@@ -631,6 +631,25 @@ export const VIYA_CORPUS: ViyaCase[] = [
     }
   },
   {
+    route: 'POST /SASLogon/oauth/token',
+    step: 'auth/token-refresh',
+    queries: [],
+    statuses: [200],
+    expected: 200,
+    shape: {
+      access_token: 'string',
+      expires_in: 'number',
+      id_token: 'string',
+      jti: 'string',
+      refresh_expires_in: 'number',
+      refresh_revocable: 'boolean',
+      refresh_token: 'string',
+      revocable: 'boolean',
+      scope: 'string',
+      token_type: 'string'
+    }
+  },
+  {
     route: 'GET /types/types',
     step: 'files/create',
     queries: ['limit'],

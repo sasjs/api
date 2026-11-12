@@ -259,3 +259,41 @@ test('request query names are the union of the calls, like queries', () => {
     'a handler built from one row would omit a parameter with nothing marking it partial'
   )
 })
+
+test('a refusal carrying a body does not leave its error sketch on the success', () => {
+  // the status and the shape come from the same observed answer: taking them
+  // from different rows documents a 201 that answers `{ errorCode, message }`
+  const refused = operationsOf({
+    steps: [
+      {
+        step: 'files/create',
+        request: { method: 'POST', path: '/files/files' },
+        response: {
+          status: 401,
+          body: JSON.stringify({ errorCode: 401, message: 'denied' })
+        }
+      }
+    ]
+  })
+
+  const created = operationsOf({
+    steps: [
+      {
+        step: 'files/create',
+        request: { method: 'POST', path: '/files/files' },
+        response: {
+          status: 201,
+          body: JSON.stringify({ id: 'the-file', name: 'capture.txt' })
+        }
+      }
+    ]
+  })
+
+  for (const merged of [
+    mergeOperations([refused, created]),
+    mergeOperations([created, refused])
+  ]) {
+    assert.equal(merged[0].expected, 201)
+    assert.deepEqual(merged[0].shape, { id: 'string', name: 'string' })
+  }
+})

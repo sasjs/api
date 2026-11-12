@@ -17,6 +17,25 @@
  * a reason is the honest form, and the table states it.
  */
 
+/**
+ * Whether one observed row describes the operation better than another.
+ *
+ * A success beats a refusal, because a refusal in the middle of a pass is a fact
+ * about that run. Two successes are equal on status, so the one carrying a body
+ * wins - the shape is the part a host has to reproduce.
+ */
+const isBetterRow = (current, candidate) => {
+  if (candidate.expected === undefined) return false
+  if (current.expected === undefined) return true
+
+  const currentSuccess = isSuccess(current.expected)
+  const candidateSuccess = isSuccess(candidate.expected)
+
+  if (candidateSuccess !== currentSuccess) return candidateSuccess
+
+  return current.shape === undefined && candidate.shape !== undefined
+}
+
 /** Whether a status is one the client treats as a successful answer. */
 const isSuccess = (status) =>
   typeof status === 'number' && status >= 200 && status < 300
@@ -333,18 +352,13 @@ export const mergeOperations = (operationLists) => {
         ...new Set([...existing.queries, ...operation.queries])
       ].sort()
 
-      // the shape and the status are chosen independently: a run that recorded
-      // no body still has a status worth keeping, and a run with a body has a
-      // shape worth keeping whatever its status was
-      if (
-        (existing.expected === undefined ||
-          (!isSuccess(existing.expected) && isSuccess(operation.expected))) &&
-        operation.expected !== undefined
-      )
+      // the status and the shape are one fact about one answer, so they are
+      // chosen together: taking a success from one row and an error sketch from
+      // another would document a 201 that answers `{ errorCode, message }`
+      if (isBetterRow(existing, operation)) {
         existing.expected = operation.expected
-
-      if (existing.shape === undefined && operation.shape !== undefined)
         existing.shape = operation.shape
+      }
 
       // `request` is one observed call, but its query names are unioned like
       // `queries` above: a handler built from it would otherwise omit a

@@ -123,3 +123,17 @@ test('a division is not a regex, and a regex in a class keeps its slashes', () =
 
   assert.deepEqual(literals.sort(), ['/folders/folders', '/types/types'])
 })
+
+test('a regex after return or a closing bracket is a regex', () => {
+  // `return /\/\//` and `if (x) /…)` are the two shapes an adapter's
+  // URL-normalising code most often uses, and neither is precedable by a
+  // character in the operator set
+  const literals = literalsIn(
+    [
+      "function f(u) { return /\\/\\//.test(u) }; const p = '/files/files'",
+      "if (u) /\\/\\//.test(u); const q = '/folders/folders'"
+    ].join('\n')
+  )
+
+  assert.deepEqual(literals.sort(), ['/files/files', '/folders/folders'])
+})

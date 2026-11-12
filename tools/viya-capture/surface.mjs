@@ -60,9 +60,11 @@ export const normalise = (literal) => {
  * thing.
  *
  * The scan tracks quote state so a `//` inside a string - `'https://host/x'` -
- * does not begin a comment. Regex literals are not tracked: a pattern containing
- * a quote is exotic in a tsc build, and the cost of getting it wrong is a missed
- * literal, not an invented one.
+ * does not begin a comment, and it knows a regex literal when it sees one, so
+ * `/https?:\/\//` is not mistaken for one either. The regex decision is the
+ * usual heuristic - the previous character or keyword - so the residual limit is
+ * a regex in a position neither predicts; the cost there is a missed literal,
+ * not an invented one.
  */
 /**
  * The characters after which a `/` opens a regex literal rather than dividing.
@@ -73,7 +75,24 @@ export const normalise = (literal) => {
  * silently, which in a scope guard is the under-report the guard exists to
  * prevent.
  */
+const REGEX_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'instanceof',
+  'case',
+  'in',
+  'of',
+  'delete',
+  'void',
+  'new',
+  'do',
+  'else',
+  'yield',
+  'await'
+])
+
 const REGEX_PRECEDERS = new Set([
+  ')',
   '(',
   ',',
   '=',
@@ -101,6 +120,9 @@ export const stripComments = (source) => {
   let index = 0
   /** The last character that was code rather than whitespace or a comment. */
   let previous = ''
+  /** The word being built, and the last complete one - `return /x/` is a regex. */
+  let word = ''
+  let lastWord = ''
 
   while (index < source.length) {
     const character = source[index]
@@ -108,7 +130,9 @@ export const stripComments = (source) => {
 
     const opensRegex =
       character === '/' &&
-      (previous === '' || REGEX_PRECEDERS.has(previous)) &&
+      (previous === '' ||
+        REGEX_PRECEDERS.has(previous) ||
+        REGEX_KEYWORDS.has(word || lastWord)) &&
       next !== '/' &&
       next !== '*'
 
@@ -193,6 +217,12 @@ export const stripComments = (source) => {
     index += 1
 
     if (!/\s/.test(character)) previous = character
+
+    if (/[A-Za-z0-9_$]/.test(character)) word += character
+    else {
+      if (word) lastWord = word
+      word = ''
+    }
   }
 
   return code

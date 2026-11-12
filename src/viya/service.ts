@@ -17,6 +17,7 @@ import type { ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
 import { COMPUTE_HANDLERS } from './compute.js'
+import { FILE_HANDLERS } from './files.js'
 
 import { idFor, EMULATED_NOW, EMULATED_USER } from './ids.js'
 
@@ -387,5 +388,7 @@ export const VIYA_HANDLERS: Record<
     return { status: 200, body: await folderBody(drive, target) }
   },
 
-  ...COMPUTE_HANDLERS
+  ...COMPUTE_HANDLERS,
+
+  ...FILE_HANDLERS
 }

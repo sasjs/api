@@ -72,16 +72,21 @@ describe('the Viya dispatch', () => {
   })
 
   it('stamps it on a 501, and says why', async () => {
-    // the file family is the one the overlay still declines, so it is what a
-    // refusal looks like at this point in the build
-    const answer = await dispatchViya(services(), 'POST', '/files/files', {
-      body: {}
-    })
+    // the token endpoint is the one operation the overlay still declines: the
+    // host that mounts the emulator owns the token port
+    const answer = await dispatchViya(
+      services(),
+      'POST',
+      '/SASLogon/oauth/token',
+      {
+        body: {}
+      }
+    )
 
     expect(answer.status).toBe(501)
     expect(answer.headers).toEqual(header)
     expect(String((answer.body as { message: string }).message)).toMatch(
-      /file/i
+      /host/i
     )
   })
 

@@ -204,6 +204,11 @@ describe('the answers and the shapes the captures recorded', () => {
     // when a handler is added without one
     const covered = [
       'DELETE /compute/sessions/{}',
+      'GET /files/files/{}',
+      'GET /files/files/{}/content',
+      'PATCH /files/files/{}',
+      'POST /files/files',
+      'PUT /files/files/{}/content',
       'GET /compute/contexts',
       'GET /compute/sessions/{}/jobs/{}',
       'GET /compute/sessions/{}/jobs/{}/log/content',
@@ -324,6 +329,68 @@ describe('the compute answers, against their captured shapes', () => {
       shapeOfRow('GET /compute/sessions/{}/jobs/{}/log/content'),
       answer.body,
       'log'
+    )
+  })
+})
+
+/**
+ * The file family, held to its rows.
+ *
+ * Three of the five carry the same recorded file body, so one upload is enough to
+ * check them - and the content route records no shape, because its body is
+ * whatever the file holds.
+ */
+describe('the file answers, against their captured shapes', () => {
+  const uploaded = async () => {
+    const shared = services()
+    const folder = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' }
+    })
+
+    const answer = await dispatchViya(shared, 'POST', '/files/files', {
+      query: { parentFolderUri: (folder.body as { id: string }).id },
+      file: { name: 'program.sas', contents: 'data a; run;' }
+    })
+
+    return { shared, answer, id: (answer.body as { id: string }).id }
+  }
+
+  it('answers an upload with every recorded key', async () => {
+    const { answer } = await uploaded()
+
+    assertShape(shapeOfRow('POST /files/files'), answer.body, 'upload')
+  })
+
+  it('answers a file read back with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(shared, 'GET', `/files/files/${id}`)
+
+    assertShape(shapeOfRow('GET /files/files/{}'), answer.body, 'file')
+  })
+
+  it('answers a rename with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(shared, 'PATCH', `/files/files/${id}`, {
+      body: { name: 'renamed.sas' }
+    })
+
+    assertShape(shapeOfRow('PATCH /files/files/{}'), answer.body, 'rename')
+  })
+
+  it('answers a replace with every recorded key', async () => {
+    const { shared, id } = await uploaded()
+    const answer = await dispatchViya(
+      shared,
+      'PUT',
+      `/files/files/${id}/content`,
+      { file: { name: 'program.sas', contents: 'data b; run;' } }
+    )
+
+    assertShape(
+      shapeOfRow('PUT /files/files/{}/content'),
+      answer.body,
+      'replace'
     )
   })
 })

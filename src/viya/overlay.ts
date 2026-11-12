@@ -20,16 +20,6 @@ export interface ViyaOverlayEntry {
 }
 
 /**
- * The reason the file family carries.
- *
- * Uploading and replacing content needs the file content routes, which this
- * slice does not mount. Saying it once is better than saying it five times in
- * slightly different words.
- */
-const NEEDS_FILES =
-  'The emulated estate answers folders, identities, types and compute today. This operation needs the file content routes, which the host mounting the emulator has not supplied.'
-
-/**
  * The token endpoint is the host's.
  *
  * A host that mounts the emulator owns the token port - it is the thing that
@@ -59,11 +49,11 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'GET /compute/sessions/{}/jobs/{}/log/content': { implemented: true },
   'GET /compute/sessions/{}/jobs/{}/state': { implemented: true },
   'GET /compute/sessions/{}/state': { implemented: true },
-  'POST /files/files': { implemented: false, reason: NEEDS_FILES },
-  'GET /files/files/{}': { implemented: false, reason: NEEDS_FILES },
-  'PATCH /files/files/{}': { implemented: false, reason: NEEDS_FILES },
-  'GET /files/files/{}/content': { implemented: false, reason: NEEDS_FILES },
-  'PUT /files/files/{}/content': { implemented: false, reason: NEEDS_FILES },
+  'POST /files/files': { implemented: true },
+  'GET /files/files/{}': { implemented: true },
+  'PATCH /files/files/{}': { implemented: true },
+  'GET /files/files/{}/content': { implemented: true },
+  'PUT /files/files/{}/content': { implemented: true },
 
   // declined: the host owns the token port
   'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH }

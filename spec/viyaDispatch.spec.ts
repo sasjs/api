@@ -72,12 +72,16 @@ describe('the Viya dispatch', () => {
   })
 
   it('stamps it on a 501, and says why', async () => {
-    const answer = await dispatchViya(services(), 'GET', '/compute/contexts')
+    // the file family is the one the overlay still declines, so it is what a
+    // refusal looks like at this point in the build
+    const answer = await dispatchViya(services(), 'POST', '/files/files', {
+      body: {}
+    })
 
     expect(answer.status).toBe(501)
     expect(answer.headers).toEqual(header)
     expect(String((answer.body as { message: string }).message)).toMatch(
-      /compute/i
+      /file/i
     )
   })
 

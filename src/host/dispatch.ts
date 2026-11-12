@@ -17,6 +17,7 @@ import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
 import type { RecordService } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
+import type { ViyaSeedSettings } from '../viya/seed.js'
 import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamService } from '../appstream/service.js'
 import { appSummary, checkPublishRequest } from '../appstream/service.js'
@@ -129,6 +130,15 @@ export interface Services {
    * answers 501 for these four, naming the capability.
    */
   session?: SessionService
+  /**
+   * The emulated Viya estate this host mounts, when it mounts one.
+   *
+   * Absent, the emulated answers fall back to one shared seed. The address is what
+   * identifies an estate, so `serverUrl` is the seed unless `seed` overrides it -
+   * which a host does when the port moves between runs or the estate answers on a
+   * second hostname.
+   */
+  viya?: ViyaSeedSettings
   /**
    * The execute and trigger routes, over the host's runner. Absent, they answer
    * 501: the package can decide everything about a run except performing it.

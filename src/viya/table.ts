@@ -296,7 +296,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     request: {
       queries: ['parentFolderUri', 'typeDefName'],
       body: {
-        multipart: ['capture-1794487247183.txt', 'file']
+        multipart: ['file']
       }
     },
     shape: {

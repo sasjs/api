@@ -124,7 +124,11 @@ const requestShape = (entry) => {
   }
 
   if (contentType.includes('multipart/form-data')) {
-    const names = [...trimmed.matchAll(/name="([^"]+)"/g)].map(
+    // anchored on the disposition parameter: a bare `name="..."` also matches
+    // the `name=` inside `filename="..."`, which would put an uploaded file's
+    // own name - a value, with the run's timestamp in it - into the table as a
+    // part the client never sends
+    const names = [...trimmed.matchAll(/(?:^|;\s*)name="([^"]+)"/g)].map(
       (match) => match[1]
     )
 

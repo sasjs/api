@@ -341,6 +341,9 @@ test('a multipart body is recorded as its part names', () => {
             'Content-Disposition: form-data; name="grant_type"\r\n\r\n' +
             'refresh_token\r\n' +
             '----------------------------1234\r\n' +
+            'Content-Disposition: form-data; name="file"; filename="capture-1794.txt"\r\n\r\n' +
+            'contents\r\n' +
+            '----------------------------1234\r\n' +
             'Content-Disposition: form-data; name="refresh_token"\r\n\r\n' +
             'abc\r\n' +
             '----------------------------1234--'
@@ -351,6 +354,11 @@ test('a multipart body is recorded as its part names', () => {
   })
 
   assert.deepEqual(operation.request.body, {
-    multipart: ['grant_type', 'refresh_token']
+    multipart: ['file', 'grant_type', 'refresh_token']
   })
+  assert.equal(
+    JSON.stringify(operation).includes('capture-1794.txt'),
+    false,
+    'a part filename is a value: the uploaded file name never reaches the table'
+  )
 })

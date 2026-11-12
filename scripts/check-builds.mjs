@@ -6,14 +6,12 @@
  * the browser bundle, because that artefact is a classic-worker IIFE rather
  * than a module.
  *
- * The count is compared BETWEEN the artifacts, not against a number written in
- * this file. It was compared against a literal, and the literal became wrong:
- * the table grew to 62 operations in #78, both node jobs failed
- * `All three builds load` on every pull request after it, and nothing in the
- * diff of those pull requests could explain it. A count that has to be edited
- * whenever an operation is added is a fuse on the wrong circuit - what matters
- * is that a full build of the package and a bundle of it agree, and that the
- * bundle still exports what a host calls.
+ * They are compared as SETS OF OPERATION IDS, not as counts and not against a
+ * literal. A count was wrong in both directions: it went stale when the table
+ * grew to 62 in #78 and reddened `main` for a day, and a bundle carrying 62
+ * different operations under the same length still passed. An id is
+ * `METHOD /path`, so a stale or partly tree-shaken bundle names the operations
+ * it lost, which is what this step exists to catch.
  */
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
@@ -26,39 +24,101 @@ const require = createRequire(import.meta.url)
 
 const problems = []
 
-/** Every artifact must expose a non-empty table and the service factories. */
+/**
+ * Every artifact must expose a non-empty table and the service factories.
+ * Returns the operation ids, or undefined when the artifact is unusable.
+ */
 const inspect = (name, api) => {
-  if (!api) return problems.push(`${name}: nothing exported`)
+  if (!api) {
+    problems.push(`${name}: nothing exported`)
+    return undefined
+  }
 
-  const count = api.ROUTES?.length
+  const ids = (api.ROUTES ?? []).map((route) => route.id)
 
-  if (!count) problems.push(`${name}: ROUTES is empty or missing`)
+  if (!ids.length) {
+    problems.push(`${name}: ROUTES is empty or missing`)
+    return undefined
+  }
+
+  if (ids.some((id) => typeof id !== 'string')) {
+    problems.push(
+      `${name}: a route carries no id, so its operations cannot be compared`
+    )
+    return undefined
+  }
 
   for (const factory of ['createDriveService', 'createIdentityService'])
     if (typeof api[factory] !== 'function')
       problems.push(`${name}: ${factory} is not a function`)
 
-  return count
+  return ids
 }
 
-const cjs = inspect('cjs', require(join(root, 'build/cjs/index.js')))
-const esm = inspect('esm', await import(join(root, 'build/esm/index.js')))
+/**
+ * Loading is part of the check: a build that throws on load - a missing
+ * dependency, a bundle truncated under `vm` - is reported with the artifact's
+ * name, rather than as a stack trace before any finding is printed.
+ */
+const load = async (name, loader) => {
+  try {
+    return inspect(name, await loader())
+  } catch (error) {
+    problems.push(
+      `${name}: threw while loading - ${String(error?.message ?? error)}`
+    )
+    return undefined
+  }
+}
 
-const context = { self: {} }
-vm.createContext(context)
-vm.runInContext(readFileSync(join(root, 'build/browser.js'), 'utf8'), context)
-const browser = inspect('browser', context.self.SASjsApi)
+const cjs = await load('cjs', () => require(join(root, 'build/cjs/index.js')))
+const esm = await load('esm', () => import(join(root, 'build/esm/index.js')))
 
-if (cjs && esm && browser && new Set([cjs, esm, browser]).size !== 1)
-  problems.push(
-    `the artifacts disagree: cjs ${cjs}, esm ${esm}, browser ${browser} operations`
-  )
+const browser = await load('browser', () => {
+  const context = { self: {} }
+  vm.createContext(context)
+  vm.runInContext(readFileSync(join(root, 'build/browser.js'), 'utf8'), context)
+
+  return context.self.SASjsApi
+})
+
+/** The first few, with a count, so a fully stale bundle stays readable. */
+const list = (ids) =>
+  ids.length <= 6
+    ? ids.join(', ')
+    : `${ids.slice(0, 6).join(', ')}, and ${ids.length - 6} more`
+
+/** Each artifact against the CJS build, in both directions. */
+if (cjs) {
+  const reference = new Set(cjs)
+
+  for (const [name, ids] of [
+    ['esm', esm],
+    ['browser', browser]
+  ]) {
+    if (!ids) continue
+
+    const other = new Set(ids)
+    const missing = cjs.filter((id) => !other.has(id))
+    const extra = ids.filter((id) => !reference.has(id))
+
+    if (missing.length)
+      problems.push(`${name} is missing ${missing.length}: ${list(missing)}`)
+
+    if (extra.length)
+      problems.push(
+        `${name} carries ${extra.length} the cjs build does not: ${list(extra)}`
+      )
+  }
+}
 
 if (problems.length) {
   console.error(
-    `The builds do not agree.\n${problems.map((p) => `  - ${p}`).join('\n')}`
+    `The builds do not agree.\n${problems.map((problem) => `  - ${problem}`).join('\n')}`
   )
   process.exit(1)
 }
 
-console.log(`all three builds load, and carry the same ${cjs} operations`)
+console.log(
+  `all three builds load, and describe the same ${cjs.length} operations`
+)

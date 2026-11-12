@@ -97,6 +97,52 @@ export const shapeOf = (value, depth = 0) => {
   )
 }
 
+/**
+ * The shape of the body the client sent.
+ *
+ * Three encodings reach a Viya endpoint and each says something different about
+ * what the call carries. A JSON body is a type sketch. A urlencoded body is its
+ * parameter names, the way a query is - values are estate data. A multipart body
+ * is the part names from its `name="..."` headers, which is how the adapter
+ * posts a refresh. Anything else is undefined, and the table says so rather than
+ * claiming the client sent nothing.
+ */
+const requestShape = (entry) => {
+  const body = entry.request?.body
+
+  if (typeof body !== 'string' || !body.trim()) return undefined
+
+  const trimmed = body.trim()
+  const contentType = String(entry.request?.headers?.['content-type'] ?? '')
+
+  if (trimmed.startsWith('{')) {
+    try {
+      return shapeOf(JSON.parse(trimmed))
+    } catch {
+      return undefined
+    }
+  }
+
+  if (contentType.includes('multipart/form-data')) {
+    const names = [...trimmed.matchAll(/name="([^"]+)"/g)].map(
+      (match) => match[1]
+    )
+
+    return names.length ? { multipart: [...new Set(names)].sort() } : undefined
+  }
+
+  if (/^[^=&\s]+=[^&]*(&[^=&\s]+=[^&]*)*$/.test(trimmed))
+    return {
+      form: trimmed
+        .split('&')
+        .map((pair) => pair.split('=')[0])
+        .filter(Boolean)
+        .sort()
+    }
+
+  return undefined
+}
+
 /** A JSON body, when the response carried one. */
 const bodyShape = (entry) => {
   const body = entry.response?.body
@@ -174,11 +220,7 @@ export const operationsOf = (capture) => {
         shape: bodyShape(entry)
       }
       operation.expected = entry.response?.status
-      operation.requestBody =
-        typeof entry.request.body === 'string' &&
-        entry.request.body.trim().startsWith('{')
-          ? shapeOf(JSON.parse(entry.request.body))
-          : undefined
+      operation.requestBody = requestShape(entry)
     }
   }
 
@@ -263,7 +305,11 @@ export interface ViyaOperation {
   statuses: number[]
   /** Query parameter names the client sent. Values are estate data. */
   queries: string[]
-  /** The request the client built: its query names, and its body's shape. */
+  /**
+   * The request the client built: its query names, and its body's shape - a
+   * type sketch for JSON, parameter names for a form or multipart body, and
+   * undefined only where nothing could be read.
+   */
   request?: { queries: string[]; body?: unknown }
   /** The body shape of the answer a client keys on. */
   shape?: unknown

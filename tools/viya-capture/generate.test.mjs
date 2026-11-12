@@ -297,3 +297,60 @@ test('a refusal carrying a body does not leave its error sketch on the success',
     assert.deepEqual(merged[0].shape, { id: 'string', name: 'string' })
   }
 })
+
+test('a form body is recorded as its parameter names, not as no body', () => {
+  const [operation] = operationsOf({
+    steps: [
+      {
+        step: 'auth/token-refresh',
+        request: {
+          method: 'POST',
+          path: '/SASLogon/oauth/token',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'grant_type=refresh_token&refresh_token=the-secret-value'
+        },
+        response: { status: 200, body: JSON.stringify({ access_token: 'x' }) }
+      }
+    ]
+  })
+
+  assert.deepEqual(operation.request.body, {
+    form: ['grant_type', 'refresh_token']
+  })
+  assert.equal(
+    JSON.stringify(operation).includes('the-secret-value'),
+    false,
+    'a parameter value is estate data'
+  )
+})
+
+test('a multipart body is recorded as its part names', () => {
+  const [operation] = operationsOf({
+    steps: [
+      {
+        step: 'auth/token-refresh',
+        request: {
+          method: 'POST',
+          path: '/SASLogon/oauth/token',
+          headers: {
+            'content-type':
+              'multipart/form-data; boundary=--------------------------1234'
+          },
+          body:
+            '----------------------------1234\r\n' +
+            'Content-Disposition: form-data; name="grant_type"\r\n\r\n' +
+            'refresh_token\r\n' +
+            '----------------------------1234\r\n' +
+            'Content-Disposition: form-data; name="refresh_token"\r\n\r\n' +
+            'abc\r\n' +
+            '----------------------------1234--'
+        },
+        response: { status: 200, body: JSON.stringify({ access_token: 'x' }) }
+      }
+    ]
+  })
+
+  assert.deepEqual(operation.request.body, {
+    multipart: ['grant_type', 'refresh_token']
+  })
+})

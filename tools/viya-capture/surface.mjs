@@ -92,7 +92,6 @@ const REGEX_KEYWORDS = new Set([
 ])
 
 const REGEX_PRECEDERS = new Set([
-  ')',
   '(',
   ',',
   '=',
@@ -123,6 +122,17 @@ export const stripComments = (source) => {
   /** The word being built, and the last complete one - `return /x/` is a regex. */
   let word = ''
   let lastWord = ''
+  /**
+   * Whether the bracket just closed was an `if`/`while`/`for` condition.
+   *
+   * `if (x) /re/.test(y)` is a regex, and `(a + b) / 2` is a division - the
+   * character `)` cannot tell them apart, and treating every `)` as a regex
+   * opener turns the `// comment` after a division into code. That direction is
+   * the worse one for a guard: it INVENTS a literal, and check:scope then
+   * demands a path the client never asks for.
+   */
+  let parenAllowsRegex = false
+  const parens = []
 
   while (index < source.length) {
     const character = source[index]
@@ -132,7 +142,8 @@ export const stripComments = (source) => {
       character === '/' &&
       (previous === '' ||
         REGEX_PRECEDERS.has(previous) ||
-        REGEX_KEYWORDS.has(word || lastWord)) &&
+        REGEX_KEYWORDS.has(word || lastWord) ||
+        (previous === ')' && parenAllowsRegex)) &&
       next !== '/' &&
       next !== '*'
 
@@ -223,6 +234,13 @@ export const stripComments = (source) => {
       if (word) lastWord = word
       word = ''
     }
+
+    if (character === '(') {
+      parens.push(lastWord.toLowerCase())
+      parenAllowsRegex = false
+    } else if (character === ')')
+      parenAllowsRegex = ['if', 'while', 'for'].includes(parens.pop() ?? '')
+    else if (!/\s/.test(character)) parenAllowsRegex = false
   }
 
   return code

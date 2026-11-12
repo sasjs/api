@@ -634,7 +634,7 @@ export const VIYA_CORPUS: ViyaCase[] = [
     route: 'POST /SASLogon/oauth/token',
     step: 'auth/token-refresh',
     queries: [],
-    statuses: [200],
+    statuses: [200, 401],
     expected: 200,
     shape: {
       access_token: 'string',

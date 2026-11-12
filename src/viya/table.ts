@@ -25,7 +25,11 @@ export interface ViyaOperation {
   statuses: number[]
   /** Query parameter names the client sent. Values are estate data. */
   queries: string[]
-  /** The request the client built: its query names, and its body's shape. */
+  /**
+   * The request the client built: its query names, and its body's shape - a
+   * type sketch for JSON, parameter names for a form or multipart body, and
+   * undefined only where nothing could be read.
+   */
   request?: { queries: string[]; body?: unknown }
   /** The body shape of the answer a client keys on. */
   shape?: unknown
@@ -291,7 +295,9 @@ export const VIYA_TABLE: ViyaOperation[] = [
     queries: ['parentFolderUri', 'typeDefName'],
     request: {
       queries: ['parentFolderUri', 'typeDefName'],
-      body: undefined
+      body: {
+        multipart: ['capture-1794487247183.txt', 'file']
+      }
     },
     shape: {
       contentDisposition: 'string',
@@ -783,12 +789,14 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'POST /SASLogon/oauth/token',
     method: 'POST',
     path: '/SASLogon/oauth/token',
-    steps: ['auth/token-refresh'],
-    statuses: [200],
+    steps: ['auth/token-refresh', 'auth/token-refresh-refused'],
+    statuses: [200, 401],
     queries: [],
     request: {
       queries: [],
-      body: undefined
+      body: {
+        multipart: ['grant_type', 'refresh_token']
+      }
     },
     shape: {
       access_token: 'string',

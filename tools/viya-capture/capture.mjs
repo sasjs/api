@@ -288,33 +288,6 @@ const client = sasjs.sasViyaApiClient
 const basicAuth = (clientId, clientSecret) =>
   'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
-/**
- * The refresh grant, as the adapter performs it.
- *
- * Not client credentials: nothing in `@sasjs/cli` or `@sasjs/adapter` asks for
- * that grant. The CLI's `sasjs auth` obtains an authorization code with a
- * registered client and secret, `sasjs auth login` uses the password grant, and
- * the adapter refreshes with whatever client it was configured with - falling
- * back to the secret-less `sas.cli` public client (`getTokens.ts`), which is
- * what a token minted by `auth login` carries. So that is the refresh recorded
- * here: `sas.cli` with an empty secret and the refresh token the run was given.
- */
-if (REFRESH_TOKEN) {
-  await runStep('auth/token-refresh', () =>
-    requestClient.post(
-      '/SASLogon/oauth/token',
-      'grant_type=refresh_token&refresh_token=' +
-        encodeURIComponent(REFRESH_TOKEN),
-      undefined,
-      'application/x-www-form-urlencoded',
-      {
-        Authorization: basicAuth('sas.cli', ''),
-        Accept: 'application/json'
-      }
-    )
-  )
-}
-
 await runStep('identities/current-user', () =>
   requestClient.get('/identities/users/@currentUser', TOKEN)
 )
@@ -391,6 +364,27 @@ if (ALLOW_EXECUTE && CONTEXT) {
     version
       ? `  version: ${version.trim()}`
       : '  version: not in the log, the execute step did not return one'
+  )
+}
+
+/**
+ * The refresh grant, through the adapter's own method.
+ *
+ * Not a hand-built request: `refreshTokens` posts `multipart/form-data` with a
+ * boundary, and a recorder that transcribed the call as urlencoded would store a
+ * framing the client never sends. Calling the client is the whole premise here.
+ *
+ * Last, because a refresh rotates the pair: every step that needs the token this
+ * run was given has to run before it. The refusal is recorded too - a revoked or
+ * expired refresh token is the answer the emulator has no shape for otherwise.
+ */
+if (REFRESH_TOKEN) {
+  await runStep('auth/token-refresh', () =>
+    client.refreshTokens('sas.cli', '', REFRESH_TOKEN)
+  )
+
+  await runStep('auth/token-refresh-refused', () =>
+    client.refreshTokens('sas.cli', '', `${REFRESH_TOKEN}-revoked`)
   )
 }
 

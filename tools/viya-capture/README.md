@@ -23,7 +23,7 @@ Add these when you have them:
 | `VIYA_APP_LOC`                         | records the folder item and its members                                                      |
 | `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it; submits `%put &=sysvlong;` and reads the log |
 | `VIYA_ALLOW_WRITES=1`                  | creates and deletes one folder under `VIYA_APP_LOC`                                          |
-| `VIYA_ALLOW_FILES=1`                   | creates, reads and replaces one file in that folder, then removes it                         |
+| `VIYA_ALLOW_FILES=1`                   | creates its own folder, then creates, reads and replaces one file in it                      |
 | `VIYA_TLS_RELAX=1`                     | accepts a self-signed certificate                                                            |
 | `CAPTURE_PORT`                         | local proxy port, default 8899                                                               |
 
@@ -59,6 +59,7 @@ Two suites run under `node --test`: the scrubber, and the calls themselves again
 ## What it does not do
 
 - It does not create, modify or delete anything outside the folder names it generates, and it deletes those.
+- It leaves no compute session behind: the execute step removes the session the adapter opens, because `expectWebout: false` makes the adapter return before its own `clearSession`.
 - It does not need the CLI, a browser, or a project checkout.
 - It does not record request or response bodies in full: bodies are capped at 24 KB and are redacted.
 - It does not commit anything. `capture/` and `node_modules/` are ignored, so a capture is a file to send back, never a file to push.

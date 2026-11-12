@@ -129,15 +129,27 @@ test('the file family creates, reads and replaces, in that order', async () => {
     calls.map((call) => call.name),
     ['createFile', 'getFileContent', 'updateFileContent']
   )
-  assert.deepEqual(calls[0].args.slice(0, 2), [
+  assert.deepEqual(calls[0].args, [
     'capture-1.txt',
-    Buffer.from('written by the viya-capture pass\n', 'utf8')
+    Buffer.from('written by the viya-capture pass\n', 'utf8'),
+    '/Public/app/capture-1',
+    undefined,
+    'the-token'
   ])
-  assert.equal(calls[0].args[2], '/Public/app/capture-1')
-  assert.equal(
-    calls[1].args.length,
-    3,
-    'getFileContent takes (folderPath, fileName, token)'
+  assert.deepEqual(
+    calls[1].args,
+    ['/Public/app/capture-1', 'capture-1.txt', 'the-token'],
+    'getFileContent takes (folderPath, fileName, token) - the two strings swap silently'
+  )
+  assert.deepEqual(
+    calls[2].args,
+    [
+      '/Public/app/capture-1',
+      'capture-1.txt',
+      'replaced by the viya-capture pass\n',
+      'the-token'
+    ],
+    'updateFileContent takes (folderPath, fileName, content, token) - content and token swap silently'
   )
 })
 
@@ -191,14 +203,16 @@ test('the execute family hands the adapter an auth config, not a bare token', as
   const { client, calls } = fakeClient({
     executeScript: async () => ({ log: 'SYSVLONG=V.04.00M0P100526' })
   })
-  const { runStep } = recorder()
+  const { runStep, runCleanup } = recorder()
   const authConfig = { access_token: 'a', refresh_token: 'b' }
 
   const result = await executePass({
     client,
+    requestClient: { delete: async () => ({}) },
     authConfig,
     contextName: 'Compute Reusable',
-    runStep
+    runStep,
+    runCleanup
   })
 
   assert.equal(calls[0].name, 'executeScript')
@@ -263,4 +277,73 @@ test('a created folder is filled, then removed, in one pass', async () => {
     'folders/delete'
   ])
   assert.deepEqual(cleanups, ['files/cleanup'])
+})
+
+test('the session the adapter leaves open is removed, through the job up link', async () => {
+  const { client } = fakeClient({
+    executeScript: async () => ({
+      log: 'SYSVLONG=V.04.00M0P100526',
+      job: {
+        id: 'the-job',
+        links: [{ rel: 'up', href: '/compute/sessions/the-session' }]
+      }
+    })
+  })
+  const { cleanups, runStep, runCleanup } = recorder()
+  const deleted = []
+
+  await executePass({
+    client,
+    requestClient: {
+      delete: async (uri, token) => {
+        deleted.push([uri, token])
+
+        return {}
+      }
+    },
+    authConfig: { access_token: 'the-token' },
+    contextName: 'Compute Reusable',
+    runStep,
+    runCleanup
+  })
+
+  assert.deepEqual(deleted, [['/compute/sessions/the-session', 'the-token']])
+  assert.deepEqual(
+    cleanups,
+    ['compute/session-cleanup'],
+    'the session delete is a cleanup, not a contract row'
+  )
+})
+
+test('a rotated token is the one that closes the session', async () => {
+  const { client } = fakeClient({
+    executeScript: async (...args) => {
+      const onTokensRefreshed = args[args.length - 1]
+      onTokensRefreshed({ access_token: 'the-rotated-token' })
+
+      return {
+        log: '',
+        job: { links: [{ rel: 'up', href: '/compute/sessions/the-session' }] }
+      }
+    }
+  })
+  const { runStep, runCleanup } = recorder()
+  const deleted = []
+
+  await executePass({
+    client,
+    requestClient: {
+      delete: async (uri, token) => {
+        deleted.push(token)
+
+        return {}
+      }
+    },
+    authConfig: { access_token: 'the-token', refresh_token: 'r' },
+    contextName: 'Compute Reusable',
+    runStep,
+    runCleanup
+  })
+
+  assert.deepEqual(deleted, ['the-rotated-token'])
 })

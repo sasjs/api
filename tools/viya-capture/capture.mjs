@@ -394,12 +394,14 @@ if (ALLOW_WRITES || ALLOW_FILES) {
 if (ALLOW_EXECUTE && CONTEXT) {
   const executed = await executePass({
     client,
+    requestClient,
     authConfig: {
       access_token: TOKEN,
       ...(REFRESH_TOKEN ? { refresh_token: REFRESH_TOKEN } : {})
     },
     contextName: CONTEXT,
-    runStep
+    runStep,
+    runCleanup
   })
 
   // the version the capture was taken against, said out loud rather than

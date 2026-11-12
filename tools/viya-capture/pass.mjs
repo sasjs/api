@@ -71,14 +71,26 @@ export const removeFolder = async ({ client, token, folderPath, runStep }) => {
  * find out what the program said. `%put &=sysvlong;` is the line this pass
  * produces beyond the request shapes: it names the version the capture
  * describes, which is what `VIYA_TARGET_VERSION` is pinned to.
+ *
+ * With `expectWebout` false the adapter returns `{ job, log }` before its own
+ * `clearSession`, so the session it opened is still running. The job's `up`
+ * link names it, and the pass removes it: a recorder that leaves a compute
+ * session behind on someone's estate is not a read-only tool with an opt-in
+ * extra step, it is a leak.
  */
 export const executePass = async ({
   client,
+  requestClient,
   authConfig,
   contextName,
-  runStep
+  runStep,
+  runCleanup
 }) => {
-  return await runStep('compute/execute-script', () =>
+  // the refresh the adapter performs rotates the pair, so the token that opened
+  // the session is not necessarily the one that closes it
+  let token = authConfig?.access_token
+
+  const result = await runStep('compute/execute-script', () =>
     client.executeScript(
       'capture',
       ['%put &=sysvlong;'],
@@ -87,9 +99,24 @@ export const executePass = async ({
       null,
       true,
       false,
-      true
+      true,
+      undefined,
+      false,
+      undefined,
+      (refreshed) => {
+        token = refreshed.access_token
+      }
     )
   )
+
+  const sessionUri = result?.job?.links?.find((link) => link.rel === 'up')?.href
+
+  if (sessionUri)
+    await runCleanup('compute/session-cleanup', () =>
+      requestClient.delete(sessionUri, token)
+    )
+
+  return result
 }
 
 /**

@@ -274,9 +274,27 @@ export const VIYA_HANDLERS: Record<
 
   'GET /folders/folders/{}/members': async ({ services, params, request }) => {
     const drive = requireDrive(services)
+    const limit = Number(request.query?.limit ?? 0) || 0
+
+    // the bin is not a folder in the drive, and its own body advertises this
+    // link - so a client following the answer it just received must not 404
+    if (params.id === idFor('@myRecycleBin'))
+      return {
+        status: 200,
+        body: {
+          accept: 'application/json',
+          name: 'members',
+          start: 0,
+          limit: 0,
+          count: 0,
+          version: 2,
+          items: [],
+          links: linksFor(`/folders/folders/${idFor('@myRecycleBin')}`, true)
+        }
+      }
+
     const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
-    const limit = Number(request.query?.limit ?? 0) || 0
 
     const items = [
       ...listing.folders.map((name) => ({
@@ -357,6 +375,9 @@ export const VIYA_HANDLERS: Record<
 
   'PATCH /folders/folders/{}': async ({ services, request, params }) => {
     const drive = requireDrive(services)
+    if (params.id === idFor('@myRecycleBin'))
+      throw new ApiError(400, 'The recycle bin cannot be moved or renamed.')
+
     const path = await pathForId(drive, params.id)
     const body = (request.body ?? {}) as {
       name?: string
@@ -379,26 +400,24 @@ export const VIYA_HANDLERS: Record<
       }
     }
 
-    if (body.parentFolderUri) {
-      const parent = await pathForId(
-        drive,
-        body.parentFolderUri.split('/').pop() as string
-      )
-      const moved = `${parent}/${path.split('/').pop()}`
+    // a move and a rename can arrive together, and an empty parent means the
+    // root - the same value means the root on create, so reading it as "no
+    // change" here was a second meaning for one string
+    const name = body.name ?? path.split('/').pop()
+    const parent =
+      body.parentFolderUri === undefined
+        ? path.split('/').slice(0, -1).join('/') || '/'
+        : body.parentFolderUri === ''
+          ? '/'
+          : await pathForId(
+              drive,
+              body.parentFolderUri.split('/').pop() as string
+            )
 
-      await drive.rename(path, moved)
+    const target = `${parent}/${name}`.replace(/\/{2,}/g, '/')
 
-      return { status: 200, body: await folderBody(drive, moved) }
-    }
+    if (target !== path) await drive.rename(path, target)
 
-    if (body.name) {
-      const renamed = [...path.split('/').slice(0, -1), body.name].join('/')
-
-      await drive.rename(path, renamed)
-
-      return { status: 200, body: await folderBody(drive, renamed) }
-    }
-
-    return { status: 200, body: await folderBody(drive, path) }
+    return { status: 200, body: await folderBody(drive, target) }
   }
 }

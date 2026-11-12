@@ -35,7 +35,7 @@ const shapeOfRow = (id: string) =>
  */
 const assertShape = (shape: unknown, body: unknown, where: string): void => {
   if (shape === 'null') {
-    expect(`${where} is null`).toBe(`${where} is null`)
+    expect(`${where}: ${body === null}`).toBe(`${where}: true`)
 
     return
   }

@@ -159,7 +159,10 @@ export const dispatchViya = async (
 
     return {
       ...answer,
-      headers: { ...headers, ...(answer as ViyaResponse).headers }
+      // the emulated headers are spread LAST: they are the invariant this module
+      // exists to guarantee, so a handler cannot overwrite the stamp even by
+      // returning headers of its own
+      headers: { ...(answer as ViyaResponse).headers, ...headers }
     }
   } catch (error) {
     if (isApiError(error))

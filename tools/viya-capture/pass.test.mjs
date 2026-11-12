@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { filePass, folderNameFor, folderPass, removeFolder } from './pass.mjs'
+import {
+  executePass,
+  filePass,
+  folderNameFor,
+  folderPass,
+  removeFolder
+} from './pass.mjs'
 
 /**
  * A stand-in for the adapter's client that records how it was called.
@@ -29,7 +35,8 @@ const fakeClient = (overrides = {}) => {
       deleteFolder: record('deleteFolder'),
       createFile: record('createFile'),
       getFileContent: record('getFileContent'),
-      updateFileContent: record('updateFileContent')
+      updateFileContent: record('updateFileContent'),
+      executeScript: record('executeScript')
     }
   }
 }
@@ -176,4 +183,27 @@ test('the file delete is a cleanup, never a captured step', async () => {
 
   assert.deepEqual(cleanups, ['files/cleanup'])
   assert.deepEqual(steps, ['files/create', 'files/content', 'files/replace'])
+})
+
+test('the execute family hands the adapter an auth config, not a bare token', async () => {
+  const { client, calls } = fakeClient({
+    executeScript: async () => ({ log: 'SYSVLONG=V.04.00M0P100526' })
+  })
+  const { runStep } = recorder()
+  const authConfig = { access_token: 'a', refresh_token: 'b' }
+
+  const result = await executePass({
+    client,
+    authConfig,
+    contextName: 'Compute Reusable',
+    runStep
+  })
+
+  assert.equal(calls[0].name, 'executeScript')
+  // the fourth argument is the AuthConfig: a bare token in that slot is not an
+  // object the adapter reads, and the job goes out unauthenticated
+  assert.equal(calls[0].args[3], authConfig)
+  assert.equal(calls[0].args[2], 'Compute Reusable')
+  assert.equal(calls[0].args[5], true, 'debug on, so the log comes back')
+  assert.equal(result.log.includes('SYSVLONG'), true)
 })

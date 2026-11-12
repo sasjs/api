@@ -21,7 +21,7 @@ Add these when you have them:
 | `VIYA_REFRESH_TOKEN`                   | records the refresh grant                                                                   |
 | `VIYA_CONTEXT`                         | records the compute context lookup by name, and enables the session steps                   |
 | `VIYA_APP_LOC`                         | records the folder item and its members                                                     |
-| `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it                                              |
+| `VIYA_ALLOW_EXECUTE=1`                 | creates a session, reads its state, deletes it; submits `%put &=sysvlong;` and reads the log   |
 | `VIYA_ALLOW_WRITES=1`                  | creates and deletes one folder under `VIYA_APP_LOC`                                         |
 | `VIYA_ALLOW_FILES=1`                   | creates, reads and replaces one file in that folder, then removes it                        |
 | `VIYA_TLS_RELAX=1`                     | accepts a self-signed certificate                                                           |
@@ -36,6 +36,8 @@ The default pass is read-only. `VIYA_ALLOW_EXECUTE`, `VIYA_ALLOW_WRITES` and `VI
 A refused call is recorded too: a 401, a 403 or a 400 is as much a part of the contract as a 200, and the emulator has to answer it identically.
 
 Requests made to remove what a pass created carry `"cleanup": true`. They stay in the file - it is a log of the run - and they are left out of the generated table, because tidying up after the recorder is not something the client does. One of them is worth knowing about anyway: `deleteFolder` is a move into the recycle bin (`PATCH /folders/folders/{id}`), not a `DELETE`, so a folder the run creates comes back through a different verb than the one its name suggests.
+
+The execute step also prints the estate's `sysvlong`, which is the version the capture describes and therefore what `VIYA_TARGET_VERSION` is pinned to. It runs last on purpose: `@sasjs/adapter` 6.0.2 treats a brand-new one-hour token as expiring and refreshes it before submitting the job, and the refresh rotates the token pair, so every step that needs the original token has to run before it. That is why `VIYA_REFRESH_TOKEN` matters for this pass - without one, the refresh has nothing to present and the estate answers `Unable to obtain new access token`.
 
 ## What leaves the file, and what stops it
 

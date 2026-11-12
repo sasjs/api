@@ -55,6 +55,34 @@ export const removeFolder = async ({
 }
 
 /**
+ * The execution family: one script through the compute API, with the log.
+ *
+ * `debug` is on because the log is half the contract - a caller reads it to
+ * find out what the program said. `%put &=sysvlong;` is the line this pass
+ * produces beyond the request shapes: it names the version the capture
+ * describes, which is what `VIYA_TARGET_VERSION` is pinned to.
+ */
+export const executePass = async ({
+  client,
+  authConfig,
+  contextName,
+  runStep
+}) => {
+  return await runStep('compute/execute-script', () =>
+    client.executeScript(
+      'capture',
+      ['%put &=sysvlong;'],
+      contextName,
+      authConfig,
+      null,
+      true,
+      false,
+      true
+    )
+  )
+}
+
+/**
  * The file family: create a file, read it back, replace its content.
  *
  * Deletion is not part of `@sasjs/adapter`'s surface - the client creates, reads

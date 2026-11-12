@@ -60,7 +60,13 @@ import {
   redactAuthorization,
   redactBody
 } from './redact.mjs'
-import { filePass, folderNameFor, folderPass, removeFolder } from './pass.mjs'
+import {
+  executePass,
+  filePass,
+  folderNameFor,
+  folderPass,
+  removeFolder
+} from './pass.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -396,6 +402,31 @@ if (ALLOW_WRITES || ALLOW_FILES) {
     // delete to fall back on.
     await removeFolder({ client, token: TOKEN, folderPath, runCleanup })
   } else console.log('  folders/create: skipped, VIYA_APP_LOC is not set')
+}
+
+// Last, because the adapter treats a fresh one-hour token as expiring and
+// refreshes it before the job is submitted: the refresh rotates the pair, so
+// every step that needs `TOKEN` runs before this one.
+if (ALLOW_EXECUTE && CONTEXT) {
+  const executed = await executePass({
+    client,
+    authConfig: {
+      access_token: TOKEN,
+      ...(REFRESH_TOKEN ? { refresh_token: REFRESH_TOKEN } : {})
+    },
+    contextName: CONTEXT,
+    runStep
+  })
+
+  // the version the capture was taken against, said out loud rather than
+  // remembered: it is what VIYA_TARGET_VERSION is pinned to
+  const version = String(executed?.log ?? '').match(/SYSVLONG=\s*(.+)/)?.[1]
+
+  console.log(
+    version
+      ? `  version: ${version.trim()}`
+      : '  version: not in the log, the execute step did not return one'
+  )
 }
 
 proxy.close()

@@ -75,6 +75,6 @@
     "minimatch": "11.0.4"
   },
   "dependencies": {
-    "@sasjs/lint": "^5.1.0"
+    "@sasjs/lint": "5.1.0"
   }
 }

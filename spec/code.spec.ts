@@ -1,5 +1,6 @@
 import { LintConfig } from '@sasjs/lint'
 
+import { LintConfig as exportedLintConfig } from '../src/code/index.js'
 import { createCodeService } from '../src/code/service.js'
 
 /**
@@ -96,6 +97,17 @@ describe('the code service', () => {
         diagnostic.message.startsWith('Line exceeds maximum length')
       )
     ).toBe(false)
+  })
+
+  /**
+   * The entry a host imports when it resolves rules from its own storage: what it
+   * builds has to be the class the routes hand the linter, and this pins that the
+   * entry re-exports the one this package depends on rather than a look-alike.
+   * It cannot see a second copy in a consumer's own tree - nothing in this repo
+   * can - so it does not claim to.
+   */
+  it('exports the configuration class the routes hand the linter', () => {
+    expect(exportedLintConfig).toBe(LintConfig)
   })
 
   it('formats with the rules an asynchronous host resolved', async () => {

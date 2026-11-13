@@ -18,8 +18,17 @@ export interface CodeServiceOptions {
    * A host resolves the nearest `.sasjslint` at or above `filePath`, so each
    * folder can carry its own rules; without one the linter's defaults apply,
    * which is what an untitled buffer lints against.
+   *
+   * It may answer with a promise. A host whose rules are files in a store it
+   * reads asynchronously - the browser host over its drive - holds no
+   * synchronous copy to hand back, and reading the rules per request is the
+   * point of the option rather than an overhead to cache around. A host with
+   * the configuration already in hand returns it directly, which the routes
+   * await either way.
    */
-  lintConfig?: (filePath?: string) => LintConfig | undefined
+  lintConfig?: (
+    filePath?: string
+  ) => LintConfig | undefined | Promise<LintConfig | undefined>
 }
 
 export interface CodeService {
@@ -69,18 +78,18 @@ export const createCodeService = (
     if (!caller) throw new ApiError(401, 'Unauthorized')
   }
 
-  const configFor = (filePath?: string) =>
-    options.lintConfig ? options.lintConfig(filePath) : undefined
+  const configFor = async (filePath?: string) =>
+    options.lintConfig ? await options.lintConfig(filePath) : undefined
 
   return {
     async lint(caller, body) {
       requireCaller(caller)
-      return lintText(codeOf(body), configFor(body.filePath))
+      return lintText(codeOf(body), await configFor(body.filePath))
     },
 
     async format(caller, body) {
       requireCaller(caller)
-      return formatText(codeOf(body), configFor(body.filePath))
+      return formatText(codeOf(body), await configFor(body.filePath))
     }
   }
 }

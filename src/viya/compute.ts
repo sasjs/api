@@ -144,16 +144,18 @@ const jobBody = (job: EmulatedJob) => {
     sessionId: job.sessionId,
     state: job.state,
     creationTimeStamp: job.creationTimeStamp,
-    completedTimeStamp: job.completedTimeStamp,
+    ...(job.completedTimeStamp
+      ? { completedTimeStamp: job.completedTimeStamp }
+      : {}),
     jobConditionCode: 0,
     stateElapsedTime: 1,
     listingStatistics: {
       lineCount: job.log.length,
-      modifiedTimeStamp: job.completedTimeStamp
+      modifiedTimeStamp: job.completedTimeStamp ?? job.creationTimeStamp
     },
     logStatistics: {
       lineCount: job.log.length,
-      modifiedTimeStamp: job.completedTimeStamp
+      modifiedTimeStamp: job.completedTimeStamp ?? job.creationTimeStamp
     },
     statistics: { systemCpuTime: 0.01, userCpuTime: 0.02 },
     version: 2,
@@ -279,9 +281,13 @@ export const COMPUTE_HANDLERS: Record<
     const job = estateOf(services).submit(session, body)
     const execute = services.viya?.execute
 
-    // a host with an engine runs the program; a host without one has already
-    // finished, because there was nothing to run
-    if (!execute) return { status: 201, body: jobBody(job) }
+    // a host with no engine has nothing to run, so the job is finished at once
+    if (!execute) {
+      job.state = 'completed'
+      job.completedTimeStamp = new Date().toISOString()
+
+      return { status: 201, body: jobBody(job) }
+    }
 
     // the 201 is the submission, not the run: the client polls the state link,
     // and `waitForResult: false` is documented to return here and poll later
@@ -317,19 +323,30 @@ export const COMPUTE_HANDLERS: Record<
     params
   }) => {
     const session = sessionOf(services, params.id)
-    const webout = [...session.jobs.values()]
-      .reverse()
-      .find((job) => job.webout !== undefined)?.webout
+    const last = [...session.jobs.values()].pop()
 
-    if (webout === undefined)
+    if (!last)
       throw new ApiError(
         404,
-        'The session has no `_webout`: the host that mounts the emulator supplied no engine, so no program has run.'
+        'This session has no `_webout` yet: nothing has run in it.'
+      )
+
+    // the answer belongs to the last job submitted, not to the newest one that
+    // happened to produce something: a failed service must not answer with an
+    // earlier service's data
+    if (last.webout === undefined)
+      throw new ApiError(
+        404,
+        last.state === 'running'
+          ? `This session has no \`_webout\` yet: job '${last.id}' has not finished.`
+          : services.viya?.execute
+            ? `This session has no \`_webout\`: job '${last.id}' ran and produced none.`
+            : `This session has no \`_webout\`: the host supplied no engine, so no program has run.`
       )
 
     return {
       status: 200,
-      contents: webout,
+      contents: last.webout,
       headers: { 'content-type': 'text/plain' }
     }
   },

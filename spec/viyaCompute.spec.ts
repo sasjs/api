@@ -835,3 +835,145 @@ describe('a run that did not finish', () => {
     ).toBe('failed')
   })
 })
+
+describe('the webout belongs to the last job, not to the last job that produced one', () => {
+  const settle = async (target: Services, sessionId: string, jobId: string) => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') return state.body as string
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    return 'running'
+  }
+
+  it('answers nothing when the last job failed, rather than an earlier job data', async () => {
+    let fail = false
+
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => {
+        if (fail) throw new Error('the second service failed')
+
+        return { webout: '[{"SERVICE":"first"}]', log: '' }
+      }
+    }
+
+    const sessionId = await sessionOn(target)
+    const first = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put first;'] } }
+    )
+
+    await settle(target, sessionId, (first.body as { id: string }).id)
+
+    fail = true
+
+    const second = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put second;'] } }
+    )
+
+    await settle(target, sessionId, (second.body as { id: string }).id)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    // the first job's data is not this session's answer
+    expect(answer.status).toBe(404)
+  })
+
+  it('says a finished job produced none, rather than blaming the host', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => ({ log: 'NOTE: nothing written' })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put nothing;'] } }
+    )
+
+    await settle(target, sessionId, (submitted.body as { id: string }).id)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(404)
+    expect(String((answer.body as { message: string }).message)).toMatch(
+      /produced none/
+    )
+  })
+
+  it('says the job has not finished while it is running', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+
+    await dispatchViya(target, 'POST', `/compute/sessions/${sessionId}/jobs`, {
+      body: { code: ['data a; run;'] }
+    })
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(404)
+    expect(String((answer.body as { message: string }).message)).toMatch(
+      /not finished/
+    )
+  })
+
+  it('does not stamp a completion time on work that has not finished', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    const job = submitted.body as {
+      state: string
+      creationTimeStamp: string
+      completedTimeStamp?: string
+    }
+
+    expect(job.state).toBe('running')
+    expect(job.completedTimeStamp).toBeUndefined()
+    expect(job.creationTimeStamp).toBeTruthy()
+  })
+})

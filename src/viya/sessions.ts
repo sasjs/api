@@ -33,7 +33,13 @@ export interface EmulatedJob {
    */
   state: 'running' | 'completed' | 'failed'
   creationTimeStamp: string
-  completedTimeStamp: string
+  /**
+   * When the run finished, absent until it does.
+   *
+   * A job that has not settled has no completion time: answering one would tell
+   * a client that work finished at the moment it was accepted.
+   */
+  completedTimeStamp?: string
   sessionId: string
 }
 
@@ -140,12 +146,13 @@ export class EmulatedEstate {
       // the log is a function of the seed and the program alone, so the same
       // program answers the same lines whatever session it was submitted in
       log: logFor(this.seed, code),
-      state: 'completed',
+      state: 'running',
       // the real clock, unlike a folder's: a client computes a session's age
       // from this stamp and expires it, so a fixed instant in the past is a
       // session that is born expired
       creationTimeStamp: new Date().toISOString(),
-      completedTimeStamp: new Date().toISOString(),
+      // no completion stamp here: a job is finished when something finished it,
+      // and the handler that knows whether anything will run sets both
       sessionId: session.id
     }
 

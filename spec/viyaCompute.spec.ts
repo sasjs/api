@@ -977,3 +977,86 @@ describe('the webout belongs to the last job, not to the last job that produced 
     expect(job.creationTimeStamp).toBeTruthy()
   })
 })
+
+describe('a job that has not finished reports no output', () => {
+  it('answers an empty log while running, and the engine log once it settles', async () => {
+    let release: (value: { webout: string; log: string }) => void = () => {}
+
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    const running = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/jobs/${jobId}/log/content`
+    )
+    const runningBody = running.body as { count: number; items: unknown[] }
+
+    // the generated lines include "The emulated run completed", which a job that
+    // is still running must not advertise
+    expect(runningBody.count).toBe(0)
+    expect(runningBody.items).toEqual([])
+
+    release({ webout: '[]', log: 'NOTE: the real run' })
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') break
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    const settled = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/jobs/${jobId}/log/content`
+    )
+
+    expect(
+      (settled.body as { items: Array<{ line: string }> }).items.map(
+        (item) => item.line
+      )
+    ).toEqual(['NOTE: the real run'])
+  })
+
+  it('advertises no log lines in the job body while running', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    expect(
+      (submitted.body as { logStatistics: { lineCount: number } }).logStatistics
+        .lineCount
+    ).toBe(0)
+  })
+})

@@ -293,6 +293,11 @@ export const COMPUTE_HANDLERS: Record<
     // and `waitForResult: false` is documented to return here and poll later
     job.state = 'running'
 
+    // and there is no log yet: the generated lines are what a host with NO engine
+    // answers, including one that says the run completed, so a running job must
+    // not advertise them - the run writes the log when it has one
+    job.log = []
+
     void execute({
       program: body.code ?? '',
       variables: body.variables,

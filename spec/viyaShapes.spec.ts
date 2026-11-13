@@ -204,6 +204,9 @@ describe('the answers and the shapes the captures recorded', () => {
     // when a handler is added without one
     const covered = [
       'DELETE /compute/sessions/{}',
+      // declared, not captured: no recorded shape to walk, so its cases live in
+      // spec/viyaCompute.spec.ts where an executor can be supplied
+      'GET /compute/sessions/{}/filerefs/_webout/content',
       'GET /files/files/{}',
       'GET /files/files/{}/content',
       'PATCH /files/files/{}',

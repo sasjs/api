@@ -22,11 +22,50 @@
 /** The seed every emulated estate falls back to. */
 export const DEFAULT_SEED = 'emulated'
 
+/**
+ * What a host does when the emulated estate is asked to run a program.
+ *
+ * Absent, the emulator generates a log and says so: it has no engine, which is
+ * the whole reason its answers are seeded. Present, the host runs the program on
+ * whatever engine it has and returns what the program produced - which is what
+ * makes an application's `_webout` real rather than generated.
+ */
+export interface ViyaExecutor {
+  execute(request: {
+    /** The program: a string, or the lines the client sent. */
+    program: string | string[]
+    /** The session variables the client attached to the job. */
+    variables?: Record<string, string>
+    /** The job's name, which the adapter sets to the service path. */
+    name?: string
+    /** The session the job belongs to. */
+    sessionId: string
+  }): Promise<ViyaRun>
+}
+
+/** What an engine answers for one program. */
+export interface ViyaRun {
+  /** The program's `_webout` content, when it produced one. */
+  webout?: string
+  /** The log the program produced, as one string with lines separated by `\n`. */
+  log: string
+  /**
+   * How the run ended.
+   *
+   * A client decides a service failed from the job's state, not from the log, so
+   * a run that failed has to say so - otherwise the webout it did not produce
+   * reads as data. Absent, the run completed.
+   */
+  state?: 'completed' | 'failed'
+}
+
 export interface ViyaSeedSettings {
   /** The address this estate answers at. */
   serverUrl?: string
   /** Pins the generated data when the address is not the identity. */
   seed?: string | number
+  /** Runs a submitted program, when the host has an engine. */
+  execute?: ViyaExecutor['execute']
 }
 
 /**

@@ -1,6 +1,7 @@
 import { SURFACE } from '../src/viya/surface.js'
 import { UNRECORDED } from '../src/viya/unrecorded.js'
 import { VIYA_TABLE } from '../src/viya/table.js'
+import { DECLARED, VIYA_OPERATIONS } from '../src/viya/declared.js'
 import { VIYA_CORPUS } from '../src/corpus/viya/operations.js'
 import {
   EMULATED_HEADER,
@@ -55,7 +56,7 @@ const inScope = SURFACE.filter((entry) => entry.decision === 'in')
 
 describe('the Viya table', () => {
   it('holds an operation only where the scope says a host must answer it', () => {
-    const outside = VIYA_TABLE.filter(
+    const outside = VIYA_OPERATIONS.filter(
       (operation) =>
         !inScope.some((entry) => covers(entry.path, operation.path))
     ).map((operation) => operation.id)
@@ -64,8 +65,10 @@ describe('the Viya table', () => {
   })
 
   it('accounts for every in-scope path: captured, or a stated reason', () => {
+    // declared rows answer a path too: the partition is over everything the
+    // emulator answers, or a declared operation is where one escapes it
     const recorded = (path: string) =>
-      VIYA_TABLE.some((operation) => covers(path, operation.path))
+      VIYA_OPERATIONS.some((operation) => covers(path, operation.path))
 
     const missing = inScope
       .map((entry) => entry.path)
@@ -79,7 +82,7 @@ describe('the Viya table', () => {
 
   it('does not list an unrecorded path that a capture describes', () => {
     const stale = UNRECORDED.filter((entry) =>
-      VIYA_TABLE.some((operation) => covers(entry.path, operation.path))
+      VIYA_OPERATIONS.some((operation) => covers(entry.path, operation.path))
     ).map((entry) => entry.path)
 
     expect(stale).toEqual([])
@@ -93,6 +96,16 @@ describe('the Viya table', () => {
   it('gives every operation at least one observed status', () => {
     for (const operation of VIYA_TABLE) {
       expect(operation.id).toBe(`${operation.method} ${operation.path}`)
+      expect(operation.statuses.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('states why every declared operation has no capture, at length', () => {
+    // a declared row is the only route into the table that no recorder produced,
+    // so the reason it exists is the thing that has to carry the weight
+    for (const operation of DECLARED) {
+      expect(operation.id).toBe(`${operation.method} ${operation.path}`)
+      expect(operation.declared.length).toBeGreaterThan(80)
       expect(operation.statuses.length).toBeGreaterThan(0)
     }
   })

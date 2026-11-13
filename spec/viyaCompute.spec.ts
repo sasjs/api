@@ -600,3 +600,463 @@ describe('what a real client reads', () => {
     expect(created).toBeLessThanOrEqual(Date.now() + 1000)
   })
 })
+
+describe('a host with an engine', () => {
+  const withEngine = (webout: string) => {
+    const shared = services()
+
+    // the port a server fills with its own runtime: it runs the program and
+    // returns what the program produced
+    shared.viya = {
+      ...(shared.viya ?? {}),
+      execute: async ({ program, sessionId }) => ({
+        webout,
+        log: `NOTE: ran ${Array.isArray(program) ? program.length : 1} line(s) in ${sessionId}`
+      })
+    }
+
+    return shared
+  }
+
+  it('runs the program and serves its webout on the fileref route', async () => {
+    const target = withEngine('[{"COL1":"hello"}]')
+    const sessionId = await sessionOn(target)
+
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put hi;'], name: '/app/services/getdata' } }
+    )
+
+    // the run is behind the 201, so the client polls before it reads the answer
+    const jobId = (submitted.body as { id: string }).id
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') break
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(200)
+    expect(answer.contents).toBe('[{"COL1":"hello"}]')
+    expect(answer.headers['content-type']).toBe('text/plain')
+  })
+
+  it('answers the log the engine produced, not a generated one', async () => {
+    const target = withEngine('{}')
+    const sessionId = await sessionOn(target)
+
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a;', 'run;'] } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') break
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    const lines = await logOn(target, sessionId, jobId)
+
+    expect(lines.join('\n')).toContain('ran 2 line(s)')
+    expect(lines.join('\n')).not.toContain('generated, not produced by SAS')
+  })
+
+  it('passes the variables and the job name through to the engine', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const target = services()
+
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async (request) => {
+        seen.push(request as unknown as Record<string, unknown>)
+
+        return { webout: '{}', log: '' }
+      }
+    }
+
+    const sessionId = await sessionOn(target)
+
+    await dispatchViya(target, 'POST', `/compute/sessions/${sessionId}/jobs`, {
+      body: {
+        code: ['%put hi;'],
+        name: '/app/services/getdata',
+        variables: { _program: '/app/services/getdata', _debug: '131' }
+      }
+    })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({
+      name: '/app/services/getdata',
+      variables: { _program: '/app/services/getdata', _debug: '131' },
+      sessionId
+    })
+  })
+
+  it('refuses a webout when no engine ran anything', async () => {
+    const target = services()
+    const sessionId = await sessionOn(target)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    // an empty body would parse as no data; a 404 says nothing has run
+    expect(answer.status).toBe(404)
+  })
+})
+
+describe('a run that did not finish', () => {
+  const pollUntilSettled = async (
+    target: Services,
+    sessionId: string,
+    jobId: string
+  ) => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const answer = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (answer.body !== 'running') return answer.body as string
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    return 'running'
+  }
+
+  it('answers the submission before the run, with the job running', async () => {
+    let release: (value: { webout: string; log: string }) => void = () => {}
+
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    const job = submitted.body as { id: string; state: string }
+
+    // the 201 is the submission: a client that polls must not be told the work
+    // finished before the engine has started it
+    expect(job.state).toBe('running')
+
+    release({ webout: '[]', log: 'NOTE: done' })
+
+    expect(await pollUntilSettled(target, sessionId, job.id)).toBe('completed')
+  })
+
+  it('records a failed run as failed, with the reason in its log', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => {
+        throw new Error('the program failed to compile')
+      }
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    // the client decides failure from the state before it reads any log, so a
+    // failed run that answered completed would have its empty webout read as data
+    expect(await pollUntilSettled(target, sessionId, jobId)).toBe('failed')
+
+    const lines = await logOn(target, sessionId, jobId)
+
+    expect(lines.join('\n')).toContain('the program failed to compile')
+    expect(lines.join('\n')).not.toContain('generated, not produced by SAS')
+  })
+
+  it('records a run that reported failure itself', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => ({ log: 'ERROR: 22-322', state: 'failed' as const })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    expect(
+      await pollUntilSettled(
+        target,
+        sessionId,
+        (submitted.body as { id: string }).id
+      )
+    ).toBe('failed')
+  })
+})
+
+describe('the webout belongs to the last job, not to the last job that produced one', () => {
+  const settle = async (target: Services, sessionId: string, jobId: string) => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') return state.body as string
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    return 'running'
+  }
+
+  it('answers nothing when the last job failed, rather than an earlier job data', async () => {
+    let fail = false
+
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => {
+        if (fail) throw new Error('the second service failed')
+
+        return { webout: '[{"SERVICE":"first"}]', log: '' }
+      }
+    }
+
+    const sessionId = await sessionOn(target)
+    const first = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put first;'] } }
+    )
+
+    await settle(target, sessionId, (first.body as { id: string }).id)
+
+    fail = true
+
+    const second = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put second;'] } }
+    )
+
+    await settle(target, sessionId, (second.body as { id: string }).id)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    // the first job's data is not this session's answer
+    expect(answer.status).toBe(404)
+  })
+
+  it('says a finished job produced none, rather than blaming the host', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: async () => ({ log: 'NOTE: nothing written' })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['%put nothing;'] } }
+    )
+
+    await settle(target, sessionId, (submitted.body as { id: string }).id)
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(404)
+    expect(String((answer.body as { message: string }).message)).toMatch(
+      /produced none/
+    )
+  })
+
+  it('says the job has not finished while it is running', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+
+    await dispatchViya(target, 'POST', `/compute/sessions/${sessionId}/jobs`, {
+      body: { code: ['data a; run;'] }
+    })
+
+    const answer = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/filerefs/_webout/content`
+    )
+
+    expect(answer.status).toBe(404)
+    expect(String((answer.body as { message: string }).message)).toMatch(
+      /not finished/
+    )
+  })
+
+  it('does not stamp a completion time on work that has not finished', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    const job = submitted.body as {
+      state: string
+      creationTimeStamp: string
+      completedTimeStamp?: string
+    }
+
+    expect(job.state).toBe('running')
+    expect(job.completedTimeStamp).toBeUndefined()
+    expect(job.creationTimeStamp).toBeTruthy()
+  })
+})
+
+describe('a job that has not finished reports no output', () => {
+  it('answers an empty log while running, and the engine log once it settles', async () => {
+    let release: (value: { webout: string; log: string }) => void = () => {}
+
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+    const jobId = (submitted.body as { id: string }).id
+
+    const running = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/jobs/${jobId}/log/content`
+    )
+    const runningBody = running.body as { count: number; items: unknown[] }
+
+    // the generated lines include "The emulated run completed", which a job that
+    // is still running must not advertise
+    expect(runningBody.count).toBe(0)
+    expect(runningBody.items).toEqual([])
+
+    release({ webout: '[]', log: 'NOTE: the real run' })
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = await dispatchViya(
+        target,
+        'GET',
+        `/compute/sessions/${sessionId}/jobs/${jobId}/state`
+      )
+
+      if (state.body !== 'running') break
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    const settled = await dispatchViya(
+      target,
+      'GET',
+      `/compute/sessions/${sessionId}/jobs/${jobId}/log/content`
+    )
+
+    expect(
+      (settled.body as { items: Array<{ line: string }> }).items.map(
+        (item) => item.line
+      )
+    ).toEqual(['NOTE: the real run'])
+  })
+
+  it('advertises no log lines in the job body while running', async () => {
+    const target = services()
+    target.viya = {
+      ...(target.viya ?? {}),
+      execute: () => new Promise(() => undefined)
+    }
+
+    const sessionId = await sessionOn(target)
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${sessionId}/jobs`,
+      { body: { code: ['data a; run;'] } }
+    )
+
+    expect(
+      (submitted.body as { logStatistics: { lineCount: number } }).logStatistics
+        .lineCount
+    ).toBe(0)
+  })
+})

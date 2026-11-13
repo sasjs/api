@@ -144,16 +144,18 @@ const jobBody = (job: EmulatedJob) => {
     sessionId: job.sessionId,
     state: job.state,
     creationTimeStamp: job.creationTimeStamp,
-    completedTimeStamp: job.completedTimeStamp,
+    ...(job.completedTimeStamp
+      ? { completedTimeStamp: job.completedTimeStamp }
+      : {}),
     jobConditionCode: 0,
     stateElapsedTime: 1,
     listingStatistics: {
       lineCount: job.log.length,
-      modifiedTimeStamp: job.completedTimeStamp
+      modifiedTimeStamp: job.completedTimeStamp ?? job.creationTimeStamp
     },
     logStatistics: {
       lineCount: job.log.length,
-      modifiedTimeStamp: job.completedTimeStamp
+      modifiedTimeStamp: job.completedTimeStamp ?? job.creationTimeStamp
     },
     statistics: { systemCpuTime: 0.01, userCpuTime: 0.02 },
     version: 2,
@@ -270,13 +272,88 @@ export const COMPUTE_HANDLERS: Record<
 
   'POST /compute/sessions/{}/jobs': async ({ services, params, request }) => {
     const session = sessionOf(services, params.id)
+    const body = (request.body ?? {}) as {
+      code?: string | string[]
+      name?: string
+      variables?: Record<string, string>
+    }
 
-    const job = estateOf(services).submit(
-      session,
-      (request.body ?? {}) as { code?: string; name?: string }
-    )
+    const job = estateOf(services).submit(session, body)
+    const execute = services.viya?.execute
+
+    // a host with no engine has nothing to run, so the job is finished at once
+    if (!execute) {
+      job.state = 'completed'
+      job.completedTimeStamp = new Date().toISOString()
+
+      return { status: 201, body: jobBody(job) }
+    }
+
+    // the 201 is the submission, not the run: the client polls the state link,
+    // and `waitForResult: false` is documented to return here and poll later
+    job.state = 'running'
+
+    // and there is no log yet: the generated lines are what a host with NO engine
+    // answers, including one that says the run completed, so a running job must
+    // not advertise them - the run writes the log when it has one
+    job.log = []
+
+    void execute({
+      program: body.code ?? '',
+      variables: body.variables,
+      name: body.name,
+      sessionId: session.id
+    })
+      .then((ran) => {
+        job.log = ran.log.split('\n')
+        job.state = ran.state ?? 'completed'
+
+        if (ran.webout !== undefined) job.webout = ran.webout
+
+        job.completedTimeStamp = new Date().toISOString()
+      })
+      .catch((error: unknown) => {
+        // a run that threw is a failed job with the reason in its log, because a
+        // client reads the failure from the state and the log together
+        job.state = 'failed'
+        job.log = [`ERROR: ${(error as Error).message}`]
+        job.completedTimeStamp = new Date().toISOString()
+      })
 
     return { status: 201, body: jobBody(job) }
+  },
+
+  'GET /compute/sessions/{}/filerefs/_webout/content': async ({
+    services,
+    params
+  }) => {
+    const session = sessionOf(services, params.id)
+    const last = [...session.jobs.values()].pop()
+
+    if (!last)
+      throw new ApiError(
+        404,
+        'This session has no `_webout` yet: nothing has run in it.'
+      )
+
+    // the answer belongs to the last job submitted, not to the newest one that
+    // happened to produce something: a failed service must not answer with an
+    // earlier service's data
+    if (last.webout === undefined)
+      throw new ApiError(
+        404,
+        last.state === 'running'
+          ? `This session has no \`_webout\` yet: job '${last.id}' has not finished.`
+          : services.viya?.execute
+            ? `This session has no \`_webout\`: job '${last.id}' ran and produced none.`
+            : `This session has no \`_webout\`: the host supplied no engine, so no program has run.`
+      )
+
+    return {
+      status: 200,
+      contents: last.webout,
+      headers: { 'content-type': 'text/plain' }
+    }
   },
 
   'GET /compute/sessions/{}/jobs/{}': async ({ services, params }) => {

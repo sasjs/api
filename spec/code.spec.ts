@@ -1,3 +1,5 @@
+import { LintConfig } from '@sasjs/lint'
+
 import { createCodeService } from '../src/code/service.js'
 
 /**
@@ -50,5 +52,68 @@ describe('the code service', () => {
     })
 
     expect(asked).toEqual(['/projects/app/run.sas'])
+  })
+
+  /**
+   * A host that keeps its rules in a store it reads asynchronously answers with
+   * a promise - the browser host over its drive is the one that does - and the
+   * routes have to wait for it: a resolver whose answer was ignored would lint
+   * every file against the defaults while the host reported rules per folder.
+   *
+   * The two rules below are far apart on purpose (10 against the default 80),
+   * so the finding names the configuration that actually arrived rather than
+   * one both would produce.
+   */
+  it('waits for a host that resolves the rules asynchronously', async () => {
+    const configured = createCodeService({
+      lintConfig: async (filePath) => {
+        await Promise.resolve()
+        return filePath === '/projects/app/run.sas'
+          ? new LintConfig({ maxLineLength: 10 })
+          : undefined
+      }
+    })
+
+    const diagnostics = await configured.lint(caller, {
+      code: 'data _null_;\n  x = 1;\nrun;\n',
+      filePath: '/projects/app/run.sas'
+    })
+
+    expect(
+      diagnostics.some((diagnostic) =>
+        diagnostic.message.startsWith('Line exceeds maximum length')
+      )
+    ).toBe(true)
+
+    // and the same buffer elsewhere on the drive still gets the defaults
+    const elsewhere = await configured.lint(caller, {
+      code: 'data _null_;\n  x = 1;\nrun;\n',
+      filePath: '/other/run.sas'
+    })
+
+    expect(
+      elsewhere.some((diagnostic) =>
+        diagnostic.message.startsWith('Line exceeds maximum length')
+      )
+    ).toBe(false)
+  })
+
+  it('formats with the rules an asynchronous host resolved', async () => {
+    const configured = createCodeService({
+      lintConfig: () =>
+        Promise.resolve(
+          new LintConfig({
+            hasDoxygenHeader: true,
+            defaultHeader: '/**\n  @brief the awaited header\n**/'
+          })
+        )
+    })
+
+    const formatted = await configured.format(caller, {
+      code: 'data _null_;\nrun;\n',
+      filePath: '/projects/app/run.sas'
+    })
+
+    expect(formatted).toContain('@brief the awaited header')
   })
 })

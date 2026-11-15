@@ -17,6 +17,20 @@ import { CORPUS_APP } from './runner.js'
 
 const SUBJECT = { userId: 'user-admin', clientId: 'web_app' }
 
+/**
+ * An app published as a frontend: a name, a folder that follows from it, and no
+ * backend of its own.
+ */
+const FRONTEND_APP = {
+  id: '9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a',
+  name: 'frontend-only',
+  appLoc: '/Public/app/shared',
+  publishedAt: '2026-02-02T00:00:00.000Z'
+}
+
+/** Where that app's files are read from, which nothing on the entry records. */
+const FRONTEND_ENTRY_FILE = `/apps/${FRONTEND_APP.name}/index.html`
+
 /** Where the app's streamed entry file sits inside its folder. */
 const ENTRY_FILE_PATH = `${CORPUS_APP.appLoc}/services/${CORPUS_APP.streamWebFolder}/index.html`
 
@@ -44,6 +58,30 @@ export const APP_CORPUS: CorpusCase[] = [
         entryFile: 'index.html',
         entryFileExists: true,
         url: `/app/${CORPUS_APP.id}/`
+      }
+    }
+  },
+  {
+    id: 'app-detail-frontend',
+    route: 'GET /SASjsApi/app/{id}',
+    description:
+      'describes an app published as a frontend, from the folder its name derives',
+    // the two shapes an index can hold: a frontend entry names neither `appLoc`
+    // nor `streamWebFolder`, so a route that reads those by hand answers "no file"
+    // for a deployment that is right there
+    appStream: [FRONTEND_APP],
+    seed: { [FRONTEND_ENTRY_FILE]: '<!doctype html><title>frontend</title>' },
+    request: { subject: SUBJECT, params: { id: FRONTEND_APP.id } },
+    expect: {
+      status: 200,
+      partial: {
+        id: FRONTEND_APP.id,
+        name: FRONTEND_APP.name,
+        frontendFolder: `/apps/${FRONTEND_APP.name}`,
+        appLoc: FRONTEND_APP.appLoc,
+        entryFile: 'index.html',
+        entryFileExists: true,
+        url: `/app/${FRONTEND_APP.id}/`
       }
     }
   },

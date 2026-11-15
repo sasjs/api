@@ -98,7 +98,9 @@ export const servicesFor = (testCase: CorpusCase): Services => {
     directory: createDirectoryService(identity, CORPUS_DIRECTORY),
     identity: createIdentityService(identity),
     records: createRecordService(identity),
-    appStream: createAppStreamService(new MemoryAppStreamStore([CORPUS_APP])),
+    appStream: createAppStreamService(
+      new MemoryAppStreamStore(testCase.appStream ?? [CORPUS_APP])
+    ),
     session: createSessionService(identity, runner),
     // no `runTimes` option: the default is the five the document names, so a
     // case is never refused for a reason that belongs to one host's install

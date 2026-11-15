@@ -25,6 +25,7 @@ import {
   checkPublishRequest,
   frontendFolderOf
 } from '../appstream/service.js'
+import { appRootOf } from '../appstream/web.js'
 import { publishRequestFor, splitAppBundle } from '../appstream/bundle.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
@@ -694,7 +695,10 @@ export const dispatch = async (
           throw err
         })
 
-      const folder = `${entry.appLoc}/services/${entry.streamWebFolder}`
+      // the entry's own folder, whichever shape it was published in: a frontend
+      // entry names neither `appLoc` nor `streamWebFolder`, and reading those by
+      // hand answered "no file" for every app published as `apps/<name>`
+      const folder = appRootOf(entry)
 
       // An index entry can outlive its deployment - the folder deleted from under
       // the host - and reporting a file and a date that are not there would be worse
@@ -723,8 +727,15 @@ export const dispatch = async (
       const body: Record<string, unknown> = {
         id: entry.id,
         name: entry.name,
-        appLoc: entry.appLoc,
-        streamWebFolder: entry.streamWebFolder,
+        // the folder the entry is read from, which is what this route describes:
+        // `apps/<name>` for a frontend, and the legacy deployment's own folder for
+        // the older shape. A host that answered one and not the other would leave
+        // a client reading a path out of fields the entry may not carry.
+        frontendFolder: folder,
+        ...(entry.appLoc === undefined ? {} : { appLoc: entry.appLoc }),
+        ...(entry.streamWebFolder === undefined
+          ? {}
+          : { streamWebFolder: entry.streamWebFolder }),
         publishedAt: entry.publishedAt ?? null,
         entryFile: APP_ENTRY_FILE,
         entryFileExists,

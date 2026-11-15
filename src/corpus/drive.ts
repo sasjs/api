@@ -13,6 +13,7 @@
  */
 import type { ApiRequest } from '../host/dispatch.js'
 import type { IdentityFixture } from '../identity/fixture.js'
+import type { AppStreamEntry } from '../appstream/service.js'
 
 export interface CorpusCase {
   /** Stable name, used as the test's title. */
@@ -24,6 +25,14 @@ export interface CorpusCase {
   seed?: Record<string, string | Uint8Array>
   /** The identity the case starts from; the default fixture when omitted. */
   identity?: IdentityFixture
+  /**
+   * The apps the case starts from; the default fixture when omitted.
+   *
+   * An index holds two shapes - an app published as a frontend at `apps/<name>`,
+   * and the older one served out of a folder's `services/` - and a case that only
+   * ever starts from one of them cannot see a route that reads the other wrong.
+   */
+  appStream?: AppStreamEntry[]
   /**
    * The drive refuses every write, so a case can pin the refusal a route answers
    * when storing fails - `POST /drive/deploy` documents a `500`, and a mock drive

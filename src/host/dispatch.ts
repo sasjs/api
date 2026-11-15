@@ -25,6 +25,7 @@ import {
   checkPublishRequest,
   frontendFolderOf
 } from '../appstream/service.js'
+import { appRootOf } from '../appstream/web.js'
 import { publishRequestFor, splitAppBundle } from '../appstream/bundle.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
@@ -610,11 +611,22 @@ export const dispatch = async (
         )
 
       if (publish !== undefined && publish.streamWebFolder === undefined) {
+        // a bundle that carries services has to say where they go: skipping the
+        // write would answer `200` for a deployment whose backend is missing, and
+        // the response is the only place a caller could have seen it
+        if (bundle.backend !== undefined && publish.appLoc === undefined)
+          throw new ApiError(
+            400,
+            'This bundle carries a "backend" folder but names no "appLoc" for it: state the backend folder in sasjs.app.json, or in the request.'
+          )
+
         // check, backend, frontend, index - the backend first so a frontend is
         // never live against services that are not deployed yet, and additively
         // because several frontends may name one backend
-        if (bundle.backend !== undefined && publish.appLoc !== undefined)
-          await drive.deploy(publish.appLoc, bundle.backend, { replace: false })
+        if (bundle.backend !== undefined)
+          await drive.deploy(publish.appLoc as string, bundle.backend, {
+            replace: false
+          })
 
         // publishing a frontend means the folder is what this bundle says it is
         await drive.deploy(
@@ -694,7 +706,12 @@ export const dispatch = async (
           throw err
         })
 
-      const folder = `${entry.appLoc}/services/${entry.streamWebFolder}`
+      // the entry's own folder, whichever shape it was published in: `streamWebFolder`
+      // is the field that separates them - an entry carrying it is served from
+      // `<appLoc>/services/<streamWebFolder>`, every other entry from `apps/<name>` -
+      // so the folder is derived rather than reconstructed from fields an entry may
+      // not carry
+      const folder = appRootOf(entry)
 
       // An index entry can outlive its deployment - the folder deleted from under
       // the host - and reporting a file and a date that are not there would be worse
@@ -723,8 +740,15 @@ export const dispatch = async (
       const body: Record<string, unknown> = {
         id: entry.id,
         name: entry.name,
-        appLoc: entry.appLoc,
-        streamWebFolder: entry.streamWebFolder,
+        // the folder the entry is read from, which is what this route describes:
+        // `apps/<name>` for a frontend, and the legacy deployment's own folder for
+        // the older shape. A host that answered one and not the other would leave
+        // a client reading a path out of fields the entry may not carry.
+        frontendFolder: folder,
+        ...(entry.appLoc === undefined ? {} : { appLoc: entry.appLoc }),
+        ...(entry.streamWebFolder === undefined
+          ? {}
+          : { streamWebFolder: entry.streamWebFolder }),
         publishedAt: entry.publishedAt ?? null,
         entryFile: APP_ENTRY_FILE,
         entryFileExists,

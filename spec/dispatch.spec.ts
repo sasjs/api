@@ -16,6 +16,7 @@ import { isApiError } from '../src/types.js'
 import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
+import { APP_CORPUS } from '../src/corpus/app.js'
 
 const services = () => ({ drive: createDriveService(new MemoryDriveStore()) })
 
@@ -562,5 +563,37 @@ describe('a package, on a host with no app stream', () => {
       message: /no app stream/
     })
     expect(appStream).toBeDefined()
+  })
+})
+
+describe('a package whose backend names no folder', () => {
+  it('is refused rather than deployed with its services dropped', async () => {
+    const testCase = DEPLOY_CORPUS.find(
+      (candidate) => candidate.id === 'deploy-refuses-a-backend-with-no-apploc'
+    ) as CorpusCase
+
+    // `runCase` turns the API's refusal into a result rather than throwing, so the
+    // sentence both hosts answer is what the case is asserted on
+    expect(await runCase(testCase)).toMatchObject({
+      status: 400,
+      error: expect.stringMatching(/names no "appLoc" for it/)
+    })
+  })
+})
+
+describe('an app detail answer', () => {
+  it('omits a field the entry does not carry, rather than answering undefined', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-frontend'
+    ) as CorpusCase
+
+    const result = await runCase(testCase)
+    const body = result.body as Record<string, unknown>
+
+    // the entry names no backend, so neither field is present: a client reading
+    // `appLoc` gets a missing key, not the string "undefined"
+    expect(body.frontendFolder).toBe('/apps/frontend-only')
+    expect('appLoc' in body).toBe(false)
+    expect('streamWebFolder' in body).toBe(false)
   })
 })

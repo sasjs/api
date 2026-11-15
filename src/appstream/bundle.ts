@@ -226,6 +226,12 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   if (web === undefined && manifest === undefined)
     return { tree: tree as unknown as DeployTree }
 
+  // `streamWebFolder` names the older shape, where the web assets sit inside the
+  // backend's folder and one tree is deployed to `appLoc`. It decides on its own:
+  // a folder called `web` is a folder a deployment may simply contain, and reading
+  // it as a package would deploy half a tree and publish the other half.
+  if (manifest?.streamWebFolder !== undefined) return { tree: rest, manifest }
+
   // a `web/` folder is the frontend; without one, a manifest still says the tree
   // is an app, and the whole tree is then the app's own files
   const backend = contentsOf(folderNamed(withoutManifest, BACKEND_FOLDER))

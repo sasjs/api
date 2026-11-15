@@ -17,6 +17,23 @@ import { CORPUS_APP } from './runner.js'
 
 const SUBJECT = { userId: 'user-admin', clientId: 'web_app' }
 
+/**
+ * An app published as a frontend with no backend named.
+ *
+ * `streamWebFolder` is what tells the two shapes apart: an entry carrying it is
+ * served from `<appLoc>/services/<streamWebFolder>`, and every other entry from
+ * `apps/<name>`. `appLoc` is the backend a frontend calls, so it is absent here
+ * because this app calls none.
+ */
+const FRONTEND_APP = {
+  id: '9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a',
+  name: 'frontend-only',
+  publishedAt: '2026-02-02T00:00:00.000Z'
+}
+
+/** Where that app's files are read from, which nothing on the entry records. */
+const FRONTEND_ENTRY_FILE = `/apps/${FRONTEND_APP.name}/index.html`
+
 /** Where the app's streamed entry file sits inside its folder. */
 const ENTRY_FILE_PATH = `${CORPUS_APP.appLoc}/services/${CORPUS_APP.streamWebFolder}/index.html`
 
@@ -44,6 +61,29 @@ export const APP_CORPUS: CorpusCase[] = [
         entryFile: 'index.html',
         entryFileExists: true,
         url: `/app/${CORPUS_APP.id}/`
+      }
+    }
+  },
+  {
+    id: 'app-detail-frontend',
+    route: 'GET /SASjsApi/app/{id}',
+    description:
+      'describes an app published as a frontend, from the folder its name derives',
+    // the two shapes an index can hold, and the folder each is read from: this
+    // entry names no `appLoc` and no `streamWebFolder`, so the folder has to come
+    // from the name
+    appStream: [FRONTEND_APP],
+    seed: { [FRONTEND_ENTRY_FILE]: '<!doctype html><title>frontend</title>' },
+    request: { subject: SUBJECT, params: { id: FRONTEND_APP.id } },
+    expect: {
+      status: 200,
+      partial: {
+        id: FRONTEND_APP.id,
+        name: FRONTEND_APP.name,
+        frontendFolder: `/apps/${FRONTEND_APP.name}`,
+        entryFile: 'index.html',
+        entryFileExists: true,
+        url: `/app/${FRONTEND_APP.id}/`
       }
     }
   },

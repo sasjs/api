@@ -706,9 +706,11 @@ export const dispatch = async (
           throw err
         })
 
-      // the entry's own folder, whichever shape it was published in: a frontend
-      // entry names neither `appLoc` nor `streamWebFolder`, and reading those by
-      // hand answered "no file" for every app published as `apps/<name>`
+      // the entry's own folder, whichever shape it was published in: `streamWebFolder`
+      // is the field that separates them - an entry carrying it is served from
+      // `<appLoc>/services/<streamWebFolder>`, every other entry from `apps/<name>` -
+      // so the folder is derived rather than reconstructed from fields an entry may
+      // not carry
       const folder = appRootOf(entry)
 
       // An index entry can outlive its deployment - the folder deleted from under

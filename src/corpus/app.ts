@@ -18,13 +18,16 @@ import { CORPUS_APP } from './runner.js'
 const SUBJECT = { userId: 'user-admin', clientId: 'web_app' }
 
 /**
- * An app published as a frontend: a name, a folder that follows from it, and no
- * backend of its own.
+ * An app published as a frontend with no backend named.
+ *
+ * `streamWebFolder` is what tells the two shapes apart: an entry carrying it is
+ * served from `<appLoc>/services/<streamWebFolder>`, and every other entry from
+ * `apps/<name>`. `appLoc` is the backend a frontend calls, so it is absent here
+ * because this app calls none.
  */
 const FRONTEND_APP = {
   id: '9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a',
   name: 'frontend-only',
-  appLoc: '/Public/app/shared',
   publishedAt: '2026-02-02T00:00:00.000Z'
 }
 
@@ -66,9 +69,9 @@ export const APP_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/app/{id}',
     description:
       'describes an app published as a frontend, from the folder its name derives',
-    // the two shapes an index can hold: a frontend entry names neither `appLoc`
-    // nor `streamWebFolder`, so a route that reads those by hand answers "no file"
-    // for a deployment that is right there
+    // the two shapes an index can hold, and the folder each is read from: this
+    // entry names no `appLoc` and no `streamWebFolder`, so the folder has to come
+    // from the name
     appStream: [FRONTEND_APP],
     seed: { [FRONTEND_ENTRY_FILE]: '<!doctype html><title>frontend</title>' },
     request: { subject: SUBJECT, params: { id: FRONTEND_APP.id } },
@@ -78,7 +81,6 @@ export const APP_CORPUS: CorpusCase[] = [
         id: FRONTEND_APP.id,
         name: FRONTEND_APP.name,
         frontendFolder: `/apps/${FRONTEND_APP.name}`,
-        appLoc: FRONTEND_APP.appLoc,
         entryFile: 'index.html',
         entryFileExists: true,
         url: `/app/${FRONTEND_APP.id}/`

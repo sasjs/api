@@ -611,11 +611,22 @@ export const dispatch = async (
         )
 
       if (publish !== undefined && publish.streamWebFolder === undefined) {
+        // a bundle that carries services has to say where they go: skipping the
+        // write would answer `200` for a deployment whose backend is missing, and
+        // the response is the only place a caller could have seen it
+        if (bundle.backend !== undefined && publish.appLoc === undefined)
+          throw new ApiError(
+            400,
+            'This bundle carries a "backend" folder but names no "appLoc" for it: state the backend folder in sasjs.app.json, or in the request.'
+          )
+
         // check, backend, frontend, index - the backend first so a frontend is
         // never live against services that are not deployed yet, and additively
         // because several frontends may name one backend
-        if (bundle.backend !== undefined && publish.appLoc !== undefined)
-          await drive.deploy(publish.appLoc, bundle.backend, { replace: false })
+        if (bundle.backend !== undefined)
+          await drive.deploy(publish.appLoc as string, bundle.backend, {
+            replace: false
+          })
 
         // publishing a frontend means the folder is what this bundle says it is
         await drive.deploy(

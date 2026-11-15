@@ -564,3 +564,18 @@ describe('a package, on a host with no app stream', () => {
     expect(appStream).toBeDefined()
   })
 })
+
+describe('a package whose backend names no folder', () => {
+  it('is refused rather than deployed with its services dropped', async () => {
+    const testCase = DEPLOY_CORPUS.find(
+      (candidate) => candidate.id === 'deploy-refuses-a-backend-with-no-apploc'
+    ) as CorpusCase
+
+    // `runCase` turns the API's refusal into a result rather than throwing, so the
+    // sentence both hosts answer is what the case is asserted on
+    expect(await runCase(testCase)).toMatchObject({
+      status: 400,
+      error: expect.stringMatching(/names no "appLoc" for it/)
+    })
+  })
+})

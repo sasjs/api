@@ -321,6 +321,52 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'deploy-refuses-a-backend-with-no-apploc',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a bundle carrying services that names no folder to deploy them to',
+    request: {
+      subject: SUBJECT,
+      body: {
+        fileTree: {
+          members: [
+            {
+              name: 'sasjs.app.json',
+              type: 'file',
+              code: JSON.stringify({ name: 'orphan-backend' })
+            },
+            {
+              name: 'web',
+              type: 'folder',
+              members: [
+                { name: 'index.html', type: 'file', code: '<h1>orphan</h1>' }
+              ]
+            },
+            {
+              name: 'backend',
+              type: 'folder',
+              members: [
+                {
+                  name: 'services',
+                  type: 'folder',
+                  members: [{ name: 'run', type: 'service', code: '' }]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    // both hosts refuse this the same way, and neither writes the frontend it
+    // could have deployed: half a deployment is worse than none
+    expectDrive: { missing: ['/apps/orphan-backend/index.html'] },
+    expect: {
+      status: 400,
+      error:
+        'This bundle carries a "backend" folder but names no "appLoc" for it: state the backend folder in sasjs.app.json, or in the request.'
+    }
+  },
+  {
     id: 'deploy-refuses-a-bundle-that-names-no-folder',
     route: 'POST /SASjsApi/drive/deploy',
     description:

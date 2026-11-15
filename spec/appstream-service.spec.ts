@@ -689,3 +689,47 @@ describe('a frontend publish', () => {
     expect(await apps.list()).toHaveLength(2)
   })
 })
+
+describe('the refusals a frontend publish adds', () => {
+  it('refuses a legacy publish that states a folder without the folder it is relative to', () => {
+    expect(() => checkPublishRequest({ streamWebFolder: 'web' })).toThrow(
+      /"appLoc" is required when "streamWebFolder" is stated/
+    )
+  })
+
+  it('refuses a backend of the drive root, which is not a folder an app can call', () => {
+    expect(() => checkPublishRequest({ name: 'rooted', appLoc: '/' })).toThrow(
+      /drive root as its backend/
+    )
+  })
+
+  it('carries the optional fields a frontend publish states', async () => {
+    const entry = await service().publish({
+      name: 'framed',
+      appLoc: '/Public/app/framed',
+      logo: 'logo.png',
+      frameAncestors: ['https://example.com'],
+      publishedAt: '2026-02-02T00:00:00.000Z'
+    })
+
+    expect(entry).toMatchObject({
+      logo: 'logo.png',
+      frameAncestors: ['https://example.com'],
+      publishedAt: '2026-02-02T00:00:00.000Z'
+    })
+  })
+
+  it('refuses a tree that is not a tree, naming what is missing', () => {
+    expect(() => checkPublishRequest({ name: 'x' }, 'nope')).toThrow(
+      /no "index.html" at its root/
+    )
+  })
+
+  it('publishes a frontend with no backend named at all', async () => {
+    const entry = await service().publish({ name: 'alone' })
+
+    expect(entry.appLoc).toBeUndefined()
+    // the folder is derived, so nothing about it is stored
+    expect(Object.keys(entry).sort()).toEqual(['id', 'name', 'publishedAt'])
+  })
+})

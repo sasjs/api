@@ -560,7 +560,11 @@ export const dispatch = async (
       const setting = (name: string): unknown =>
         isUpload ? (given(query[name]) ?? body?.[name]) : body?.[name]
 
-      const appLoc = String(setting('appLoc') ?? '')
+      // a setting the caller omitted is ABSENT, not an empty string: `''` names no
+      // folder, and handing it on turns "not stated" into a refusal about how the
+      // folder is spelled
+      const statedAppLoc = given(setting('appLoc'))
+      const appLoc = typeof statedAppLoc === 'string' ? statedAppLoc : undefined
 
       const requested = services.appStream
         ? publishRequestFor(
@@ -631,6 +635,12 @@ export const dispatch = async (
       // folder is what the archive says it is - while the JSON route writes over
       // what is there unless it is told otherwise
       const replace = replaceOf(setting('replace')) ?? isUpload
+
+      if (appLoc === undefined)
+        throw new ApiError(
+          400,
+          '"appLoc" is required to deploy files that do not name an app.'
+        )
 
       await drive.deploy(appLoc, bundle.tree, { replace })
 

@@ -220,10 +220,11 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
 
   const web = folderNamed(withoutManifest, FRONTEND_FOLDER)
 
-  // nothing says this is an app: pass the tree through, but without the manifest
-  // only when there was one
+  // nothing says this is an app: pass the tree through untouched, so a caller that
+  // keeps its own copy sees no change and the deploy is the thing that judges it.
+  // A manifest is the only other way out of this branch, so there is none here.
   if (web === undefined && manifest === undefined)
-    return at === -1 ? { tree: tree as unknown as DeployTree } : { tree: rest }
+    return { tree: tree as unknown as DeployTree }
 
   // a `web/` folder is the frontend; without one, a manifest still says the tree
   // is an app, and the whole tree is then the app's own files

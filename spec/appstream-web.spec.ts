@@ -416,3 +416,48 @@ describe('an app published as a frontend', () => {
     expect(apps[0].url).toBe(`/app/${ZELDA}/`)
   })
 })
+
+describe('a surface mounted at the root, and one handed a path it cannot decode', () => {
+  const frontend = (over: Partial<AppStreamEntry> = {}): AppStreamEntry => ({
+    id: ZELDA,
+    name: 'zelda',
+    publishedAt: '2026-01-01T00:00:00.000Z',
+    ...over
+  })
+
+  const surfaceAt = (basePath: string) =>
+    createAppStreamWebService(
+      createAppStreamService(new MemoryAppStreamStore([frontend()])),
+      createDriveService(
+        new MemoryDriveStore({ '/apps/zelda/index.html': '<h1>Zelda</h1>' })
+      ),
+      { basePath }
+    )
+
+  it('answers at the paths it is given when the base path is empty', async () => {
+    const surface = surfaceAt('')
+
+    expect(
+      (await surface.request({ method: 'GET', path: '/apps.json' })).status
+    ).toBe(200)
+    expect(
+      (await surface.request({ method: 'GET', path: `/${ZELDA}/` })).body
+    ).toBe('<h1>Zelda</h1>')
+  })
+
+  it('answers nothing for a segment that cannot be decoded', async () => {
+    const page = await surfaceAt('/app').request({
+      method: 'GET',
+      path: `/app/${ZELDA}/%E0%A4%A`
+    })
+
+    expect(page.status).toBe(404)
+    expect(page.body).toContain(NO_SUCH_APP)
+  })
+
+  it('shows the frontend folder on the landing page when no backend is named', async () => {
+    const landing = await surfaceAt('/app').landing()
+
+    expect(landing.body).toContain('/apps/zelda')
+  })
+})

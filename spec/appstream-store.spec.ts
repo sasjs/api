@@ -111,3 +111,55 @@ describe('the index on the drive', () => {
     expect(await memory.list()).toEqual([])
   })
 })
+
+describe('the index refuses an entry it cannot read', () => {
+  const withIndex = async (entries: unknown[]) => {
+    const drive = driveOver({ [APP_STREAM_INDEX]: JSON.stringify(entries) })
+
+    return createDriveAppStreamStore(drive).read()
+  }
+
+  it('refuses a list holding something that is not an entry', async () => {
+    await expect(withIndex([null])).rejects.toThrow(/not a list of app entries/)
+  })
+
+  it('refuses an entry whose appLoc is not a string', async () => {
+    await expect(
+      withIndex([
+        {
+          id: 'a',
+          name: 'a',
+          appLoc: 5,
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    ).rejects.toThrow(/not a list of app entries/)
+  })
+
+  it('refuses an entry whose streamWebFolder is not a string', async () => {
+    await expect(
+      withIndex([
+        {
+          id: 'a',
+          name: 'a',
+          appLoc: '/Public/a',
+          streamWebFolder: 5,
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    ).rejects.toThrow(/not a list of app entries/)
+  })
+
+  it('refuses a legacy entry with no folder for its stream folder to be relative to', async () => {
+    await expect(
+      withIndex([
+        {
+          id: 'a',
+          name: 'a',
+          streamWebFolder: 'web',
+          publishedAt: '2026-01-01T00:00:00.000Z'
+        }
+      ])
+    ).rejects.toThrow(/not a list of app entries/)
+  })
+})

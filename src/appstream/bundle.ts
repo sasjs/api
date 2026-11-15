@@ -233,16 +233,28 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   if (manifest?.streamWebFolder !== undefined) return { tree: rest, manifest }
 
   // a `web/` folder is the frontend; without one, a manifest still says the tree
-  // is an app, and the whole tree is then the app's own files
-  const backend = contentsOf(folderNamed(withoutManifest, BACKEND_FOLDER))
+  // is an app, and what is left once the backend is taken out is then the app's
+  // own files.
+  const backendFolder = folderNamed(withoutManifest, BACKEND_FOLDER)
+  const backend = contentsOf(backendFolder)
+  const ownFiles = withoutManifest.filter((member) => member !== backendFolder)
+
+  /**
+   * Nothing left is not a frontend.
+   *
+   * A bundle that carries only `backend/` and a manifest has no files to serve: the
+   * remaining tree is EMPTY, and reading that as a frontend publishes an app whose
+   * folder holds nothing, then refuses it for having no name. Such a bundle deploys
+   * its backend and publishes nothing - the halves are independent, which is what
+   * makes a backend shareable between frontends.
+   */
+  const frontend =
+    contentsOf(web) ??
+    (ownFiles.length === 0 ? undefined : { members: ownFiles })
 
   return {
     tree: rest,
-    frontend: contentsOf(web) ?? {
-      members: withoutManifest.filter(
-        (member) => member !== folderNamed(withoutManifest, BACKEND_FOLDER)
-      )
-    },
+    ...(frontend === undefined ? {} : { frontend }),
     ...(backend === undefined ? {} : { backend }),
     manifest: manifest as AppManifest
   }

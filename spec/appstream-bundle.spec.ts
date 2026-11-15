@@ -44,6 +44,37 @@ describe('an app bundle', () => {
     expect(tree.members).toHaveLength(2)
   })
 
+  it('is a backend and nothing to serve, when only a backend is left', () => {
+    const tree = {
+      members: [
+        {
+          name: 'sasjs.app.json',
+          type: 'file',
+          code: JSON.stringify({ appLoc: '/Public/app/backendonly' })
+        },
+        {
+          name: 'backend',
+          type: 'folder',
+          members: [
+            {
+              name: 'services',
+              type: 'folder',
+              members: [{ name: 'run', type: 'file', code: '' }]
+            }
+          ]
+        }
+      ]
+    }
+
+    const bundle = splitAppBundle(tree as any)
+
+    // an empty remainder is not a frontend: reading it as one published an app
+    // whose folder held nothing, and then refused it for having no name
+    expect(bundle.frontend).toBeUndefined()
+    expect(bundle.backend).toBeDefined()
+    expect(bundle.manifest).toEqual({ appLoc: '/Public/app/backendonly' })
+  })
+
   it('keeps a manifest that is not at the root out of the index', () => {
     const nested = {
       members: [

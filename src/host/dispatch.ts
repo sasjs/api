@@ -20,7 +20,11 @@ import type { SessionService } from '../session/service.js'
 import type { ViyaSeedSettings } from '../viya/seed.js'
 import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamService } from '../appstream/service.js'
-import { appSummary, checkPublishRequest } from '../appstream/service.js'
+import {
+  appSummary,
+  checkPublishRequest,
+  frontendFolderOf
+} from '../appstream/service.js'
 import { publishRequestFor, splitAppBundle } from '../appstream/bundle.js'
 import type { CodeService } from '../code/service.js'
 import type { InfoService } from '../info/service.js'
@@ -31,6 +35,7 @@ import type { HomeService } from '../home/service.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError, isApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
+import type { DeployTree } from '../drive/deploy.js'
 
 /** The defaults sasjs/server's Client schema applies to an omitted lifetime. */
 const SECONDS_IN_A_DAY = 86400
@@ -537,10 +542,13 @@ export const dispatch = async (
     // expansion, which is why the two share this path rather than reading bytes.
     case 'POST /SASjsApi/drive/deploy/upload':
     case 'POST /SASjsApi/drive/deploy': {
-      // A bundle is one archive: the deployment and - when it carries one - the
-      // statement that this folder is an app. The manifest is metadata, so it is
-      // taken out of the tree before anything is written.
+      // A bundle is one archive: a deployment, and - when it carries one - the
+      // statement that this is an app. A current bundle names its halves, `web/`
+      // and `backend/`; the older shape is one tree with the web assets inside the
+      // backend's folder. The manifest is metadata either way, so it is taken out
+      // of the tree before anything is written.
       const bundle = splitAppBundle(body.fileTree)
+      const packaged = bundle.frontend !== undefined
 
       const isUpload = routeId === 'POST /SASjsApi/drive/deploy/upload'
 
@@ -557,20 +565,22 @@ export const dispatch = async (
       const requested = services.appStream
         ? publishRequestFor(
             {
+              name: given(setting('name')),
               appLoc,
               streamWebFolder: given(setting('streamWebFolder')),
               streamServiceName: given(setting('streamServiceName')),
               streamLogo: given(setting('streamLogo'))
             },
-            bundle.manifest
+            bundle.manifest,
+            { packaged }
           )
         : undefined
 
       // the index's own checks run BEFORE the drive is written: a tree the index
       // would refuse must not leave its files behind, which is what happened when
       // the deploy came first - a request answered `400` had already deployed.
-      // The tree goes in, so a tree without the folder the app would be served
-      // from is refused rather than indexed as an app that 404s.
+      // The tree goes in, so what a browser would open is judged: a package's
+      // frontend, or the whole tree of a legacy bundle.
       // the folder the refusal should tell the caller to fix: the bundle's, when
       // the request did not state one and the manifest did
       const folderFromManifest =
@@ -581,7 +591,41 @@ export const dispatch = async (
       const publish =
         requested === undefined
           ? undefined
-          : checkPublishRequest(requested, bundle.tree, { folderFromManifest })
+          : checkPublishRequest(
+              requested,
+              packaged ? bundle.frontend : bundle.tree,
+              { folderFromManifest }
+            )
+
+      // a package has nowhere to go without an index: its frontend is `apps/<name>`,
+      // which only a published app has
+      if (packaged && publish === undefined)
+        throw new ApiError(
+          501,
+          `This host has no app stream, so it cannot publish the frontend this bundle carries.`
+        )
+
+      if (publish !== undefined && publish.streamWebFolder === undefined) {
+        // check, backend, frontend, index - the backend first so a frontend is
+        // never live against services that are not deployed yet, and additively
+        // because several frontends may name one backend
+        if (bundle.backend !== undefined && publish.appLoc !== undefined)
+          await drive.deploy(publish.appLoc, bundle.backend, { replace: false })
+
+        // publishing a frontend means the folder is what this bundle says it is
+        await drive.deploy(
+          frontendFolderOf(publish.name as string),
+          (packaged ? bundle.frontend : bundle.tree) as DeployTree,
+          { replace: true }
+        )
+
+        const entry = await services.appStream!.publish(publish)
+
+        return {
+          status: 200,
+          body: { ...DEPLOY_SUCCESS, app: appSummary(entry) }
+        }
+      }
 
       // an archive upload replaces by default - publishing a folder means the
       // folder is what the archive says it is - while the JSON route writes over

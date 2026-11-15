@@ -347,3 +347,72 @@ describe('the small rules a host relies on', () => {
     expect(escapeHtml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;')
   })
 })
+
+describe('an app published as a frontend', () => {
+  const frontend = (over: Partial<AppStreamEntry> = {}): AppStreamEntry => ({
+    id: ZELDA,
+    name: 'zelda',
+    publishedAt: '2026-01-01T00:00:00.000Z',
+    ...over
+  })
+
+  const webWith = async (entries: AppStreamEntry[]) => {
+    const appStream = createAppStreamService(new MemoryAppStreamStore(entries))
+
+    const drive = createDriveService(
+      new MemoryDriveStore({
+        '/apps/zelda/index.html': '<h1>Zelda</h1>',
+        '/apps/zelda/main.abcdef12.js': 'console.log(2)',
+        '/Public/apps/mario/services/web/index.html': '<h1>Mario</h1>'
+      })
+    )
+
+    return createAppStreamWebService(appStream, drive)
+  }
+
+  it('serves its files from apps/<name>, not from a backend folder', async () => {
+    const surface = await webWith([frontend({ appLoc: '/Public/apps/mario' })])
+
+    const page = await surface.request({
+      method: 'GET',
+      path: `/app/${ZELDA}/`
+    })
+
+    expect(page.status).toBe(200)
+    expect(page.body).toBe('<h1>Zelda</h1>')
+  })
+
+  it('serves a hashed asset with the immutable cache header', async () => {
+    const surface = await webWith([frontend()])
+
+    const page = await surface.request({
+      method: 'GET',
+      path: `/app/${ZELDA}/main.abcdef12.js`
+    })
+
+    expect(page.body).toBe('console.log(2)')
+    expect(page.headers?.['cache-control']).toContain('immutable')
+  })
+
+  it('keeps a legacy entry reading from where its deployment put it', async () => {
+    const surface = await webWith([
+      entry({ appLoc: '/Public/apps/mario', streamWebFolder: 'web' })
+    ])
+
+    const page = await surface.request({
+      method: 'GET',
+      path: `/app/${MARIO}/`
+    })
+
+    expect(page.body).toBe('<h1>Mario</h1>')
+  })
+
+  it('lists a frontend-only app with no backend named', async () => {
+    const surface = await webWith([frontend()])
+
+    const { apps } = await surface.apps()
+
+    expect(apps[0].appLoc).toBeNull()
+    expect(apps[0].url).toBe(`/app/${ZELDA}/`)
+  })
+})

@@ -239,10 +239,13 @@ export { runCase, servicesFor } from './corpus/runner.js'
 export type { CaseResult } from './corpus/runner.js'
 
 export {
+  APP_FOLDERS_ROOT,
   appSummary,
   checkPublishRequest,
   createAppStreamService,
   defaultAppName,
+  frontendFolderOf,
+  hasFrontendRoot,
   MemoryAppStreamStore
 } from './appstream/service.js'
 export type {
@@ -254,6 +257,8 @@ export type {
 } from './appstream/service.js'
 export {
   APP_MANIFEST,
+  BACKEND_FOLDER,
+  FRONTEND_FOLDER,
   parseAppManifest,
   publishRequestFor,
   splitAppBundle
@@ -270,6 +275,7 @@ export {
 export {
   DEFAULT_APP_PATH,
   NO_SUCH_APP,
+  appRootOf,
   cacheControlFor,
   contentTypeFor,
   createAppStreamWebService,

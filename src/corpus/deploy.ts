@@ -321,6 +321,24 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'deploy-refuses-a-bundle-that-names-no-folder',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a tree with no app named and no folder to deploy to, naming the field',
+    request: {
+      subject: SUBJECT,
+      body: {
+        fileTree: {
+          members: [{ name: 'run', type: 'service', code: '%put hi;' }]
+        }
+      }
+    },
+    expect: {
+      status: 400,
+      error: '"appLoc" is required to deploy files that do not name an app.'
+    }
+  },
+  {
     id: 'deploy-refuses-a-bad-manifest',
     route: 'POST /SASjsApi/drive/deploy',
     description: 'refuses a bundle whose manifest is not JSON',

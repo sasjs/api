@@ -15,6 +15,7 @@ import {
 import { isApiError } from '../src/types.js'
 import { runCase, servicesFor } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
+import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 
 const services = () => ({ drive: createDriveService(new MemoryDriveStore()) })
 
@@ -541,5 +542,25 @@ describe('corpus runner', () => {
     await expect(runCase(testCase, { drive: broken })).rejects.toThrow(
       'store is broken'
     )
+  })
+})
+
+describe('a package, on a host with no app stream', () => {
+  it('is refused rather than deployed to a folder that would not be served', async () => {
+    const testCase = DEPLOY_CORPUS.find(
+      (candidate) => candidate.id === 'deploy-publishes-a-package'
+    ) as CorpusCase
+
+    const { appStream, ...withoutIndex } = servicesFor(testCase)
+
+    expect(
+      await failure(() =>
+        dispatch(withoutIndex, testCase.route, testCase.request)
+      )
+    ).toMatchObject({
+      status: 501,
+      message: /no app stream/
+    })
+    expect(appStream).toBeDefined()
   })
 })

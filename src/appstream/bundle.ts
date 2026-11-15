@@ -219,11 +219,13 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   const rest = { ...tree, members: withoutManifest } as DeployTree
 
   const web = folderNamed(withoutManifest, FRONTEND_FOLDER)
+  const backendFolder = folderNamed(withoutManifest, BACKEND_FOLDER)
 
   // nothing says this is an app: pass the tree through untouched, so a caller that
   // keeps its own copy sees no change and the deploy is the thing that judges it.
-  // A manifest is the only other way out of this branch, so there is none here.
-  if (web === undefined && manifest === undefined)
+  // The two folder names are what a package is made of, so either of them - or a
+  // manifest - is the bundle saying it is one.
+  if (web === undefined && backendFolder === undefined && manifest === undefined)
     return { tree: tree as unknown as DeployTree }
 
   // `streamWebFolder` names the older shape, where the web assets sit inside the
@@ -235,7 +237,6 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   // a `web/` folder is the frontend; without one, a manifest still says the tree
   // is an app, and what is left once the backend is taken out is then the app's
   // own files.
-  const backendFolder = folderNamed(withoutManifest, BACKEND_FOLDER)
   const backend = contentsOf(backendFolder)
   const ownFiles = withoutManifest.filter((member) => member !== backendFolder)
 

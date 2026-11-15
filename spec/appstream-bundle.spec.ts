@@ -75,6 +75,31 @@ describe('an app bundle', () => {
     expect(bundle.manifest).toEqual({ appLoc: '/Public/app/backendonly' })
   })
 
+  it('reads a backend folder as the backend, even with no manifest', () => {
+    const tree = {
+      members: [
+        {
+          name: 'backend',
+          type: 'folder',
+          members: [
+            {
+              name: 'services',
+              type: 'folder',
+              members: [{ name: 'run', type: 'file', code: '' }]
+            }
+          ]
+        }
+      ]
+    }
+
+    const bundle = splitAppBundle(tree as any)
+
+    // the folder names are what a package is made of: a zip that carries one of
+    // them is a package, and the deploy is what asks for the name or the folder
+    expect(bundle.backend).toBeDefined()
+    expect(bundle.frontend).toBeUndefined()
+  })
+
   it('keeps a manifest that is not at the root out of the index', () => {
     const nested = {
       members: [

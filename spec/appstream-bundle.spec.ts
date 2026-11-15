@@ -72,6 +72,22 @@ describe('an app bundle', () => {
       expect(splitAppBundle(value).tree).toBe(value)
   })
 
+  it('reads a manifest that arrived as bytes, which is how a zip carries it', () => {
+    const code = Buffer.from(
+      JSON.stringify({ name: 'zipped' }),
+      'utf8'
+    ).toString('base64')
+
+    const bundle = splitAppBundle({
+      members: [
+        { name: APP_MANIFEST, type: 'file', encoding: 'base64', code },
+        { name: 'index.html', type: 'file', code: '<html></html>' }
+      ]
+    })
+
+    expect(bundle.manifest).toEqual({ name: 'zipped' })
+  })
+
   it('refuses a manifest that cannot be read, naming the file', () => {
     expect(() => splitAppBundle(treeWith('{not json'))).toThrow(
       /sasjs\.app\.json is not valid JSON/

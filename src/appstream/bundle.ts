@@ -24,11 +24,19 @@
  * tree is written and never appears in the app's served files.
  */
 import { ApiError } from '../types.js'
+import { decodeBase64 } from '../drive/deploy.js'
 import type { DeployMember, DeployTree } from '../drive/deploy.js'
 import type { PublishAppRequest } from './service.js'
 
 /** The file, at the root of an app bundle, that says the bundle is an app. */
 export const APP_MANIFEST = 'sasjs.app.json'
+
+/**
+ * `TextDecoder` is a global in Node and in every browser the browser build runs
+ * in, but this package's `lib` is ES2020 - no DOM, no node types - so the one
+ * global it needs is declared rather than widening the lib for a single call.
+ */
+declare const TextDecoder: new () => { decode(input: Uint8Array): string }
 
 /** The folder in a package holding the compiled frontend. */
 export const FRONTEND_FOLDER = 'web'
@@ -181,15 +189,23 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   let manifest: AppManifest | undefined
 
   if (at !== -1) {
-    const member = members[at] as { code?: unknown }
+    const member = members[at] as { code?: unknown; encoding?: unknown }
 
     if (typeof member.code !== 'string')
       throw new ApiError(400, `${APP_MANIFEST} carries no text.`)
 
+    // a manifest read out of a zip is bytes: an archive records no text/binary
+    // distinction, so the tree builder marks every member `base64` and the
+    // manifest has to be decoded before it can be parsed
+    const source =
+      member.encoding === 'base64'
+        ? new TextDecoder().decode(decodeBase64(member.code))
+        : member.code
+
     let parsed: unknown
 
     try {
-      parsed = JSON.parse(member.code)
+      parsed = JSON.parse(source)
     } catch (error) {
       throw new ApiError(
         400,

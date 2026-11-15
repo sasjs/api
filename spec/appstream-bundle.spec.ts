@@ -339,3 +339,37 @@ describe('the publish a package asks for', () => {
     })
   })
 })
+
+describe('a manifest that names the older shape', () => {
+  it('keeps the tree whole, even when a folder at its root is called web', () => {
+    // `streamWebFolder` decides on its own. A folder called `web` is one a
+    // deployment may simply contain, and reading it as a package would deploy half
+    // a tree and publish the other half.
+    const bundle = splitAppBundle({
+      members: [
+        {
+          name: APP_MANIFEST,
+          type: 'file',
+          code: JSON.stringify({ streamWebFolder: 'web', appLoc: '/Public/a' })
+        },
+        {
+          name: 'web',
+          type: 'folder',
+          members: [{ name: 'index.html', type: 'file', code: '<html></html>' }]
+        },
+        { name: 'services', type: 'folder', members: [] }
+      ]
+    })
+
+    expect(bundle.frontend).toBeUndefined()
+    expect(bundle.backend).toBeUndefined()
+    expect(bundle.manifest).toEqual({
+      streamWebFolder: 'web',
+      appLoc: '/Public/a'
+    })
+    expect(bundle.tree.members.map((member) => member.name)).toEqual([
+      'web',
+      'services'
+    ])
+  })
+})

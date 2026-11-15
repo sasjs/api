@@ -597,7 +597,13 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         name: 'appLoc',
         in: 'body',
-        required: true,
+        required: false,
+        type: 'string'
+      },
+      {
+        name: 'name',
+        in: 'body',
+        required: false,
         type: 'string'
       },
       {
@@ -658,6 +664,12 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
     tag: 'Drive',
     summary: 'Deploy an uploaded file to SASjs Drive',
     params: [
+      {
+        name: 'name',
+        in: 'query',
+        required: false,
+        type: 'string'
+      },
       {
         name: 'appLoc',
         in: 'query',

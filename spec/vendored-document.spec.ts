@@ -17,8 +17,11 @@ describe('the vendored document', () => {
   it('says which revision of sasjs/server it was taken from', () => {
     // the header is the only record of provenance, and a copy that replaces the file
     // wholesale is exactly how it gets lost - which happened once already
+    // `main` while this package trails the server, a branch while it leads it -
+    // a package change can land before the server's, and the header still has to
+    // say which ref the body came from and pin it to a commit
     expect(text.split('\n')[0]).toMatch(
-      /^# Vendored from sasjs\/server: api\/public\/swagger\.yaml at main \([0-9a-f]{7,},/
+      /^# Vendored from sasjs\/server: api\/public\/swagger\.yaml at (main|\S+) \([0-9a-f]{7,},/
     )
   })
 

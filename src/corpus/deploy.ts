@@ -268,6 +268,77 @@ export const DEPLOY_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'deploy-publishes-a-package',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'publishes a frontend to apps/<name> and writes the backend it carries to appLoc',
+    request: {
+      subject: SUBJECT,
+      body: {
+        fileTree: {
+          members: [
+            {
+              name: 'sasjs.app.json',
+              type: 'file',
+              code: JSON.stringify({
+                name: 'macrodash',
+                appLoc: '/Public/app/md'
+              })
+            },
+            {
+              name: 'web',
+              type: 'folder',
+              members: [
+                { name: 'index.html', type: 'file', code: '<h1>Dash</h1>' }
+              ]
+            },
+            {
+              name: 'backend',
+              type: 'folder',
+              members: [
+                {
+                  name: 'services',
+                  type: 'folder',
+                  members: [{ name: 'run', type: 'service', code: '%put hi;' }]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    // the halves are named, so a host has to write them to two folders rather
+    // than deploy the container: a status alone cannot see that
+    expectDrive: {
+      present: ['/apps/macrodash/index.html', '/Public/app/md/services/run.sas']
+    },
+    expect: {
+      status: 200,
+      partial: {
+        status: 'success',
+        app: { name: 'macrodash' }
+      }
+    }
+  },
+  {
+    id: 'deploy-refuses-a-bundle-that-names-no-folder',
+    route: 'POST /SASjsApi/drive/deploy',
+    description:
+      'refuses a tree with no app named and no folder to deploy to, naming the field',
+    request: {
+      subject: SUBJECT,
+      body: {
+        fileTree: {
+          members: [{ name: 'run', type: 'service', code: '%put hi;' }]
+        }
+      }
+    },
+    expect: {
+      status: 400,
+      error: '"appLoc" is required to deploy files that do not name an app.'
+    }
+  },
+  {
     id: 'deploy-refuses-a-bad-manifest',
     route: 'POST /SASjsApi/drive/deploy',
     description: 'refuses a bundle whose manifest is not JSON',

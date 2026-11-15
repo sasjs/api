@@ -574,3 +574,162 @@ describe('the memory store', () => {
     expect((await store.read())[0].name).toBe('mario')
   })
 })
+
+describe('a frontend publish', () => {
+  const app = (name: string, extra: Record<string, unknown> = {}) => ({
+    name,
+    ...extra
+  })
+
+  const indexTree = {
+    members: [
+      { name: 'index.html', type: 'file' as const, code: '<html></html>' }
+    ]
+  }
+
+  it('publishes a name with no backend at all', async () => {
+    const published = await service().publish(app('macrodash'))
+
+    expect(published.id).toMatch(UUID)
+    expect(published.name).toBe('macrodash')
+    expect(published.appLoc).toBeUndefined()
+    expect(published.streamWebFolder).toBeUndefined()
+  })
+
+  it('keeps the id when the same name is published again, and can name a backend later', async () => {
+    const apps = service()
+
+    const first = await apps.publish(app('macrodash'))
+    const second = await apps.publish(
+      app('macrodash', { appLoc: '/Public/app/macrodash' })
+    )
+
+    expect(second.id).toBe(first.id)
+    expect(second.appLoc).toBe('/Public/app/macrodash')
+    expect(await apps.list()).toHaveLength(1)
+  })
+
+  it('lets two apps name one backend, and keeps them apart', async () => {
+    const apps = service()
+
+    const left = await apps.publish(
+      app('left', { appLoc: '/Public/app/shared' })
+    )
+    const right = await apps.publish(
+      app('right', { appLoc: '/Public/app/shared' })
+    )
+
+    expect(left.id).not.toBe(right.id)
+    expect(left.appLoc).toBe(right.appLoc)
+    expect((await apps.list()).map((entry) => entry.name)).toEqual([
+      'left',
+      'right'
+    ])
+  })
+
+  it('refuses a name another app already holds, but keeps the one it has', async () => {
+    const apps = service()
+
+    await apps.publish(app('mario'))
+    await publish('/Public/apps/kart', { name: 'kart' })
+
+    await expect(apps.publish(app('Mario'))).rejects.toThrow(
+      /already the address/
+    )
+
+    // republishing itself is not a clash
+    await expect(apps.publish(app('mario'))).resolves.toMatchObject({
+      name: 'mario'
+    })
+  })
+
+  it('refuses a publish with no name, and a name that is not a URL segment', async () => {
+    await expect(service().publish({})).rejects.toThrow(/"name" is required/)
+
+    for (const name of ['a b', 'a/b', 'a#b', 'apps.json'])
+      await expect(service().publish(app(name))).rejects.toThrow(/"name"/)
+  })
+
+  it('refuses a tree with nothing to open, and accepts one with a page', async () => {
+    await expect(
+      service().publish(app('empty', { appLoc: '/Public/app/x' }))
+    ).resolves.toMatchObject({ name: 'empty' })
+
+    expect(() =>
+      checkPublishRequest({ name: 'empty' }, { members: [] })
+    ).toThrow(/no "index.html" at its root/)
+
+    expect(() => checkPublishRequest({ name: 'ok' }, indexTree)).not.toThrow()
+  })
+
+  it('coexists with a legacy entry, and keeps each keyed by its own rule', async () => {
+    const apps = service()
+
+    const legacy = await apps.publish({
+      appLoc: '/Public/app/legacy',
+      streamWebFolder: 'web',
+      name: 'legacy'
+    })
+
+    expect(legacy.streamWebFolder).toBe('web')
+    expect(await apps.forAppLoc('/Public/app/legacy')).toMatchObject({
+      id: legacy.id
+    })
+
+    const frontend = await apps.publish(
+      app('frontend', { appLoc: '/Public/app/legacy' })
+    )
+
+    // a frontend that names a backend is not published AT that folder, so the
+    // legacy lookup still finds the legacy entry alone
+    expect(await apps.forAppLoc('/Public/app/legacy')).toMatchObject({
+      id: legacy.id
+    })
+    expect(frontend.id).not.toBe(legacy.id)
+    expect(await apps.list()).toHaveLength(2)
+  })
+})
+
+describe('the refusals a frontend publish adds', () => {
+  it('refuses a legacy publish that states a folder without the folder it is relative to', () => {
+    expect(() => checkPublishRequest({ streamWebFolder: 'web' })).toThrow(
+      /"appLoc" is required when "streamWebFolder" is stated/
+    )
+  })
+
+  it('refuses a backend of the drive root, which is not a folder an app can call', () => {
+    expect(() => checkPublishRequest({ name: 'rooted', appLoc: '/' })).toThrow(
+      /drive root as its backend/
+    )
+  })
+
+  it('carries the optional fields a frontend publish states', async () => {
+    const entry = await service().publish({
+      name: 'framed',
+      appLoc: '/Public/app/framed',
+      logo: 'logo.png',
+      frameAncestors: ['https://example.com'],
+      publishedAt: '2026-02-02T00:00:00.000Z'
+    })
+
+    expect(entry).toMatchObject({
+      logo: 'logo.png',
+      frameAncestors: ['https://example.com'],
+      publishedAt: '2026-02-02T00:00:00.000Z'
+    })
+  })
+
+  it('refuses a tree that is not a tree, naming what is missing', () => {
+    expect(() => checkPublishRequest({ name: 'x' }, 'nope')).toThrow(
+      /no "index.html" at its root/
+    )
+  })
+
+  it('publishes a frontend with no backend named at all', async () => {
+    const entry = await service().publish({ name: 'alone' })
+
+    expect(entry.appLoc).toBeUndefined()
+    // the folder is derived, so nothing about it is stored
+    expect(Object.keys(entry).sort()).toEqual(['id', 'name', 'publishedAt'])
+  })
+})

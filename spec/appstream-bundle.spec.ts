@@ -72,6 +72,22 @@ describe('an app bundle', () => {
       expect(splitAppBundle(value).tree).toBe(value)
   })
 
+  it('reads a manifest that arrived as bytes, which is how a zip carries it', () => {
+    const code = Buffer.from(
+      JSON.stringify({ name: 'zipped' }),
+      'utf8'
+    ).toString('base64')
+
+    const bundle = splitAppBundle({
+      members: [
+        { name: APP_MANIFEST, type: 'file', encoding: 'base64', code },
+        { name: 'index.html', type: 'file', code: '<html></html>' }
+      ]
+    })
+
+    expect(bundle.manifest).toEqual({ name: 'zipped' })
+  })
+
   it('refuses a manifest that cannot be read, naming the file', () => {
     expect(() => splitAppBundle(treeWith('{not json'))).toThrow(
       /sasjs\.app\.json is not valid JSON/
@@ -106,13 +122,25 @@ describe('the manifest', () => {
     })
   })
 
-  it('refuses a manifest that is not an object, or names no folder', () => {
+  it('accepts a manifest that states any subset, and refuses only a field of the wrong shape', () => {
     for (const value of [null, [], 'x', 5])
       expect(() => parseAppManifest(value)).toThrow(/must be an object/)
 
-    expect(() => parseAppManifest({})).toThrow(/"streamWebFolder"/)
+    // a package names the app; a legacy bundle names the folder its assets are in.
+    // Neither is required of the FILE, because the request may state them.
+    expect(parseAppManifest({})).toEqual({})
+    expect(parseAppManifest({ name: 'macrodash' })).toEqual({
+      name: 'macrodash'
+    })
+    expect(parseAppManifest({ appLoc: '/Public/app/x' })).toEqual({
+      appLoc: '/Public/app/x'
+    })
+
     expect(() => parseAppManifest({ streamWebFolder: ' ' })).toThrow(
       /"streamWebFolder"/
+    )
+    expect(() => parseAppManifest({ streamWebFolder: 'a/b' })).toThrow(
+      /single path segment/
     )
   })
 
@@ -173,6 +201,141 @@ describe('the publish a deploy asks for', () => {
       streamWebFolder: 'dist',
       name: 'Named',
       logo: 'other.png'
+    })
+  })
+})
+
+describe('a package', () => {
+  const file = (name: string, code = '') => ({
+    name,
+    type: 'file' as const,
+    code
+  })
+
+  const packaged = (manifest: unknown, extra: unknown[] = []) =>
+    treeWith(manifest, [
+      {
+        name: 'web',
+        type: 'folder' as const,
+        members: [file('index.html', '<html></html>'), file('main.js', 'x')]
+      },
+      ...extra
+    ])
+
+  it('splits the frontend from the backend by name, and strips the manifest', () => {
+    const bundle = splitAppBundle(
+      packaged({ name: 'macrodash', appLoc: '/Public/app/md' }, [
+        {
+          name: 'backend',
+          type: 'folder' as const,
+          members: [{ name: 'services', type: 'folder' as const, members: [] }]
+        }
+      ])
+    )
+
+    expect(bundle.manifest).toEqual({
+      name: 'macrodash',
+      appLoc: '/Public/app/md'
+    })
+
+    // the frontend is the CONTENTS of web/, because that is what becomes apps/<name>
+    expect(bundle.frontend?.members.map((m) => m.name)).toEqual([
+      'index.html',
+      'main.js'
+    ])
+
+    // the backend is the CONTENTS of backend/, because that is what the services
+    // deploy writes to appLoc
+    expect(bundle.backend?.members.map((m) => m.name)).toEqual(['services'])
+  })
+
+  it('has no backend when the bundle carries none, and still has a frontend', () => {
+    const bundle = splitAppBundle(packaged({ name: 'macrodash' }))
+
+    expect(bundle.backend).toBeUndefined()
+    expect(bundle.frontend?.members).toHaveLength(2)
+  })
+
+  it('is a frontend from the whole tree when a manifest names it and there is no web folder', () => {
+    const bundle = splitAppBundle(
+      treeWith({ name: 'alone' }, [file('index.html'), file('app.js')])
+    )
+
+    expect(bundle.manifest).toEqual({ name: 'alone' })
+    expect(bundle.frontend?.members.map((m) => m.name)).toEqual([
+      'index.html',
+      'app.js'
+    ])
+  })
+
+  it('is not a package when there is no web folder and no manifest', () => {
+    const bundle = splitAppBundle(
+      treeWith(undefined, [{ name: 'services', type: 'folder', members: [] }])
+    )
+
+    expect(bundle.frontend).toBeUndefined()
+    expect(bundle.tree.members).toHaveLength(1)
+  })
+})
+
+describe('the publish a package asks for', () => {
+  it('names the app and leaves appLoc as the backend metadata it is', () => {
+    expect(
+      publishRequestFor(
+        { name: 'macrodash', appLoc: '/Public/app/md' },
+        undefined,
+        { packaged: true }
+      )
+    ).toEqual({ name: 'macrodash', appLoc: '/Public/app/md' })
+  })
+
+  it('takes the manifest when the request is silent, and the request when it is not', () => {
+    expect(
+      publishRequestFor(
+        {},
+        { name: 'from-manifest', appLoc: '/Public/a' },
+        {
+          packaged: true
+        }
+      )
+    ).toEqual({ name: 'from-manifest', appLoc: '/Public/a' })
+
+    expect(
+      publishRequestFor(
+        { name: 'from-request' },
+        { name: 'from-manifest' },
+        {
+          packaged: true
+        }
+      )
+    ).toEqual({ name: 'from-request' })
+  })
+
+  it('asks for nothing when a bare bundle states no name', () => {
+    expect(publishRequestFor({ appLoc: '/Public/a' })).toBeUndefined()
+  })
+
+  it('publishes a bare bundle as a frontend when the request names one', () => {
+    expect(publishRequestFor({ name: 'bare' })).toEqual({ name: 'bare' })
+  })
+
+  it('keeps a stated stream folder on the legacy path, even in a package', () => {
+    // the request wins: an entry that states where the assets sit is asking for the
+    // shape it describes, which is why a CLI that has not been updated is unchanged
+    expect(
+      publishRequestFor(
+        {
+          appLoc: '/Public/a',
+          streamWebFolder: 'web',
+          streamServiceName: 'Old'
+        },
+        { name: 'ignored' },
+        { packaged: true }
+      )
+    ).toEqual({
+      appLoc: '/Public/a',
+      streamWebFolder: 'web',
+      name: 'Old'
     })
   })
 })

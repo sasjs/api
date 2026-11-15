@@ -20,6 +20,7 @@
  */
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
+import { frontendFolderOf } from './service.js'
 import type { AppStreamEntry, AppStreamService } from './service.js'
 
 /** Where the surface lives unless a host mounts it elsewhere. */
@@ -32,7 +33,8 @@ export const NO_SUCH_APP = "There's no App Stream available here."
 export interface AppStreamApp {
   id: string
   name: string
-  appLoc: string
+  /** The backend this frontend calls, or null when it names none. */
+  appLoc: string | null
   /** An asset inside the app, addressed from the app's own URL. */
   logo: string | null
   /** The app's URL, `/app/<id>/`. */
@@ -175,6 +177,19 @@ const decoded = (segment: string): string | undefined => {
   }
 }
 
+/**
+ * Where an entry's files are read from.
+ *
+ * A frontend lives in one folder named after the app - `apps/<name>` - so the
+ * entry records nothing about it, and moving a frontend is a delete and a publish.
+ * A legacy entry states its own location, because that is where its deployment put
+ * it: `<appLoc>/services/<streamWebFolder>`.
+ */
+export const appRootOf = (entry: AppStreamEntry): string =>
+  entry.streamWebFolder !== undefined && entry.appLoc !== undefined
+    ? `${entry.appLoc}/services/${entry.streamWebFolder}`
+    : frontendFolderOf(entry.name)
+
 export const createAppStreamWebService = (
   appStream: AppStreamService,
   drive: DriveService,
@@ -188,7 +203,7 @@ export const createAppStreamWebService = (
   const rowOf = (entry: AppStreamEntry): AppStreamApp => ({
     id: entry.id,
     name: entry.name,
-    appLoc: entry.appLoc,
+    appLoc: entry.appLoc ?? null,
     logo: entry.logo === undefined ? null : `${urlOf(entry)}${entry.logo}`,
     url: urlOf(entry),
     publishedAt: entry.publishedAt ?? null
@@ -208,7 +223,9 @@ export const createAppStreamWebService = (
           .map(
             (row) =>
               `<li><a href="${escapeHtml(row.url)}">${escapeHtml(row.name)}</a>` +
-              `<span class="loc">${escapeHtml(row.appLoc)}</span></li>`
+              `<span class="loc">${escapeHtml(
+                row.appLoc ?? frontendFolderOf(row.name)
+              )}</span></li>`
           )
           .join('')}</ul>`
       : '<p class="empty">No apps have been published yet.</p>'
@@ -271,9 +288,7 @@ export const createAppStreamWebService = (
     const relative = (parts as string[]).join('/') || 'index.html'
 
     try {
-      const file = await drive.read(
-        `${entry.appLoc}/services/${entry.streamWebFolder}/${relative}`
-      )
+      const file = await drive.read(`${appRootOf(entry)}/${relative}`)
 
       return {
         status: 200,

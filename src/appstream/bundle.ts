@@ -1,41 +1,56 @@
 /**
  * An app as one bundle: the deployment and the statement of what it publishes.
  *
- * A deploy writes a tree to a folder, and a tree of an app already holds
- * everything the app is - its services under `services/`, the compiled web assets
- * under `services/<streamWebFolder>`, and whatever jobs and data files it was
- * built with. What a tree cannot say is that the folder IS an app: which of its
- * folders holds the web build, what it should be called, and whether it may be
- * framed. That statement is a small file at the root of the archive:
+ * Two shapes travel through here, and the difference is where the frontend sits.
  *
- *     sasjs.app.json
- *     services/
- *       web/            the compiled app: index.html, main.<hash>.js, assets/
- *       build.sas       the services the app calls
- *     jobs/
+ * **A package** is what a current `sasjs build` emits for a server: a frontend, an
+ * optional backend, and a manifest saying which app the frontend is.
  *
- * So one zip deploys the app and the folders under it in a single request, and
- * the app is indexed as part of that deploy rather than by a second call that can
- * fail on its own. The manifest is consumed here: it is metadata, not an asset,
- * so it is stripped from the tree before the tree is written and never appears in
- * the app's served files.
+ *     sasjs.app.json      {"name": "macrodash", "appLoc": "/Public/app/macrodash"}
+ *     web/                the compiled app: index.html, assets/
+ *     backend/            optional: the services the app calls, written to appLoc
  *
- * The manifest is optional. A deploy that names `streamWebFolder` in its payload
- * publishes without one, which is what an existing client does; a bundle that
- * carries a manifest needs no arguments beyond the folder it deploys to.
+ * The halves are named, not inferred from a path: `web/` becomes `apps/<name>` and
+ * `backend/` becomes `appLoc`, and neither is guessed at from a member's name.
+ * One zip therefore deploys a backend and publishes a frontend in a single
+ * request, and the frontend can be republished alone by leaving `backend/` out.
+ *
+ * **A legacy bundle** is the shape before that: one tree deployed to `appLoc`,
+ * with the web assets carried at `services/<streamWebFolder>`. It is what every
+ * released CLI emits, and it keeps working unchanged - the manifest is optional
+ * there because the deploy payload states the stream fields instead.
+ *
+ * The manifest is metadata, not an asset: it is taken out of the tree before the
+ * tree is written and never appears in the app's served files.
  */
 import { ApiError } from '../types.js'
+import { decodeBase64 } from '../drive/deploy.js'
 import type { DeployMember, DeployTree } from '../drive/deploy.js'
 import type { PublishAppRequest } from './service.js'
 
 /** The file, at the root of an app bundle, that says the bundle is an app. */
 export const APP_MANIFEST = 'sasjs.app.json'
 
+/**
+ * `TextDecoder` is a global in Node and in every browser the browser build runs
+ * in, but this package's `lib` is ES2020 - no DOM, no node types - so the one
+ * global it needs is declared rather than widening the lib for a single call.
+ */
+declare const TextDecoder: new () => { decode(input: Uint8Array): string }
+
+/** The folder in a package holding the compiled frontend. */
+export const FRONTEND_FOLDER = 'web'
+
+/** The folder in a package holding the services the frontend calls. */
+export const BACKEND_FOLDER = 'backend'
+
 export interface AppManifest {
-  /** The label the app is listed under. Defaults to the last segment of the folder. */
+  /** The app's name: its folder under `apps/`, and its address. */
   name?: string
-  /** The folder under `<appLoc>/services` holding the compiled web assets. */
-  streamWebFolder: string
+  /** The backend this frontend calls. Metadata, and optional. */
+  appLoc?: string
+  /** Legacy only: the folder under `<appLoc>/services` holding the web assets. */
+  streamWebFolder?: string
   /** An asset inside the app, used as its tile image. */
   logo?: string
   /** Origins allowed to frame the app, as CSP `frame-ancestors` sources. */
@@ -43,8 +58,16 @@ export interface AppManifest {
 }
 
 export interface AppBundle {
-  /** The tree to deploy: the manifest, when there is one, is not in it. */
+  /**
+   * The tree the bundle's body describes - what a legacy deploy writes to
+   * `appLoc`. When `frontend` is present this is the container of the two halves
+   * and is NOT deployed as it stands.
+   */
   tree: DeployTree
+  /** The compiled frontend, when the bundle carries one at `web/`. */
+  frontend?: DeployTree
+  /** The backend tree, when the bundle carries services at `backend/`. */
+  backend?: DeployTree
   manifest?: AppManifest
 }
 
@@ -63,21 +86,29 @@ const text = (value: unknown, field: string): string | undefined => {
   return value.trim()
 }
 
-/** A manifest, checked field by field, naming the field that is wrong. */
+/**
+ * A manifest, checked field by field, naming the field that is wrong.
+ *
+ * Nothing is required: a package states its name, a legacy bundle states its
+ * stream folder, and a deploy that states neither in the manifest states them in
+ * its payload. What the manifest states has to be usable, which is what is checked
+ * here; whether the request as a whole can publish is `checkPublishRequest`'s
+ * question, asked once against the request the two have been composed into.
+ */
 export const parseAppManifest = (value: unknown): AppManifest => {
   if (!isObject(value))
     throw new ApiError(400, `${APP_MANIFEST} must be an object.`)
 
+  const name = text(value.name, 'name')
+  const appLoc = text(value.appLoc, 'appLoc')
   const streamWebFolder = text(value.streamWebFolder, 'streamWebFolder')
+  const logo = text(value.logo, 'logo')
 
-  if (streamWebFolder === undefined)
+  if (streamWebFolder !== undefined && /[\\/]/.test(streamWebFolder))
     throw new ApiError(
       400,
-      `${APP_MANIFEST} must state "streamWebFolder": the folder under services/ holding the compiled app.`
+      `"streamWebFolder" in ${APP_MANIFEST} must be a single path segment.`
     )
-
-  const name = text(value.name, 'name')
-  const logo = text(value.logo, 'logo')
 
   const frameAncestors = value.frameAncestors
 
@@ -99,7 +130,8 @@ export const parseAppManifest = (value: unknown): AppManifest => {
 
   return {
     ...(name === undefined ? {} : { name }),
-    streamWebFolder,
+    ...(appLoc === undefined ? {} : { appLoc }),
+    ...(streamWebFolder === undefined ? {} : { streamWebFolder }),
     ...(logo === undefined ? {} : { logo }),
     ...(frameAncestors === undefined
       ? {}
@@ -107,12 +139,38 @@ export const parseAppManifest = (value: unknown): AppManifest => {
   }
 }
 
+/** A member that is a folder, by name. */
+const folderNamed = (
+  members: DeployMember[],
+  name: string
+): DeployMember | undefined =>
+  members.find(
+    (member) =>
+      isObject(member) && member.type === 'folder' && member.name === name
+  )
+
+/** A folder's own members, as a tree of its contents. */
+const contentsOf = (
+  member: DeployMember | undefined
+): DeployTree | undefined => {
+  const members = (member as { members?: unknown } | undefined)?.members
+
+  return Array.isArray(members)
+    ? { members: members as DeployMember[] }
+    : undefined
+}
+
 /**
- * The deploy tree split from its manifest.
+ * The deploy tree split from its manifest, and from the halves a package names.
  *
  * A tree that is not a tree is passed through untouched: the deploy is the thing
  * that refuses a malformed tree, with the message its own cases pin, and saying
  * it here as well would be two wordings of one refusal.
+ *
+ * A bundle is a package when it holds a `web/` folder or a manifest at its root.
+ * The frontend is then that folder's contents - which is why a compiled app is
+ * zipped as the folder's contents rather than the folder itself - and a `backend/`
+ * folder beside it is the tree to write to `appLoc`.
  */
 export const splitAppBundle = (tree: unknown): AppBundle => {
   if (!isObject(tree) || !Array.isArray(tree.members))
@@ -125,37 +183,74 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
       isObject(member) && member.type === 'file' && member.name === APP_MANIFEST
   )
 
-  if (at === -1) return { tree: tree as unknown as DeployTree }
+  const withoutManifest =
+    at === -1 ? members : members.filter((_, index) => index !== at)
 
-  const member = members[at] as { code?: unknown }
+  let manifest: AppManifest | undefined
 
-  if (typeof member.code !== 'string')
-    throw new ApiError(400, `${APP_MANIFEST} carries no text.`)
+  if (at !== -1) {
+    const member = members[at] as { code?: unknown; encoding?: unknown }
 
-  let parsed: unknown
+    if (typeof member.code !== 'string')
+      throw new ApiError(400, `${APP_MANIFEST} carries no text.`)
 
-  try {
-    parsed = JSON.parse(member.code)
-  } catch (error) {
-    throw new ApiError(
-      400,
-      `${APP_MANIFEST} is not valid JSON: ${(error as Error).message}`
-    )
+    // a manifest read out of a zip is bytes: an archive records no text/binary
+    // distinction, so the tree builder marks every member `base64` and the
+    // manifest has to be decoded before it can be parsed
+    const source =
+      member.encoding === 'base64'
+        ? new TextDecoder().decode(decodeBase64(member.code))
+        : member.code
+
+    let parsed: unknown
+
+    try {
+      parsed = JSON.parse(source)
+    } catch (error) {
+      throw new ApiError(
+        400,
+        `${APP_MANIFEST} is not valid JSON: ${(error as Error).message}`
+      )
+    }
+
+    manifest = parseAppManifest(parsed)
   }
 
+  const rest = { ...tree, members: withoutManifest } as DeployTree
+
+  const web = folderNamed(withoutManifest, FRONTEND_FOLDER)
+
+  // nothing says this is an app: pass the tree through untouched, so a caller that
+  // keeps its own copy sees no change and the deploy is the thing that judges it.
+  // A manifest is the only other way out of this branch, so there is none here.
+  if (web === undefined && manifest === undefined)
+    return { tree: tree as unknown as DeployTree }
+
+  // a `web/` folder is the frontend; without one, a manifest still says the tree
+  // is an app, and the whole tree is then the app's own files
+  const backend = contentsOf(folderNamed(withoutManifest, BACKEND_FOLDER))
+
   return {
-    tree: {
-      ...tree,
-      members: members.filter((_, index) => index !== at)
-    } as DeployTree,
-    manifest: parseAppManifest(parsed)
+    tree: rest,
+    frontend: contentsOf(web) ?? {
+      members: withoutManifest.filter(
+        (member) => member !== folderNamed(withoutManifest, BACKEND_FOLDER)
+      )
+    },
+    ...(backend === undefined ? {} : { backend }),
+    manifest: manifest as AppManifest
   }
 }
 
 /** What a deploy request says about the app it publishes. */
 export interface DeployPublish {
-  appLoc: string
+  /** The app's name, when the request states one. */
+  name?: string
+  /** The backend folder. Metadata for a frontend publish. */
+  appLoc?: string
+  /** Legacy: the folder under `<appLoc>/services` holding the web assets. */
   streamWebFolder?: string
+  /** The app's name, under the field name an older payload uses. */
   streamServiceName?: string
   streamLogo?: string
 }
@@ -163,29 +258,47 @@ export interface DeployPublish {
 /**
  * The publish a deploy asks for, or `undefined` when it publishes nothing.
  *
- * The request wins over the bundle where both speak - a caller naming a folder or
- * a label is correcting the archive, not repeating it - and the bundle fills what
- * the request leaves out, so a deploy that carries a manifest needs neither
- * `streamWebFolder` nor `streamServiceName`.
+ * The request wins over the bundle where both speak - a caller naming a folder, a
+ * name or a label is correcting the archive, not repeating it - and the bundle
+ * fills what the request leaves out.
+ *
+ * A bundle is published as a **legacy** app when either half states a
+ * `streamWebFolder`: that field is what puts the web assets inside the backend's
+ * folder, and a request that keeps it is asking for the shape it describes. A
+ * package publishes as a **frontend** instead, which needs only a name - the
+ * folder follows from it.
+ *
+ * `packaged` says the bundle carries a `web/` folder, so a request that names
+ * neither a stream folder nor a name is an app with nothing to call it: the
+ * request comes back without a name and `checkPublishRequest` refuses it by name,
+ * rather than the deploy writing the frontend nowhere.
  */
 export const publishRequestFor = (
   deploy: DeployPublish,
-  manifest?: AppManifest
+  manifest?: AppManifest,
+  options: { packaged?: boolean } = {}
 ): PublishAppRequest | undefined => {
   const streamWebFolder = deploy.streamWebFolder ?? manifest?.streamWebFolder
-
-  if (streamWebFolder === undefined) return undefined
-
-  const name = deploy.streamServiceName ?? manifest?.name
+  const appLoc = deploy.appLoc ?? manifest?.appLoc
+  const name = deploy.name ?? deploy.streamServiceName ?? manifest?.name
   const logo = deploy.streamLogo ?? manifest?.logo
+  const frameAncestors = manifest?.frameAncestors
+
+  if (streamWebFolder !== undefined)
+    return {
+      ...(appLoc === undefined ? {} : { appLoc }),
+      streamWebFolder,
+      ...(name === undefined ? {} : { name }),
+      ...(logo === undefined ? {} : { logo }),
+      ...(frameAncestors === undefined ? {} : { frameAncestors })
+    }
+
+  if (name === undefined && !options.packaged) return undefined
 
   return {
-    appLoc: deploy.appLoc,
-    streamWebFolder,
     ...(name === undefined ? {} : { name }),
+    ...(appLoc === undefined ? {} : { appLoc }),
     ...(logo === undefined ? {} : { logo }),
-    ...(manifest?.frameAncestors === undefined
-      ? {}
-      : { frameAncestors: manifest.frameAncestors })
+    ...(frameAncestors === undefined ? {} : { frameAncestors })
   }
 }

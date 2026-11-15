@@ -22,13 +22,25 @@ const isEntry = (value: unknown): value is AppStreamEntry => {
 
   const entry = value as Record<string, unknown>
 
-  return (
-    typeof entry.id === 'string' &&
-    typeof entry.name === 'string' &&
-    typeof entry.appLoc === 'string' &&
-    typeof entry.streamWebFolder === 'string' &&
-    typeof entry.publishedAt === 'string'
+  if (
+    typeof entry.id !== 'string' ||
+    typeof entry.name !== 'string' ||
+    typeof entry.publishedAt !== 'string'
   )
+    return false
+
+  if (entry.appLoc !== undefined && typeof entry.appLoc !== 'string')
+    return false
+
+  if (
+    entry.streamWebFolder !== undefined &&
+    typeof entry.streamWebFolder !== 'string'
+  )
+    return false
+
+  // the legacy shape states where the assets are, so it needs both halves: a
+  // `streamWebFolder` with no `appLoc` names no folder at all
+  return !(entry.streamWebFolder !== undefined && entry.appLoc === undefined)
 }
 
 export const createDriveAppStreamStore = (

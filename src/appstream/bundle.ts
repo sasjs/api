@@ -225,7 +225,11 @@ export const splitAppBundle = (tree: unknown): AppBundle => {
   // keeps its own copy sees no change and the deploy is the thing that judges it.
   // The two folder names are what a package is made of, so either of them - or a
   // manifest - is the bundle saying it is one.
-  if (web === undefined && backendFolder === undefined && manifest === undefined)
+  if (
+    web === undefined &&
+    backendFolder === undefined &&
+    manifest === undefined
+  )
     return { tree: tree as unknown as DeployTree }
 
   // `streamWebFolder` names the older shape, where the web assets sit inside the

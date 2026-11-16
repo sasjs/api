@@ -1959,7 +1959,7 @@ paths:
                     bearerAuth: []
             parameters:
                 -
-                    description: "Location of the file within the drive. One of `_filePath` and `_FILE` is required; a request naming neither answers `400`."
+                    description: "Location of the file within the drive. Exactly one of `_filePath` and `_FILE` is required: a request naming neither, or both, answers `400`."
                     in: query
                     name: _filePath
                     required: false
@@ -1967,7 +1967,7 @@ paths:
                         type: string
                     example: /Public/somefolder/some.file
                 -
-                    description: "Location of a deployment file, as a streamed page names it. One of `_filePath` and `_FILE` is required; a request naming neither answers `400`."
+                    description: "Location of a deployment file, as a streamed page names it. Exactly one of `_filePath` and `_FILE` is required: a request naming neither, or both, answers `400`. The answer is typed by the file's extension; `_filePath` answers bytes."
                     in: query
                     name: _FILE
                     required: false

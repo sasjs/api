@@ -256,6 +256,19 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     expect: { status: 400, error: "Can't get file outside drive." }
   },
   {
+    id: 'read-file-names-both',
+    route: 'GET /SASjsApi/drive/file',
+    description: 'refuses a request that names the file twice, in two readings',
+    seed: { '/data/keep.csv': 'a' },
+    request: {
+      query: { _filePath: '/data/keep.csv', _FILE: '/data/keep.csv' }
+    },
+    expect: {
+      status: 400,
+      error: 'Exactly one of "_filePath" and "_FILE" may be given.'
+    }
+  },
+  {
     id: 'read-streamed-file',
     route: 'GET /SASjsApi/drive/file',
     description: 'reads a deployment file by the name a streamed page links to',

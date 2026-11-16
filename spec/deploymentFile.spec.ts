@@ -211,6 +211,16 @@ describe('the dispatch answer', () => {
     expect(answer.contentType).toBeUndefined()
   })
 
+  it('answers 400 when both names are given, rather than picking one', async () => {
+    await expect(
+      dispatch(
+        services({ '/data/keep.csv': 'a' }),
+        'GET /SASjsApi/drive/file',
+        { query: { _filePath: '/data/keep.csv', _FILE: '/data/keep.csv' } }
+      )
+    ).rejects.toThrow('Exactly one of "_filePath" and "_FILE" may be given.')
+  })
+
   it('answers 400 when neither name is given, as it always did', async () => {
     await expect(
       dispatch(services(), 'GET /SASjsApi/drive/file', {})

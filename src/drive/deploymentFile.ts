@@ -26,6 +26,29 @@ import { checkFilePath, isRoot } from './paths.js'
 /** What SAS Viya's job execution route answers for a file it cannot read. */
 export const DEPLOYMENT_FILE_ERROR = 'Parameter Error\nFile error'
 
+/** The words a request that names the file twice earns. */
+export const ONE_NAME_ONLY =
+  'Exactly one of "_filePath" and "_FILE" may be given.'
+
+/**
+ * Refuses a request that names one file two ways.
+ *
+ * Both names exist because they answer differently - `_FILE=` is typed and
+ * answers a missing file the way the estate does, `_filePath=` is bytes - so a
+ * request carrying both is a caller disagreeing with itself. Resolving it would
+ * mean picking an answer nobody asked for, and picking the same way in every
+ * host. The rule lives here, with the message, so a host that answers the read
+ * through its own route (sasjs/server does) refuses it identically instead of
+ * re-deciding.
+ */
+export const assertOneFileName = (query: {
+  _filePath?: unknown
+  _FILE?: unknown
+}): void => {
+  if (query._filePath !== undefined && query._FILE !== undefined)
+    throw new ApiError(400, ONE_NAME_ONLY)
+}
+
 /**
  * One file, typed and ready to send.
  *

@@ -21,6 +21,7 @@ import type { ViyaSeedSettings } from '../viya/seed.js'
 import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamService } from '../appstream/service.js'
 import type { DeploymentFileService } from '../drive/deploymentFile.js'
+import { assertOneFileName } from '../drive/deploymentFile.js'
 import {
   appSummary,
   checkPublishRequest,
@@ -509,10 +510,11 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/drive/file': {
-      // `_FILE=` is the same read as `_filePath=`, in the spelling a streamed
-      // deployment links to - the estate's - with two differences the app needs:
-      // the answer is typed, so a script arrives as a script, and a file that is
-      // not there answers the way the estate answers rather than as an API 404
+      // two names for one read that answer differently; a request carrying both
+      // is refused by the package rather than resolved here, so a host answering
+      // through its own route refuses it with the same words
+      assertOneFileName(query)
+
       if (query._FILE !== undefined) {
         if (!services.deploymentFile)
           throw new ApiError(

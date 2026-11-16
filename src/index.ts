@@ -23,8 +23,10 @@ export {
 } from './drive/paths.js'
 export { createDriveService } from './drive/service.js'
 export {
+  assertOneFileName,
   createDeploymentFileService,
-  DEPLOYMENT_FILE_ERROR
+  DEPLOYMENT_FILE_ERROR,
+  ONE_NAME_ONLY
 } from './drive/deploymentFile.js'
 export type {
   DeploymentFilePage,

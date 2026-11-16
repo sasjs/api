@@ -11,6 +11,7 @@ import type { CorpusCase } from './drive.js'
 import { dispatch } from '../host/dispatch.js'
 import type { Services } from '../host/dispatch.js'
 import { createDriveService } from '../drive/service.js'
+import { createDeploymentFileService } from '../drive/deploymentFile.js'
 import { MemoryDriveStore } from '../drive/memory-store.js'
 import {
   MemoryAppStreamStore,
@@ -80,12 +81,16 @@ export const servicesFor = (testCase: CorpusCase): Services => {
       : undefined
   })
 
+  // one store, shared by the drive and the streamed-file read: a file the drive
+  // writes has to be the file a streamed page can fetch, or the corpus would be
+  // asserting two different drives
+  const driveStore = testCase.unwritable
+    ? new RefusingDriveStore(testCase.seed || {})
+    : new MemoryDriveStore(testCase.seed || {})
+
   return {
-    drive: createDriveService(
-      testCase.unwritable
-        ? new RefusingDriveStore(testCase.seed || {})
-        : new MemoryDriveStore(testCase.seed || {})
-    ),
+    drive: createDriveService(driveStore),
+    deploymentFile: createDeploymentFileService(driveStore),
     info: createInfoService(BROWSER_INFO),
     home: createHomeService(async () => CORPUS_WEB_PAGE),
     authConfig: createAuthConfigService(CORPUS_AUTH_CONFIG),

@@ -767,7 +767,13 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         name: '_filePath',
         in: 'query',
-        required: true,
+        required: false,
+        type: 'string'
+      },
+      {
+        name: '_FILE',
+        in: 'query',
+        required: false,
         type: 'string'
       }
     ],
@@ -776,6 +782,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'The contents of the file'
+      },
+      {
+        status: 202,
+        description:
+          'A streamed file is not there: Parameter Error / File error'
       },
       {
         status: 400,

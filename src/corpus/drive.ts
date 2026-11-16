@@ -12,6 +12,7 @@
  * records each place the two disagree.
  */
 import type { ApiRequest } from '../host/dispatch.js'
+import { DEPLOYMENT_FILE_ERROR } from '../drive/deploymentFile.js'
 import type { IdentityFixture } from '../identity/fixture.js'
 import type { AppStreamEntry } from '../appstream/service.js'
 
@@ -253,6 +254,22 @@ export const DRIVE_CORPUS: CorpusCase[] = [
     description: 'refuses a read of a path that climbs out of the drive',
     request: { query: { _filePath: '/../escape.csv' } },
     expect: { status: 400, error: "Can't get file outside drive." }
+  },
+  {
+    id: 'read-streamed-file',
+    route: 'GET /SASjsApi/drive/file',
+    description: 'reads a deployment file by the name a streamed page links to',
+    seed: { '/Public/app/services/web/main.js': 'console.log(1)' },
+    request: { query: { _FILE: '/Public/app/services/web/main.js' } },
+    expect: { status: 200, contents: 'console.log(1)' }
+  },
+  {
+    id: 'read-streamed-file-missing',
+    route: 'GET /SASjsApi/drive/file',
+    description:
+      'answers a missing deployment file the way the estate does, not as a 404',
+    request: { query: { _FILE: '/Public/app/services/web/gone.js' } },
+    expect: { status: 202, contents: DEPLOYMENT_FILE_ERROR }
   },
   {
     id: 'delete-file',

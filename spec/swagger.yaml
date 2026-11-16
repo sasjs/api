@@ -1948,7 +1948,9 @@ paths:
                     description: 'Can''t get file outside drive'
                 '404':
                     description: 'File doesn''t exist'
-            description: "Returns the content of a file within SASjs Drive.\n\nA `400` is returned for a path outside the drive and a `404` when the file\ndoes not exist. A `.sas` file is served as `text/plain`."
+                '202':
+                    description: 'A streamed file is not there: Parameter Error / File error'
+            description: "Returns the content of a file within SASjs Drive.\n\nA `400` is returned for a path outside the drive and a `404` when the file\ndoes not exist. A `.sas` file is served as `text/plain`.\n\n`_FILE` names the same file for a streamed deployment, in the spelling SAS Viya's\njob execution route answers. The answer is typed by the file's extension, so a\npage, a script or a stylesheet reaches a browser as itself, and a file that is not\nthere answers `202` with `Parameter Error` and `File error` rather than a `404`.\nOne of `_filePath` and `_FILE` is required."
             summary: 'Get a file from SASjs Drive'
             tags:
                 - Drive
@@ -1960,10 +1962,18 @@ paths:
                     description: 'Location of the file within the drive'
                     in: query
                     name: _filePath
-                    required: true
+                    required: false
                     schema:
                         type: string
                     example: /Public/somefolder/some.file
+                -
+                    description: 'Location of a deployment file, as a streamed page names it'
+                    in: query
+                    name: _FILE
+                    required: false
+                    schema:
+                        type: string
+                    example: /Public/app/services/web/main.4f3a9c1d.js
         delete:
             operationId: DeleteFile
             responses:

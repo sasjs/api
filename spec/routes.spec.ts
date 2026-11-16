@@ -145,7 +145,8 @@ describe('route table', () => {
       // document gained it in sasjs/server#538 rather than the table losing it
       expect(statuses('POST /SASjsApi/drive/file')).toEqual([200, 400, 409])
       expect(statuses('PATCH /SASjsApi/drive/file')).toEqual([200, 400, 404])
-      expect(statuses('GET /SASjsApi/drive/file')).toEqual([200, 400, 404])
+      // 202 is the streamed read's answer for a file that is not there
+      expect(statuses('GET /SASjsApi/drive/file')).toEqual([200, 202, 400, 404])
       expect(statuses('GET /SASjsApi/drive/folder')).toEqual([200, 400, 404])
     })
   })

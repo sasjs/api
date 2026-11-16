@@ -322,7 +322,9 @@ export const dispatch = async (
 
   const caller = async (): Promise<Subject | undefined> => {
     if (!subjectResolved) {
-      subject = identity ? await identity.authenticate(request.token) : undefined
+      subject = identity
+        ? await identity.authenticate(request.token)
+        : undefined
       subjectResolved = true
     }
     return subject
@@ -355,10 +357,7 @@ export const dispatch = async (
 
     // `authorize`: the rules this host's interface reads decide the call, not
     // only the menu entry beside it
-    if (
-      grantScoped &&
-      !(await records!.mayUseRoute(callerSubject, route.path))
-    )
+    if (grantScoped && !(await records!.mayUseRoute(callerSubject, route.path)))
       throw new ApiError(401, 'Unauthorized')
   }
 

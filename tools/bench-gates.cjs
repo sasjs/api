@@ -49,9 +49,11 @@ const bench = async (label, routeId, request) => {
   const started = process.hrtime.bigint()
   let status
   for (let i = 0; i < N; i++) {
-    const answer = await API.dispatch(services, routeId, request).catch((e) => ({
-      status: e.status
-    }))
+    const answer = await API.dispatch(services, routeId, request).catch(
+      (e) => ({
+        status: e.status
+      })
+    )
     status = answer.status
   }
   const perCall = Number(process.hrtime.bigint() - started) / N / 1000

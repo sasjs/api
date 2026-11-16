@@ -217,7 +217,6 @@ const DECIDED_BY: Record<string, string> = {
   '/SASjsApi/drive/deploy/upload': '/SASjsApi/drive/deploy'
 }
 
-
 const unauthorized = () => new ApiError(401, 'Unauthorized')
 
 /**
@@ -252,7 +251,6 @@ const requireCaller = async (
   if (!user) throw unauthorized()
   return user
 }
-
 
 /** `verifyAdmin`: the caller is an administrator, or the route refuses. */
 const requireAdmin = async (
@@ -358,8 +356,7 @@ export const createRecordService = (
     const publicGrants = publicGroup
       ? rules
           .filter(
-            (rule) =>
-              rule.group === publicGroup.uid && rule.setting === 'Grant'
+            (rule) => rule.group === publicGroup.uid && rule.setting === 'Grant'
           )
           .map((rule) => rule.path)
       : []

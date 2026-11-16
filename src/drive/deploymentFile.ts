@@ -9,9 +9,13 @@
  * Content-Type.
  *
  * So the typing, the caching and the refusal live here rather than in each
- * host, the same way the drive's own rules do: sasjs/server answers it at
- * `GET /SASjsApi/drive/file?_FILE=` (and under the estate's spelling), and the
- * browser build answers it from the drive a mock site already has.
+ * host, the same way the drive's own rules do. Every platform has one web tier
+ * a browser fetches a program or a file from - `/SASStoredProcess` on SAS 9,
+ * `/SASJobExecution` on Viya, `/StoredProgram` on SASjs server - and each of
+ * those spellings resolves to this read: sasjs/server answers `/StoredProgram`
+ * and `/SASJobExecution` by handing the request to `GET
+ * /SASjsApi/drive/file?_FILE=`, and the browser build answers the same two for a
+ * mock site, from the drive it already has.
  *
  * A file that is not there answers the way the estate answers - `202` with a
  * two-line message, not a `404`. A streamed app whose asset is missing has to

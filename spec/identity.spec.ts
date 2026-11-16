@@ -634,9 +634,13 @@ describe('the transport gates', () => {
   it('answers the administrator question without throwing', async () => {
     const { records } = serviceFor()
 
-    expect(await records.mayAdminister(ADMIN)).toBe(true)
-    expect(await records.mayAdminister(RESTRICTED)).toBe(false)
-    expect(await records.mayAdminister(undefined)).toBe(false)
+    expect(await records.mayAdminister(ADMIN)).toBe('admin')
+    expect(await records.mayAdminister(RESTRICTED)).toBe('not-admin')
+
+    // an absent caller, and one whose account may no longer act, are the token
+    // refusal rather than the admin one - a server refuses them before the
+    // administrator middleware runs
+    expect(await records.mayAdminister(undefined)).toBe('unauthorized')
   })
 
   it('refuses a caller whose account was deactivated', async () => {
@@ -648,7 +652,7 @@ describe('the transport gates', () => {
     }
     const { records } = serviceFor(fixture)
 
-    expect(await records.mayAdminister(RESTRICTED)).toBe(false)
+    expect(await records.mayAdminister(RESTRICTED)).toBe('unauthorized')
     expect(await records.mayUseRoute(RESTRICTED, '/SASjsApi/stp/execute')).toBe(
       false
     )

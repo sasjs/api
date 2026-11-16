@@ -76,6 +76,14 @@ export interface PermissionResponse {
   group?: string
 }
 
+/**
+ * What the administrator check says about a caller.
+ *
+ * `admin` may administer, `not-admin` is a live account that may not, and
+ * `unauthorized` is a caller that is absent or whose account may no longer act.
+ */
+export type AdminDecision = 'admin' | 'not-admin' | 'unauthorized'
+
 /** What `authorizedRoutes` and `myAuthorizedRoutes` answer. */
 export interface AuthorizedRoutesResponse {
   paths: string[]
@@ -151,11 +159,15 @@ export interface RecordService {
   ): Promise<AuthorizedRoutesResponse>
 
   /**
-   * Whether this caller may administer - the decision `requireAdmin` acts on,
-   * asked as a question. A host that gates its own transport reads it here so
-   * its answer and the package's cannot disagree.
+   * The administrator check, as an answer rather than a refusal, so a host that
+   * gates its own transport asks the same question the package asks.
+   *
+   * `unauthorized` is separate from `not-admin` because a server refuses a
+   * caller whose account is absent or deactivated *before* the administrator
+   * middleware runs (`authenticateAccessToken`), so that caller meets the token
+   * refusal and never the admin wording.
    */
-  mayAdminister(caller: Subject | undefined): Promise<boolean>
+  mayAdminister(caller: Subject | undefined): Promise<AdminDecision>
 
   /**
    * Whether this caller may call `path`, by the same decision
@@ -652,7 +664,8 @@ export const createRecordService = (
 
     async mayAdminister(caller) {
       const reader = await readerOf(store, caller)
-      return Boolean(reader?.isAdmin)
+      if (!reader) return 'unauthorized'
+      return reader.isAdmin ? 'admin' : 'not-admin'
     },
 
     async mayUseRoute(caller, path) {

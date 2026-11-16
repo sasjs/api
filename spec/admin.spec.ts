@@ -23,6 +23,9 @@ import { ApiError, isApiError } from '../src/types.js'
 import { dispatch } from '../src/host/dispatch.js'
 import { createDriveService } from '../src/drive/service.js'
 import { MemoryDriveStore } from '../src/drive/memory-store.js'
+import { createRecordService } from '../src/identity/records.js'
+import { MemoryIdentityStore } from '../src/identity/memory-store.js'
+import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 
 const diagnostics = (): DiagnosticsResponse => ({
   build: { version: 'v4.16.2', gitHash: 'cda6114', buildDate: null },
@@ -355,14 +358,34 @@ describe('the admin service', () => {
     const drive = () => createDriveService(new MemoryDriveStore())
 
     it('answers each report through dispatch', async () => {
-      const services = { drive: drive(), admin: createAdminService(reports()) }
+      // the administrator check is the package's, so the host supplies the
+      // records it is answered from as well as the reports themselves
+      const records = createRecordService(
+        new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+      )
+      const services = {
+        drive: drive(),
+        admin: createAdminService(reports()),
+        records
+      }
+      const administrator = {
+        subject: { userId: 'user-admin', clientId: 'web_app' }
+      }
 
       expect(
-        (await dispatch(services, 'GET /SASjsApi/admin/diagnostics')).body
+        (
+          await dispatch(services, 'GET /SASjsApi/admin/diagnostics', {
+            ...administrator
+          })
+        ).body
       ).toEqual(diagnostics())
 
       expect(
-        (await dispatch(services, 'GET /SASjsApi/admin/logs')).body
+        (
+          await dispatch(services, 'GET /SASjsApi/admin/logs', {
+            ...administrator
+          })
+        ).body
       ).toEqual({
         files: files()
       })
@@ -371,6 +394,7 @@ describe('the admin service', () => {
         services,
         'GET /SASjsApi/admin/logs/{fileName}',
         {
+          ...administrator,
           params: { fileName: '20261108150000.log' },
           query: { lines: '10' }
         }

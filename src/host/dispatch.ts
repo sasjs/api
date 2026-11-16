@@ -307,8 +307,18 @@ export const dispatch = async (
   // front of the host's own reports, and `authorize` on the run routes the
   // permission rules address. Asked of the record service, so the answer a
   // request meets is the one `myAuthorizedRoutes` reported for the same caller.
-  const adminScoped = Boolean(records) && ADMIN_ROUTES.includes(routeId)
+  const adminScoped = ADMIN_ROUTES.includes(routeId) && Boolean(services.admin)
   const grantScoped = Boolean(records) && GRANTED_RUN_ROUTES.includes(routeId)
+
+  // The administrator routes need the record service to answer the question the
+  // host's middleware answers on a server. A host that supplies the reports
+  // without one is told which capability it is missing, rather than serving its
+  // own log to every caller - which is what a gate that simply skipped them did.
+  if (adminScoped && !records)
+    throw new ApiError(
+      501,
+      `This host has no record service, so it cannot answer ${routeId}.`
+    )
 
   /**
    * The caller, from the request's own subject or the token it carried.
@@ -351,9 +361,15 @@ export const dispatch = async (
       throw new ApiError(401, 'Unauthorized')
     }
 
-    // `verifyAdmin`, in the wording a caller sees on a server
-    if (adminScoped && !(await records!.mayAdminister(callerSubject)))
-      throw new ApiError(401, 'Admin account required')
+    // `verifyAdmin`, in the wording a caller sees on a server - except for a
+    // caller the server refuses before that middleware runs, which meets the
+    // token refusal instead
+    if (adminScoped) {
+      const decision = await records!.mayAdminister(callerSubject)
+      if (decision === 'unauthorized') throw new ApiError(401, 'Unauthorized')
+      if (decision !== 'admin')
+        throw new ApiError(401, 'Admin account required')
+    }
 
     // `authorize`: the rules this host's interface reads decide the call, not
     // only the menu entry beside it

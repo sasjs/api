@@ -60,6 +60,31 @@ const RUN_ROUTES = [
   'POST /SASjsApi/code/trigger'
 ]
 
+/**
+ * The run routes a permission rule addresses.
+ *
+ * The triggers are not in the inventory - the server's rules do not reach them -
+ * so they are gated on the caller alone, exactly as they are there.
+ */
+const GRANTED_RUN_ROUTES = [
+  'GET /SASjsApi/stp/execute',
+  'POST /SASjsApi/stp/execute',
+  'POST /SASjsApi/code/execute'
+]
+
+/**
+ * The host's own reports, which the server mounts `verifyAdmin` in front of.
+ *
+ * The check belongs to the package for the same reason the record routes' does:
+ * the mock is a host too, and a browser build that published the host log to a
+ * restricted account would be a leak with a fixture in front of it.
+ */
+const ADMIN_ROUTES = [
+  'GET /SASjsApi/admin/diagnostics',
+  'GET /SASjsApi/admin/logs',
+  'GET /SASjsApi/admin/logs/{fileName}'
+]
+
 export interface ApiRequest {
   query?: Record<string, string | undefined>
   body?: Record<string, unknown>
@@ -278,12 +303,40 @@ export const dispatch = async (
   // the gate is tested on the service that serves the route.
   const runtimeScoped = RUN_ROUTES.includes(routeId)
 
-  if ((identityScoped && records) || (runtimeScoped && services.runtime)) {
-    const subject =
-      request.subject ??
-      (identity ? await identity.authenticate(request.token) : undefined)
+  // The two checks the server mounts ahead of these routes: `verifyAdmin` in
+  // front of the host's own reports, and `authorize` on the run routes the
+  // permission rules address. Asked of the record service, so the answer a
+  // request meets is the one `myAuthorizedRoutes` reported for the same caller.
+  const adminScoped = Boolean(records) && ADMIN_ROUTES.includes(routeId)
+  const grantScoped = Boolean(records) && GRANTED_RUN_ROUTES.includes(routeId)
 
-    if (!subject) {
+  /**
+   * The caller, from the request's own subject or the token it carried.
+   *
+   * Resolved once per request: the token is looked up in the store, and every
+   * gate below asks the same question - re-reading it for each would be a
+   * second lookup for one answer.
+   */
+  let subject: Subject | undefined = request.subject
+  let subjectResolved = Boolean(request.subject)
+
+  const caller = async (): Promise<Subject | undefined> => {
+    if (!subjectResolved) {
+      subject = identity ? await identity.authenticate(request.token) : undefined
+      subjectResolved = true
+    }
+    return subject
+  }
+
+  if (
+    (identityScoped && records) ||
+    (runtimeScoped && services.runtime) ||
+    adminScoped ||
+    grantScoped
+  ) {
+    const callerSubject = await caller()
+
+    if (!callerSubject) {
       // A host may serve records without a sign-in flow - it resolves the caller
       // itself and passes `subject`. Without one it cannot authenticate at all,
       // and a 401 would send every request round the login loop for ever, so it
@@ -295,6 +348,18 @@ export const dispatch = async (
         )
       throw new ApiError(401, 'Unauthorized')
     }
+
+    // `verifyAdmin`, in the wording a caller sees on a server
+    if (adminScoped && !(await records!.mayAdminister(callerSubject)))
+      throw new ApiError(401, 'Admin account required')
+
+    // `authorize`: the rules this host's interface reads decide the call, not
+    // only the menu entry beside it
+    if (
+      grantScoped &&
+      !(await records!.mayUseRoute(callerSubject, route.path))
+    )
+      throw new ApiError(401, 'Unauthorized')
   }
 
   validate(route, request)
@@ -362,12 +427,6 @@ export const dispatch = async (
         `This host has no record service, so it cannot answer ${routeId}.`
       )
     return records
-  }
-
-  /** The caller, from the request's own subject or the token it carried. */
-  const caller = async (): Promise<Subject | undefined> => {
-    if (request.subject) return request.subject
-    return identity?.authenticate(request.token)
   }
 
   if (
@@ -449,10 +508,12 @@ export const dispatch = async (
 
     // ------------------------------------------------- a host's own reports
     //
-    // The administrator middleware is the host's (sasjs/server mounts
-    // authenticateAccessToken and verifyAdmin ahead of all of these), which is
-    // why their 401 is marked host-only in the overlay. The package answers a
-    // body, and for a log tail the refusals that belong to the name rule.
+    // The administrator check is the package's, from the caller the transport
+    // resolved: `mayAdminister` is the decision `verifyAdmin` makes on a server,
+    // asked here so a browser host that supplies these reports cannot serve them
+    // to anyone who asks. What stays the host's is the body, and for a log tail
+    // the refusals that belong to the name rule.
+
     case 'GET /SASjsApi/admin/diagnostics': {
       if (!services.admin)
         throw new ApiError(

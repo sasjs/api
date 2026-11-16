@@ -131,12 +131,11 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
 
   // Admin - the host's own process and files, over the reports it supplies.
-  // The administrator check is the host's mount point (sasjs/server puts
-  // authenticateAccessToken and verifyAdmin in front of all three), so its 401
-  // - and the 500 a genuine failure answers - are host-only statuses.
+  // The administrator check is the package's, so its 401 is a case like any
+  // other; the 500 a genuine failure answers stays the host's.
   'GET /SASjsApi/admin/diagnostics': {
     implemented: true,
-    hostResponses: [401, 500],
+    hostResponses: [500],
     responses: {
       200: {
         build: { version: '', gitHash: '', buildDate: null },
@@ -176,14 +175,14 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   },
   'GET /SASjsApi/admin/logs': {
     implemented: true,
-    hostResponses: [401, 500],
+    hostResponses: [500],
     responses: { 200: { files: [] } }
   },
   'GET /SASjsApi/admin/logs/{fileName}': {
     implemented: true,
     // 400 and 404 are the name rule's, and this package answers them before the
     // host is asked for anything
-    hostResponses: [401, 500],
+    hostResponses: [500],
     responses: {
       200: {
         fileName: '',

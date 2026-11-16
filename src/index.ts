@@ -23,6 +23,16 @@ export {
 } from './drive/paths.js'
 export { createDriveService } from './drive/service.js'
 export {
+  assertOneFileName,
+  createDeploymentFileService,
+  DEPLOYMENT_FILE_ERROR,
+  ONE_NAME_ONLY
+} from './drive/deploymentFile.js'
+export type {
+  DeploymentFilePage,
+  DeploymentFileService
+} from './drive/deploymentFile.js'
+export {
   DEPLOY_LIMITS,
   DEPLOY_PAYLOAD_BYTES,
   DEPLOY_SUCCESS,

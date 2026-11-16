@@ -267,7 +267,16 @@ export const OVERLAY: Record<string, RouteOverlay> = {
 
   // Drive - the file and folder rules, and the three deploy routes
   // The body is the file itself, so there is nothing to annotate
-  'GET /SASjsApi/drive/file': { implemented: true },
+  // The `_FILE=` read needs one capability the plain drive read does not: a
+  // host that serves a streamed deployment must supply the typed read, and one
+  // that does not answers 501 naming it - which is what a capability is for.
+  // (No route documents 501; the answer a host gives for a capability it lacks
+  // is outside the contract, and this field is where the package says it may
+  // happen.)
+  'GET /SASjsApi/drive/file': {
+    implemented: true,
+    capabilities: ['storage', 'deploymentFile']
+  },
   'POST /SASjsApi/drive/file': {
     implemented: true,
     responses: { 200: success, 409: 'File already exists.' }

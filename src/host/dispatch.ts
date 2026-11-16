@@ -20,6 +20,8 @@ import type { SessionService } from '../session/service.js'
 import type { ViyaSeedSettings } from '../viya/seed.js'
 import type { RuntimeService } from '../runtime/service.js'
 import type { AppStreamService } from '../appstream/service.js'
+import type { DeploymentFileService } from '../drive/deploymentFile.js'
+import { assertOneFileName } from '../drive/deploymentFile.js'
 import {
   appSummary,
   checkPublishRequest,
@@ -89,8 +91,16 @@ export interface ApiResponse {
   status: number
   /** A JSON body. */
   body?: unknown
-  /** A raw body, for the one route that answers with the file itself. */
+  /** A raw body, for the routes that answer with a file rather than JSON. */
   contents?: string | Uint8Array
+  /**
+   * The type of `contents`, for the reads that serve a browser: a streamed
+   * deployment's asset is a page, a script or a stylesheet, and a host that
+   * guesses the type sends the wrong one.
+   */
+  contentType?: string
+  /** Headers the host must set with the answer - chiefly an asset's caching. */
+  headers?: Record<string, string>
 }
 
 export interface Services {
@@ -156,6 +166,12 @@ export interface Services {
    * an app is, but only a host can store one.
    */
   appStream?: AppStreamService
+  /**
+   * One file out of the drive, typed for a browser - the read a streamed
+   * deployment links to. Absent, a `_FILE=` read answers 501: the rules are the
+   * package's, but the bytes are a store's, and only the host has one.
+   */
+  deploymentFile?: DeploymentFileService
 }
 
 /** A payload value, when the caller actually stated one. */
@@ -494,7 +510,34 @@ export const dispatch = async (
     }
 
     case 'GET /SASjsApi/drive/file': {
-      const file = await drive.read(String(query._filePath || ''))
+      // two names for one read that answer differently; a request carrying both
+      // is refused by the package rather than resolved here, so a host answering
+      // through its own route refuses it with the same words
+      assertOneFileName(query)
+
+      if (query._FILE !== undefined) {
+        if (!services.deploymentFile)
+          throw new ApiError(
+            501,
+            `This host has no deployment-file service, so it cannot answer ${routeId}.`
+          )
+
+        const page = await services.deploymentFile.read(String(query._FILE))
+
+        return {
+          status: page.status,
+          contents: page.body,
+          contentType: page.contentType,
+          headers: page.headers
+        }
+      }
+
+      // one of the two names the file; the table allows either, so a request
+      // with neither is the same `400` a missing `_filePath` always was
+      if (query._filePath === undefined)
+        throw new ApiError(400, '"_filePath" is required')
+
+      const file = await drive.read(String(query._filePath))
       return { status: 200, contents: file.contents }
     }
     case 'POST /SASjsApi/drive/file':

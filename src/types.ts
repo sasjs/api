@@ -59,6 +59,7 @@ export type Capability =
   | 'identity' // users, groups and permission rules
   | 'sas' // a SAS engine
   | 'node' // node-only facilities (multer, streams, the filesystem)
+  | 'deploymentFile' // the typed read a streamed deployment links to
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT'
 

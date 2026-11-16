@@ -364,11 +364,12 @@ export const dispatch = async (
     // `verifyAdmin`, in the wording a caller sees on a server - except for a
     // caller the server refuses before that middleware runs, which meets the
     // token refusal instead
-    if (adminScoped) {
-      const decision = await records!.mayAdminister(callerSubject)
-      if (decision === 'unauthorized') throw new ApiError(401, 'Unauthorized')
-      if (decision !== 'admin')
-        throw new ApiError(401, 'Admin account required')
+    if (adminScoped && !(await records!.mayAdminister(callerSubject))) {
+      // a caller the server refuses before this middleware runs meets the token
+      // refusal, not the admin wording
+      if (!(await records!.mayAct(callerSubject)))
+        throw new ApiError(401, 'Unauthorized')
+      throw new ApiError(401, 'Admin account required')
     }
 
     // `authorize`: the rules this host's interface reads decide the call, not

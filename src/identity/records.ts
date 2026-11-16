@@ -76,14 +76,6 @@ export interface PermissionResponse {
   group?: string
 }
 
-/**
- * What the administrator check says about a caller.
- *
- * `admin` may administer, `not-admin` is a live account that may not, and
- * `unauthorized` is a caller that is absent or whose account may no longer act.
- */
-export type AdminDecision = 'admin' | 'not-admin' | 'unauthorized'
-
 /** What `authorizedRoutes` and `myAuthorizedRoutes` answer. */
 export interface AuthorizedRoutesResponse {
   paths: string[]
@@ -159,15 +151,26 @@ export interface RecordService {
   ): Promise<AuthorizedRoutesResponse>
 
   /**
-   * The administrator check, as an answer rather than a refusal, so a host that
-   * gates its own transport asks the same question the package asks.
+   * Whether this caller may administer - the decision `requireAdmin` acts on,
+   * asked as a question. A host that gates its own transport reads it here so
+   * its answer and the package's cannot disagree.
    *
-   * `unauthorized` is separate from `not-admin` because a server refuses a
-   * caller whose account is absent or deactivated *before* the administrator
-   * middleware runs (`authenticateAccessToken`), so that caller meets the token
-   * refusal and never the admin wording.
+   * `false` for a caller that is absent or whose account may no longer act, as
+   * well as for one that simply is not an administrator. Where the two refusals
+   * have to be worded differently - a server refuses an inactive caller before
+   * the administrator middleware runs - ask `mayAct` as well.
    */
-  mayAdminister(caller: Subject | undefined): Promise<AdminDecision>
+  mayAdminister(caller: Subject | undefined): Promise<boolean>
+
+  /**
+   * Whether this caller may act at all: a live account behind the subject.
+   *
+   * A server answers `401 Unauthorized` for a caller whose account was
+   * deactivated after the token was issued, and never reaches the administrator
+   * check, so a host that gates its own transport needs both answers to word the
+   * refusal the way a caller sees it there.
+   */
+  mayAct(caller: Subject | undefined): Promise<boolean>
 
   /**
    * Whether this caller may call `path`, by the same decision
@@ -664,8 +667,11 @@ export const createRecordService = (
 
     async mayAdminister(caller) {
       const reader = await readerOf(store, caller)
-      if (!reader) return 'unauthorized'
-      return reader.isAdmin ? 'admin' : 'not-admin'
+      return Boolean(reader?.isAdmin)
+    },
+
+    async mayAct(caller) {
+      return Boolean(await readerOf(store, caller))
     },
 
     async mayUseRoute(caller, path) {

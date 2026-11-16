@@ -677,9 +677,18 @@ describe('the transport gates', () => {
     expect(await records.mayUseRoute(undefined, '/SASjsApi/drive/file')).toBe(
       false
     )
+
+    // an administrator holds a route the inventory does not list at all, which is
+    // what a host gating an operation of its own needs
+    expect(await records.mayUseRoute(ADMIN, '/SASjsApi/session/x/output')).toBe(
+      true
+    )
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/session/x/output')
+    ).toBe(false)
   })
 
-  it("admits the deploy upload on the deploy route's grant, as the server does", async () => {
+  it('answers exactly the list `myAuthorizedRoutes` reports', async () => {
     const fixture = withRule({
       uid: 'rule-deploy',
       path: '/SASjsApi/drive/deploy',
@@ -689,13 +698,20 @@ describe('the transport gates', () => {
     })
     const { records } = serviceFor(fixture)
 
-    expect(
-      await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy')
-    ).toBe(true)
-    // the upload carries no rule of its own: it is the deploy's step
+    const reported = (await records.myAuthorizedRoutes(RESTRICTED)).paths
+
+    // the deploy's own grant is on the list; the upload is not, because the server
+    // decides the upload on its own path and a grant on the deploy does not carry
+    // it. The two answers have to agree, so the gate refuses it as well.
+    expect(reported).toContain('/SASjsApi/drive/deploy')
+    expect(reported).not.toContain('/SASjsApi/drive/deploy/upload')
     expect(
       await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy/upload')
-    ).toBe(true)
+    ).toBe(false)
+
+    // and every path the interface offers is admitted by the gate
+    for (const path of reported)
+      expect(await records.mayUseRoute(RESTRICTED, path)).toBe(true)
   })
 
   it('admits a grant on the reserved public group to any caller', async () => {

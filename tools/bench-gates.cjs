@@ -1,6 +1,9 @@
 /*
  * What the new gates cost per call.
  *
+ * Run with `npm run bench:gates`, after `npm run build`: the numbers come from
+ * the compiled package in `build/cjs`, because that is what a host loads.
+ *
  * Three dispatches over the built package: an ungated route (the baseline), the
  * gated run route as an administrator (one account read), and the same route as
  * the restricted account (one account read, the rules, and a refusal). The store

@@ -159,10 +159,14 @@ export interface RecordService {
 
   /**
    * Whether this caller may call `path`, by the same decision
-   * `myAuthorizedRoutes` reports: an administrator holds every route, an
-   * always-visible route and a public-group grant are open to any caller, and
-   * otherwise the rules decide. `path` is the operation as the route table
-   * states it (`/SASjsApi/code/execute`).
+   * `myAuthorizedRoutes` reports: an always-visible route and a public-group
+   * grant are open to any caller, and otherwise the rules decide. `path` is the
+   * operation as the route table states it (`/SASjsApi/code/execute`).
+   *
+   * An administrator holds every route, including a path the inventory does not
+   * list, because the question is what the rules admit rather than what the
+   * rules can address. For anyone else a path outside the inventory answers
+   * `false`, exactly as `myAuthorizedRoutes` omits it.
    *
    * `false` for a caller that is absent or deactivated, so a host answers a
    * `401` rather than letting the call through.
@@ -205,17 +209,6 @@ const ALL_USERS_GROUP = 'all-users'
 
 /** The group whose membership the API refuses to change. */
 const PUBLIC_GROUP = 'public'
-
-/**
- * The route whose rule decides a path another route admits.
- *
- * The deploy upload is the deploy's own step, and the server decides it on
- * `/SASjsApi/drive/deploy` (`utils/routeAccess.ts`); a caller granted the deploy
- * is granted the upload, and one without it is refused both.
- */
-const DECIDED_BY: Record<string, string> = {
-  '/SASjsApi/drive/deploy/upload': '/SASjsApi/drive/deploy'
-}
 
 const unauthorized = () => new ApiError(401, 'Unauthorized')
 
@@ -665,10 +658,17 @@ export const createRecordService = (
     async mayUseRoute(caller, path) {
       const reader = await readerOf(store, caller)
       if (!reader) return false
+
+      // an administrator holds every route, listed or not: the question is
+      // whether the rules admit the caller, and the inventory is only what the
+      // rules can address - a host may gate a route the inventory has not caught
+      // up with, and refusing an administrator there would be the wrong answer
+      if (reader.isAdmin) return true
+
+      // otherwise the answer is exactly the one `myAuthorizedRoutes` reports, so
+      // a menu entry and the call behind it cannot disagree
       const granted = await grantedRoutesFor(reader)
-      // a route admitted by another one's rule: the upload is the deploy's, so a
-      // grant on the deploy route is what admits it
-      return granted.has(path) || granted.has(DECIDED_BY[path] || path)
+      return granted.has(path)
     },
 
     async listPermissions(caller) {

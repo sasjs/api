@@ -12,10 +12,14 @@
  * host, the same way the drive's own rules do. Every platform has one web tier
  * a browser fetches a program or a file from - `/SASStoredProcess` on SAS 9,
  * `/SASJobExecution` on Viya, `/StoredProgram` on SASjs server - and each of
- * those spellings resolves to this read: sasjs/server answers `/StoredProgram`
- * and `/SASJobExecution` by handing the request to `GET
- * /SASjsApi/drive/file?_FILE=`, and the browser build answers the same two for a
- * mock site, from the drive it already has.
+ * those spellings is meant to resolve to this read.
+ *
+ * Conditional, because the hosts are what adopt it: the browser build already
+ * answers two of them (a mock site holds the drive), while sasjs/server answers
+ * `/StoredProgram` and `/SASJobExecution` by handing the request to `GET
+ * /SASjsApi/drive/file?_FILE=` only once sasjs/server#736 merges. Until then a
+ * consumer's own default branch has no such route, and a sentence here that
+ * forgot it would send a reader looking for one.
  *
  * A file that is not there answers the way the estate answers - `202` with a
  * two-line message, not a `404`. A streamed app whose asset is missing has to

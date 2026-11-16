@@ -1945,12 +1945,12 @@ paths:
                 '200':
                     description: 'The contents of the file'
                 '400':
-                    description: 'Can''t get file outside drive'
+                    description: 'A path outside the drive, a refused extension, or a request naming neither or both'
                 '404':
                     description: 'File doesn''t exist'
                 '202':
                     description: 'A streamed file is not there: Parameter Error / File error'
-            description: "Returns the content of a file within SASjs Drive.\n\nA `400` is returned for a path outside the drive and a `404` when the file\ndoes not exist. A `.sas` file is served as `text/plain`.\n\n`_FILE` names the same file for a streamed deployment, in the spelling SAS Viya's\njob execution route answers. The answer is typed by the file's extension, so a\npage, a script or a stylesheet reaches a browser as itself, and a file that is not\nthere answers `202` with `Parameter Error` and `File error` rather than a `404`.\nOne of `_filePath` and `_FILE` is required."
+            description: "Returns the content of a file within SASjs Drive, named once.\n\nThe two names answer the same file differently. `_filePath` answers the bytes and\na `404` when the file does not exist (a `.sas` file is served as `text/plain`).\n`_FILE` is the read a streamed deployment links to: it answers the file typed by\nits extension, so a page, a script or a stylesheet reaches a browser as itself,\nand a file that is not there answers `202` with `Parameter Error` and `File\nerror` rather than a `404`.\n\nA `400` is returned for a path outside the drive or one carrying a refused\nextension, and for a request that names neither or both."
             summary: 'Get a file from SASjs Drive'
             tags:
                 - Drive

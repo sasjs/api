@@ -790,7 +790,8 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       },
       {
         status: 400,
-        description: "Can't get file outside drive"
+        description:
+          'A path outside the drive, a refused extension, or a request naming neither or both'
       },
       {
         status: 404,

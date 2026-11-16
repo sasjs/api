@@ -62,33 +62,38 @@ export const CORPUS_DIAGNOSTICS: DiagnosticsResponse = {
   }
 }
 
+/** The fixture's administrator, and the account the rules do not admit. */
+const ADMIN = { userId: 'user-admin', clientId: 'web_app' }
+const RESTRICTED = { userId: 'user-restricted', clientId: 'web_app' }
+
 /**
  * The admin corpus: one case per documented status of each route.
  *
- * `401` and `500` are host-only (the administrator middleware and the host's own
- * failures), so they are not cases; what is pinned is the body, the traversal
- * refusal the package owns, and the `404` for a name the folder does not hold.
+ * The `401` is the package's now - the same `mayAdminister` the record routes
+ * refuse with - so both halves are cases here, with the administrator's `200`
+ * between them. The host's own `500` stays out, as it cannot be produced from a
+ * fixture.
  */
 export const ADMIN_CORPUS: CorpusCase[] = [
   {
     id: 'admin-diagnostics-answers-the-report',
     route: 'GET /SASjsApi/admin/diagnostics',
     description: 'answers the host diagnostics report field for field',
-    request: {},
+    request: { subject: ADMIN },
     expect: { status: 200, body: CORPUS_DIAGNOSTICS }
   },
   {
     id: 'admin-logs-lists-the-files',
     route: 'GET /SASjsApi/admin/logs',
     description: 'answers the log files the host holds, newest first',
-    request: {},
+    request: { subject: ADMIN },
     expect: { status: 200, body: { files: [CORPUS_LOG] } }
   },
   {
     id: 'admin-log-tail-answers-the-tail',
     route: 'GET /SASjsApi/admin/logs/{fileName}',
     description: 'answers the tail of a log the folder holds',
-    request: { params: { fileName: CORPUS_LOG.name } },
+    request: { subject: ADMIN, params: { fileName: CORPUS_LOG.name } },
     expect: { status: 200, body: CORPUS_LOG_TAIL }
   },
   {
@@ -96,14 +101,43 @@ export const ADMIN_CORPUS: CorpusCase[] = [
     route: 'GET /SASjsApi/admin/logs/{fileName}',
     description:
       'refuses a name that could resolve outside the log folder, before the host is asked',
-    request: { params: { fileName: '../20260101000000.log' } },
+    request: { subject: ADMIN, params: { fileName: '../20260101000000.log' } },
     expect: { status: 400, error: 'Invalid log file name.' }
   },
   {
     id: 'admin-log-tail-answers-404',
     route: 'GET /SASjsApi/admin/logs/{fileName}',
     description: 'answers 404 for a name the folder does not hold',
-    request: { params: { fileName: '20250101000000.log' } },
+    request: { subject: ADMIN, params: { fileName: '20250101000000.log' } },
     expect: { status: 404, error: 'Log file not found.' }
+  },
+  {
+    id: 'admin-diagnostics-refused-to-a-restricted-account',
+    route: 'GET /SASjsApi/admin/diagnostics',
+    description:
+      'refuses a signed-in account that is not an administrator, in the wording verifyAdmin uses',
+    request: { subject: RESTRICTED },
+    expect: { status: 401, error: 'Admin account required' }
+  },
+  {
+    id: 'admin-logs-refused-to-a-restricted-account',
+    route: 'GET /SASjsApi/admin/logs',
+    description: 'refuses the log inventory to a restricted account',
+    request: { subject: RESTRICTED },
+    expect: { status: 401, error: 'Admin account required' }
+  },
+  {
+    id: 'admin-log-tail-refused-to-a-restricted-account',
+    route: 'GET /SASjsApi/admin/logs/{fileName}',
+    description: 'refuses a log tail to a restricted account',
+    request: { subject: RESTRICTED, params: { fileName: CORPUS_LOG.name } },
+    expect: { status: 401, error: 'Admin account required' }
+  },
+  {
+    id: 'admin-logs-refused-with-no-caller',
+    route: 'GET /SASjsApi/admin/logs',
+    description: 'refuses a request that carries no caller at all',
+    request: {},
+    expect: { status: 401, error: 'Unauthorized' }
   }
 ]

@@ -16,6 +16,9 @@ import type { CorpusCase } from './drive.js'
 
 const ADMIN = { userId: 'user-admin', clientId: 'web_app' }
 
+/** The fixture's restricted account: granted `stp/execute`, denied `code/execute`. */
+const RESTRICTED = { userId: 'user-restricted', clientId: 'web_app' }
+
 const PROGRAM = '/Public/apps/demo/run.sas'
 const CODE = 'data _null_;\n  put "hello";\nrun;'
 
@@ -215,6 +218,29 @@ export const RUNTIME_CORPUS: CorpusCase[] = [
     description: 'refuses a caller with no token, before it reads the payload',
     request: { body: {} },
     expect: { status: 401, error: UNAUTHORIZED }
+  },
+  {
+    // The fixture denies this account `/SASjsApi/code/execute` with a user rule,
+    // and a denied rule refuses the call rather than only the menu entry beside
+    // it. On a server that is `authorize`; here it is the decision
+    // `myAuthorizedRoutes` reports from, asked of the same store.
+    id: 'code-execute-denied-by-a-rule',
+    route: 'POST /SASjsApi/code/execute',
+    description:
+      'refuses a caller the rules do not grant, with the 401 a missing token earns',
+    request: { subject: RESTRICTED, body: { code: CODE, runTime: 'sas' } },
+    expect: { status: 401, error: UNAUTHORIZED }
+  },
+  {
+    // The positive control for the case above: the same account is granted
+    // `stp/execute` by a group rule, so the refusal there is the rule and not a
+    // blanket refusal of everything a restricted account asks for.
+    id: 'stp-execute-granted-by-a-group-rule',
+    route: 'POST /SASjsApi/stp/execute',
+    description: 'admits a restricted account the rules grant',
+    request: { subject: RESTRICTED, body: { _program: PROGRAM } },
+    runOutput: { contents: 'granted run' },
+    expect: { status: 200, contents: 'granted run' }
   },
 
   // ----------------------------------------------- POST /code/trigger

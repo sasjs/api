@@ -38,6 +38,7 @@
     "test": "jest --coverage",
     "coverage:comment": "node scripts/coverage-comment.mjs",
     "test:watch": "jest --watch",
+    "bench:gates": "node tools/bench-gates.cjs",
     "lint": "prettier --check \"{src,spec,scripts,tools}/**/*.{ts,mjs,cjs,md}\" \"*.{json,md}\"",
     "lint:fix": "prettier --write \"{src,spec,scripts,tools}/**/*.{ts,mjs,cjs,md}\" \"*.{json,md}\"",
     "sync:routes": "node scripts/sync-routes.mjs",

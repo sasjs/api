@@ -150,6 +150,44 @@ export interface RecordService {
     caller: Subject | undefined
   ): Promise<AuthorizedRoutesResponse>
 
+  /**
+   * Whether this caller may administer - the decision `requireAdmin` acts on,
+   * asked as a question. A host that gates its own transport reads it here so
+   * its answer and the package's cannot disagree.
+   *
+   * `false` for a caller that is absent or whose account may no longer act, as
+   * well as for one that simply is not an administrator. Where the two refusals
+   * have to be worded differently - a server refuses an inactive caller before
+   * the administrator middleware runs - ask `mayAct` as well.
+   */
+  mayAdminister(caller: Subject | undefined): Promise<boolean>
+
+  /**
+   * Whether this caller may act at all: a live account behind the subject.
+   *
+   * A server answers `401 Unauthorized` for a caller whose account was
+   * deactivated after the token was issued, and never reaches the administrator
+   * check, so a host that gates its own transport needs both answers to word the
+   * refusal the way a caller sees it there.
+   */
+  mayAct(caller: Subject | undefined): Promise<boolean>
+
+  /**
+   * Whether this caller may call `path`, by the same decision
+   * `myAuthorizedRoutes` reports: an always-visible route and a public-group
+   * grant are open to any caller, and otherwise the rules decide. `path` is the
+   * operation as the route table states it (`/SASjsApi/code/execute`).
+   *
+   * An administrator holds every route, including a path the inventory does not
+   * list, because the question is what the rules admit rather than what the
+   * rules can address. For anyone else a path outside the inventory answers
+   * `false`, exactly as `myAuthorizedRoutes` omits it.
+   *
+   * `false` for a caller that is absent or deactivated, so a host answers a
+   * `401` rather than letting the call through.
+   */
+  mayUseRoute(caller: Subject | undefined, path: string): Promise<boolean>
+
   listPermissions(caller: Subject | undefined): Promise<PermissionResponse[]>
   createPermission(
     caller: Subject | undefined,
@@ -190,6 +228,23 @@ const PUBLIC_GROUP = 'public'
 const unauthorized = () => new ApiError(401, 'Unauthorized')
 
 /**
+ * The account behind a caller, while it may still act, or undefined.
+ *
+ * The reads every administration route makes: the server re-reads the user on
+ * every request and refuses a deactivated account, so a token that outlived the
+ * account must not administer anything. The gate asks this rather than
+ * `requireCaller` when a refusal is the caller's answer rather than an error.
+ */
+const readerOf = async (
+  store: IdentityStore,
+  caller: Subject | undefined
+): Promise<IdentityUserRecord | undefined> => {
+  if (!caller) return undefined
+  const user = await store.userById(caller.userId)
+  return user && user.isActive ? user : undefined
+}
+
+/**
  * The caller, while the account behind it may still act.
  *
  * Every administration route reads the caller through this: the server
@@ -200,9 +255,8 @@ const requireCaller = async (
   store: IdentityStore,
   caller: Subject | undefined
 ): Promise<IdentityUserRecord> => {
-  if (!caller) throw unauthorized()
-  const user = await store.userById(caller.userId)
-  if (!user || !user.isActive) throw unauthorized()
+  const user = await readerOf(store, caller)
+  if (!user) throw unauthorized()
   return user
 }
 
@@ -278,6 +332,52 @@ export const createRecordService = (
   options: RecordServiceOptions = {}
 ): RecordService => {
   const grantableRoutes = options.grantableRoutes || DEFAULT_GRANTABLE_ROUTES
+
+  /**
+   * The routes this reader is granted. One pass over the rules per call, and no
+   * read of the groups table unless some rule names a group - the transport
+   * gate runs on every request, so the cheap path is the common one.
+   */
+  const grantedRoutesFor = async (
+    reader: IdentityUserRecord
+  ): Promise<Set<string>> => {
+    if (reader.isAdmin) return new Set(grantableRoutes)
+
+    const rules = await store.permissions()
+    const mine: RouteRules = {
+      user: rules
+        .filter((rule) => rule.user === reader.uid)
+        .map((rule) => ({ path: rule.path, setting: rule.setting })),
+      group: rules
+        .filter(
+          (rule) =>
+            rule.group !== undefined && reader.groups.includes(rule.group)
+        )
+        .map((rule) => ({ path: rule.path, setting: rule.setting }))
+    }
+
+    // a grant on the reserved public group admits any caller, and it is checked
+    // before the rules so no user or group rule can take it away
+    const publicGroup = rules.some((rule) => rule.group !== undefined)
+      ? (await store.groups()).find((group) => group.name === PUBLIC_GROUP)
+      : undefined
+    const publicGrants = publicGroup
+      ? rules
+          .filter(
+            (rule) => rule.group === publicGroup.uid && rule.setting === 'Grant'
+          )
+          .map((rule) => rule.path)
+      : []
+
+    return new Set(
+      grantableRoutes.filter(
+        (path) =>
+          ALWAYS_VISIBLE_ROUTES.includes(path) ||
+          publicGrants.includes(path) ||
+          isRouteGranted(mine, path, topLevelRouteFor(path))
+      )
+    )
+  }
 
   const groupDetails = async (
     group: IdentityGroupRecord
@@ -561,46 +661,33 @@ export const createRecordService = (
 
     async myAuthorizedRoutes(caller) {
       const reader = await requireCaller(store, caller)
+      const granted = await grantedRoutesFor(reader)
+      return { paths: grantableRoutes.filter((path) => granted.has(path)) }
+    },
 
-      // an administrator holds every route, and the always-visible ones are
-      // visible whatever the rules say
-      if (reader.isAdmin) return { paths: [...grantableRoutes] }
+    async mayAdminister(caller) {
+      const reader = await readerOf(store, caller)
+      return Boolean(reader?.isAdmin)
+    },
 
-      const rules = await store.permissions()
-      const mine: RouteRules = {
-        user: rules
-          .filter((rule) => rule.user === reader.uid)
-          .map((rule) => ({ path: rule.path, setting: rule.setting })),
-        group: rules
-          .filter(
-            (rule) =>
-              rule.group !== undefined && reader.groups.includes(rule.group)
-          )
-          .map((rule) => ({ path: rule.path, setting: rule.setting }))
-      }
+    async mayAct(caller) {
+      return Boolean(await readerOf(store, caller))
+    },
 
-      // a grant on the reserved public group admits any caller, and it is
-      // checked before the rules so no user or group rule can take it away
-      const publicGroup = (await store.groups()).find(
-        (group) => group.name === 'public'
-      )
-      const publicGrants = publicGroup
-        ? rules
-            .filter(
-              (rule) =>
-                rule.group === publicGroup.uid && rule.setting === 'Grant'
-            )
-            .map((rule) => rule.path)
-        : []
+    async mayUseRoute(caller, path) {
+      const reader = await readerOf(store, caller)
+      if (!reader) return false
 
-      return {
-        paths: grantableRoutes.filter(
-          (path) =>
-            ALWAYS_VISIBLE_ROUTES.includes(path) ||
-            publicGrants.includes(path) ||
-            isRouteGranted(mine, path, topLevelRouteFor(path))
-        )
-      }
+      // an administrator holds every route, listed or not: the question is
+      // whether the rules admit the caller, and the inventory is only what the
+      // rules can address - a host may gate a route the inventory has not caught
+      // up with, and refusing an administrator there would be the wrong answer
+      if (reader.isAdmin) return true
+
+      // otherwise the answer is exactly the one `myAuthorizedRoutes` reports, so
+      // a menu entry and the call behind it cannot disagree
+      const granted = await grantedRoutesFor(reader)
+      return granted.has(path)
     },
 
     async listPermissions(caller) {

@@ -55,6 +55,72 @@ describe('dispatch', () => {
     ).toEqual({ status: 404, message: 'No such operation: GET /SASjsApi/nope' })
   })
 
+  it('refuses the admin reports on a host with no record service, rather than serving them', async () => {
+    // the reports need the administrator check, and the check needs the records;
+    // a host that supplies one without the other is told what is missing instead
+    // of answering its own log to any caller
+    const admin = {
+      diagnostics: async () => ({ filesystem: null }),
+      logs: async () => [],
+      logTail: async () => ({})
+    }
+
+    expect(
+      await failure(() =>
+        dispatch({ ...services(), admin } as never, 'GET /SASjsApi/admin/logs')
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/admin/logs.'
+    })
+
+    // and with a caller attached, so the answer is not the token refusal
+    expect(
+      await failure(() =>
+        dispatch(
+          { ...services(), admin } as never,
+          'GET /SASjsApi/admin/logs',
+          { subject: { userId: 'user-admin', clientId: 'web_app' } }
+        )
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/admin/logs.'
+    })
+  })
+
+  it('answers the token refusal for an account that may no longer act', async () => {
+    // a server re-reads the account before the administrator middleware runs, so
+    // a token that outlived it meets `Unauthorized`, not the admin wording
+    const store = new MemoryIdentityStore({
+      ...DEFAULT_IDENTITY,
+      users: DEFAULT_IDENTITY.users.map((user) =>
+        user.uid === 'user-restricted' ? { ...user, isActive: false } : user
+      )
+    })
+    const admin = {
+      diagnostics: async () => ({ filesystem: null }),
+      logs: async () => [],
+      logTail: async () => ({})
+    }
+
+    expect(
+      await failure(() =>
+        dispatch(
+          {
+            ...services(),
+            admin,
+            records: createRecordService(store)
+          } as never,
+          'GET /SASjsApi/admin/logs',
+          { subject: { userId: 'user-restricted', clientId: 'web_app' } }
+        )
+      )
+    ).toEqual({ status: 401, message: 'Unauthorized' })
+  })
+
   it('answers 501 for a record route when the host supplies no record service', async () => {
     // the services are optional: a host that has a drive but no identity records
     // answers these routes the same way it answers one this package never wrote,

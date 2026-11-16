@@ -15,13 +15,48 @@ import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { dispatch } from '../src/host/dispatch.js'
 import type { Services } from '../src/host/dispatch.js'
 import { createDriveService } from '../src/drive/service.js'
-import { isApiError } from '../src/types.js'
+import { ApiError, isApiError } from '../src/types.js'
+import type { DriveStore } from '../src/types.js'
 
 const store = (seed: Record<string, string | Uint8Array> = {}) =>
   new MemoryDriveStore(seed)
 
 const service = (seed: Record<string, string | Uint8Array> = {}) =>
   createDeploymentFileService(store(seed))
+
+/**
+ * The dispatch services over ONE store, the way the corpus runner builds them: a
+ * file the drive wrote has to be the file the streamed read fetches, or a future
+ * write-then-read case would pass while asserting two different drives.
+ */
+const services = (seed: Record<string, string | Uint8Array> = {}): Services => {
+  const shared = store(seed)
+
+  return {
+    drive: createDriveService(shared),
+    deploymentFile: createDeploymentFileService(shared)
+  }
+}
+
+/**
+ * The same drive, whose read fails with `error` - the moment between the stat
+ * that found the file and the read that follows it.
+ */
+const racy = (error: unknown) =>
+  createDeploymentFileService(
+    new Proxy(store({ '/Public/app/services/web/main.js': 'x' }), {
+      get(target, property) {
+        if (property === 'read')
+          return async () => {
+            throw error
+          }
+
+        const value = (target as DriveStore)[property as keyof DriveStore]
+
+        return typeof value === 'function' ? value.bind(target) : value
+      }
+    })
+  )
 
 const status = async (promise: Promise<unknown>): Promise<number | string> => {
   try {
@@ -72,15 +107,17 @@ describe('deployment file read', () => {
       '/Public/app/services/clickme.html': '<html></html>'
     })
 
+    // the same spelling the app stream's own answers use, so a host copying one
+    // into the other cannot lose the policy
     expect(
       (await read.read('/Public/app/services/web/main.4f3a9c1d.js')).headers?.[
-        'Cache-Control'
+        'cache-control'
       ]
     ).toContain('immutable')
 
     expect(
       (await read.read('/Public/app/services/clickme.html')).headers?.[
-        'Cache-Control'
+        'cache-control'
       ]
     ).toContain('must-revalidate')
   })
@@ -102,6 +139,34 @@ describe('deployment file read', () => {
     expect(page.body).toEqual(DEPLOYMENT_FILE_ERROR)
   })
 
+  it('answers 202 when the file is removed between the stat and the read', async () => {
+    // the store said it was there a moment ago; the read finds nothing. The
+    // answer is still the estate's - a caller must not see a 500 for the fault
+    // this route exists to reproduce
+    const page = await racy(
+      Object.assign(new Error('gone'), { code: 'ENOENT' })
+    ).read('/Public/app/services/web/main.js')
+
+    expect(page.status).toEqual(202)
+    expect(page.body).toEqual(DEPLOYMENT_FILE_ERROR)
+  })
+
+  it('answers 202 when a package store throws its own 404', async () => {
+    const page = await racy(new ApiError(404, `File doesn't exist.`)).read(
+      '/Public/app/services/web/main.js'
+    )
+
+    expect(page.status).toEqual(202)
+  })
+
+  it('lets any other store failure travel, rather than calling it missing', async () => {
+    await expect(
+      racy(Object.assign(new Error('denied'), { code: 'EACCES' })).read(
+        '/Public/app/services/web/main.js'
+      )
+    ).rejects.toThrow('denied')
+  })
+
   it('refuses a path that climbs out of the drive', async () => {
     expect(await status(service().read('../../etc/passwd'))).toEqual(400)
   })
@@ -113,13 +178,6 @@ describe('deployment file read', () => {
 })
 
 describe('the dispatch answer', () => {
-  const services = (
-    seed: Record<string, string | Uint8Array> = {}
-  ): Services => ({
-    drive: createDriveService(store(seed)),
-    deploymentFile: createDeploymentFileService(store(seed))
-  })
-
   it('answers a _FILE request with the file, typed', async () => {
     const answer = await dispatch(
       services({ '/Public/app/services/web/main.js': 'console.log(1)' }),

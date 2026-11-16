@@ -18,7 +18,7 @@
  * fail the same way in both places, or a fault reproduced locally is a
  * different fault from the one being chased.
  */
-import { ApiError } from '../types.js'
+import { ApiError, isApiError } from '../types.js'
 import type { DriveStore } from '../types.js'
 import { cacheControlFor, contentTypeFor } from '../appstream/web.js'
 import { checkFilePath, isRoot } from './paths.js'
@@ -49,6 +49,27 @@ export interface DeploymentFileService {
   read(filePath: unknown): Promise<DeploymentFilePage>
 }
 
+/**
+ * Whether a store refused because there is nothing at the path.
+ *
+ * Two spellings reach this code and both mean the same thing: the package's
+ * stores throw `ApiError(404, "File doesn't exist.")`, and a host's store over a
+ * filesystem (sasjs/server's) lets `fs` throw `ENOENT`. Anything else - a
+ * permission failure, a broken link - is a real error and travels on.
+ */
+const notFound = (error: unknown): boolean =>
+  (isApiError(error) && error.status === 404) ||
+  // a structural read, not `NodeJS.ErrnoException`: this module is in the
+  // browser build, which has no node types at all
+  (error as { code?: unknown } | undefined)?.code === 'ENOENT'
+
+/** The answer for a file that is not there, in the estate's words. */
+const notThere = (): DeploymentFilePage => ({
+  status: 202,
+  contentType: 'text/plain; charset=utf-8',
+  body: DEPLOYMENT_FILE_ERROR
+})
+
 export const createDeploymentFileService = (
   store: DriveStore
 ): DeploymentFileService => ({
@@ -66,22 +87,28 @@ export const createDeploymentFileService = (
       throw new ApiError(400, `Can't get file outside drive.`)
 
     const path = checked.path
-    const exists = await store.exists(path)
 
-    // a folder is no more readable than a missing file is, and both answer the
-    // estate's message rather than a page of its own
-    if (!exists || (await store.stat(path)).directory)
+    // The stat and the read are one attempt, not a check followed by an action:
+    // a file can be removed or replaced between them, and the fault this route
+    // exists to reproduce is a missing asset - which has to answer `202` in the
+    // estate's words, not whatever the store threw at that instant. A folder is
+    // refused the same way: there is no file to send.
+    try {
+      if ((await store.stat(path)).directory) return notThere()
+
       return {
-        status: 202,
-        contentType: 'text/plain; charset=utf-8',
-        body: DEPLOYMENT_FILE_ERROR
+        status: 200,
+        contentType: contentTypeFor(path),
+        // lower case, matching the app stream's own answer (src/appstream/web.ts):
+        // the names are case-insensitive in HTTP but not in a plain object, and a
+        // host copying one into the other would lose a policy that mattered
+        headers: { 'cache-control': cacheControlFor(path) },
+        body: await store.read(path)
       }
+    } catch (error) {
+      if (notFound(error)) return notThere()
 
-    return {
-      status: 200,
-      contentType: contentTypeFor(path),
-      headers: { 'Cache-Control': cacheControlFor(path) },
-      body: await store.read(path)
+      throw error
     }
   }
 })

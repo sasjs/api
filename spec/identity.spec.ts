@@ -614,6 +614,146 @@ describe('the record service, where the store disagrees', () => {
   })
 })
 
+describe('the transport gates', () => {
+  const ADMIN = { userId: 'user-admin', clientId: 'web_app' }
+  const RESTRICTED = { userId: 'user-restricted', clientId: 'web_app' }
+
+  /** The default fixture, with one rule added to it. */
+  const withRule = (
+    rule: (typeof DEFAULT_IDENTITY)['permissions'][number]
+  ): typeof DEFAULT_IDENTITY => ({
+    ...DEFAULT_IDENTITY,
+    permissions: [...DEFAULT_IDENTITY.permissions, rule]
+  })
+
+  const serviceFor = (fixture: typeof DEFAULT_IDENTITY = DEFAULT_IDENTITY) => {
+    const store = new MemoryIdentityStore({ ...fixture })
+    return { store, records: createRecordService(store) }
+  }
+
+  it('answers the administrator question without throwing', async () => {
+    const { records } = serviceFor()
+
+    expect(await records.mayAdminister(ADMIN)).toBe(true)
+    expect(await records.mayAdminister(RESTRICTED)).toBe(false)
+    expect(await records.mayAdminister(undefined)).toBe(false)
+  })
+
+  it('refuses a caller whose account was deactivated', async () => {
+    const fixture = {
+      ...DEFAULT_IDENTITY,
+      users: DEFAULT_IDENTITY.users.map((user) =>
+        user.uid === 'user-restricted' ? { ...user, isActive: false } : user
+      )
+    }
+    const { records } = serviceFor(fixture)
+
+    expect(await records.mayAdminister(RESTRICTED)).toBe(false)
+    expect(await records.mayUseRoute(RESTRICTED, '/SASjsApi/stp/execute')).toBe(
+      false
+    )
+  })
+
+  it('decides a route by the rules the interface reads', async () => {
+    const { records } = serviceFor()
+
+    // an administrator holds everything, the rules do not apply
+    expect(await records.mayUseRoute(ADMIN, '/SASjsApi/code/execute')).toBe(
+      true
+    )
+
+    // the group grant on stp/execute, and the user's deny on code/execute
+    expect(await records.mayUseRoute(RESTRICTED, '/SASjsApi/stp/execute')).toBe(
+      true
+    )
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/code/execute')
+    ).toBe(false)
+
+    // no rule at all reaches this one, so it is refused rather than assumed
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy')
+    ).toBe(false)
+    expect(await records.mayUseRoute(undefined, '/SASjsApi/drive/file')).toBe(
+      false
+    )
+  })
+
+  it("admits the deploy upload on the deploy route's grant, as the server does", async () => {
+    const fixture = withRule({
+      uid: 'rule-deploy',
+      path: '/SASjsApi/drive/deploy',
+      type: 'Route',
+      setting: 'Grant',
+      group: 'group-data-controller'
+    })
+    const { records } = serviceFor(fixture)
+
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy')
+    ).toBe(true)
+    // the upload carries no rule of its own: it is the deploy's step
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy/upload')
+    ).toBe(true)
+  })
+
+  it('admits a grant on the reserved public group to any caller', async () => {
+    const fixture: typeof DEFAULT_IDENTITY = {
+      ...DEFAULT_IDENTITY,
+      groups: [
+        ...DEFAULT_IDENTITY.groups,
+        {
+          uid: 'group-public',
+          name: 'public',
+          description: 'every caller',
+          isActive: true,
+          users: []
+        }
+      ],
+      permissions: [
+        ...DEFAULT_IDENTITY.permissions,
+        {
+          uid: 'rule-public',
+          path: '/SASjsApi/drive/deploy',
+          type: 'Route',
+          setting: 'Grant',
+          group: 'group-public'
+        }
+      ]
+    }
+    const { records } = serviceFor(fixture)
+
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/drive/deploy')
+    ).toBe(true)
+  })
+
+  it('reads the groups table only when a rule names a group', async () => {
+    // a store with user rules alone: the public-group lookup cannot change the
+    // answer, so the gate does not pay for it
+    const fixture: typeof DEFAULT_IDENTITY = {
+      ...DEFAULT_IDENTITY,
+      permissions: [
+        {
+          uid: 'rule-code-only',
+          path: '/SASjsApi/code/execute',
+          type: 'Route',
+          setting: 'Deny',
+          user: 'user-restricted'
+        }
+      ]
+    }
+    const { store, records } = serviceFor(fixture)
+    const groups = jest.spyOn(store, 'groups')
+
+    expect(
+      await records.mayUseRoute(RESTRICTED, '/SASjsApi/code/execute')
+    ).toBe(false)
+    expect(groups).not.toHaveBeenCalled()
+  })
+})
+
 describe('a password change', () => {
   it('clears the flag through the store, so a host stops asking', async () => {
     const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })

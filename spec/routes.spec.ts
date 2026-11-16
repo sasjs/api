@@ -60,6 +60,16 @@ describe('route table', () => {
     expect(route?.capabilities).toEqual(['storage'])
   })
 
+  it('names the capability the streamed read needs, so a host can answer 501', () => {
+    // a host without the typed read answers 501 only because the route states
+    // the capability; dropping the declaration would make that answer
+    // indistinguishable from a bug
+    expect(routeById('GET /SASjsApi/drive/file')?.capabilities).toEqual([
+      'storage',
+      'deploymentFile'
+    ])
+  })
+
   it('states a decision for every operation in the document', () => {
     // Silence reads like "about to be done". The table refuses an operation with
     // no overlay entry at import, and this pins that as intended behaviour

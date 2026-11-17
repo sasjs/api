@@ -6,9 +6,9 @@ import { join } from 'node:path'
 /**
  * `npm audit --audit-level=high` ignores the moderate class, so this gate is what
  * refuses a 37th moderate. It is run from CI as `npm run audit:gate`; these cases
- * feed it saved reports and their own allowlist so the decisions are pinned
- * without reaching the registry, and without depending on what the repository's
- * allowlist happens to carry today (it is empty - nothing is excused).
+ * feed it a saved report and an allowlist of their own, so the decisions are
+ * pinned without reaching the registry and without depending on what the
+ * repository's allowlist carries.
  */
 const run = (
   report: unknown,

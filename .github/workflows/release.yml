@@ -5,10 +5,10 @@ name: release
 # trusted publisher is registered against this workflow file and validates the
 # workflow that actually runs `npm publish` (the OIDC `job_workflow_ref` claim).
 #
-# The release toolchain is @sasjs/release: zero dependencies, so nothing in the
-# tree carries an advisory we cannot fix. It replaced semantic-release, whose
-# dependency on npm arrived with npm bundled and put 36 moderates in the dev tree
-# that no `overrides` could reach (sasjs/api#8).
+# The toolchain is @sasjs/release: one file, no dependencies. A release tool that
+# depends on npm brings npm's bundled dependencies with it - glob and minimatch
+# among them - where `overrides` do not reach and the advisories cannot be fixed
+# from this repository, so dependency-free is the property to keep (sasjs/api#8).
 #
 # Nothing is committed: the tag is the version, it is stamped into the working
 # tree before the build (`@sasjs/release --prepare-publish`) because npm reads
@@ -82,28 +82,36 @@ jobs:
         run: npm test
 
       # Cuts the tag and the release if the commits since the last tag call for
-      # one. `released=false` is the ordinary state of a push that carried only
-      # chores, and every step below is skipped then rather than publishing the
-      # previous version again.
+      # one, and reuses both when they already name this commit - which is the
+      # state a run that died after the tag was cut leaves behind.
       - name: Tag and release, if there is anything to release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run release -- --host github --release --output "$GITHUB_OUTPUT"
 
-      # Stamps the tag's version into package.json, refuses a tag that is not on
-      # the default branch, and asks the registry whether this version is already
-      # published (which is what makes a failed publish re-runnable). The tree is
-      # still clean here, which is what lets it write package.json directly.
+      # Who publishes is decided by the tag, not by whether this run cut it: a run
+      # that died after the tag exists and before npm had the version is finished
+      # by re-running, and a second run cuts nothing. The tag is taken from the
+      # release step when there is one, and discovered at this commit otherwise.
+      #
+      # It then stamps that version into package.json (npm reads the file, and the
+      # tree is thrown away rather than committed), refuses a tag that is not on
+      # main, and asks the registry whether the version is already published, so a
+      # version that is up there is skipped instead of failing the job.
       - name: Stamp the version, and ask whether it is published
         id: publish
-        if: steps.release.outputs.released == 'true'
         env:
           TAG: ${{ steps.release.outputs.tag }}
-        run: >-
-          npx sasjs-release --prepare-publish
-          --tag "$TAG" --branch main
-          --output "$GITHUB_OUTPUT"
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TAG:-}" ]; then
+            target=(--tag "$TAG")
+          else
+            target=(--sha "$SHA")
+          fi
+          npx sasjs-release --prepare-publish "${target[@]}" --branch main --output "$GITHUB_OUTPUT"
 
       # After the stamp, so the browser bundle's banner names the version its tag
       # does - the artefact a service worker loads has no package.json beside it.

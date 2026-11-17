@@ -98,15 +98,12 @@ jobs:
 
       # No high or critical advisory, in any dependency, published or not.
       #
-      # The tree is clean at every severity: it used to carry 36 moderates inside
-      # the npm package that @semantic-release/npm bundles - where glob 13.0.6 and
-      # minimatch 10.2.5 were affected and `overrides` cannot reach a bundled
-      # dependency - and the release toolchain moving to @sasjs/release removed
-      # them with it (issue #8 carries the measurement).
-      #
-      # What ships is one dependency (@sasjs/lint) and its tree, so this is no
-      # longer vacuous: it audits a real production tree at the lowest severity.
-      # It needs no exemption today, which is the state to keep.
+      # What ships is one dependency (@sasjs/lint) and its tree, so this audits a
+      # real production tree at the lowest severity. It needs no exemption, which
+      # is the state to keep - and the reason the release toolchain has no
+      # dependencies: a tool that depends on npm carries npm's bundled glob and
+      # minimatch, where `overrides` do not reach and no bump of the tool clears
+      # them (sasjs/api#8 carries the measurement).
       - name: No advisory in what ships
         run: npm audit --omit=dev --audit-level=low
 

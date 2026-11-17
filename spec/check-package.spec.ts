@@ -74,16 +74,14 @@ const run = (
 }
 
 /**
- * Pack for real, through an `npm` that fails: the path a listing fixture cannot
- * reach, and the one that used to escape as an uncaught throw.
+ * Pack for real, through an `npm` this case supplies: the path a listing fixture
+ * cannot reach - the one that escaped as an uncaught throw, and the one where the
+ * archive npm wrote is unreadable and the message must name tar, not npm.
  */
-const runPack = (): { status: number; output: string } => {
+const runPack = (npm: string): { status: number; output: string } => {
   const dir = mkdtempSync(join(tmpdir(), 'fake-npm-'))
   const fake = join(dir, 'npm')
-  writeFileSync(
-    fake,
-    '#!/bin/sh\necho "npm ERR! code EUSAGE, the registry is unreachable" >&2\nexit 2\n'
-  )
+  writeFileSync(fake, npm)
   chmodSync(fake, 0o755)
 
   return execute(['scripts/check-package.mjs'], {
@@ -91,6 +89,25 @@ const runPack = (): { status: number; output: string } => {
     PATH: `${dir}:${process.env.PATH}`
   })
 }
+
+/** An npm that fails the way a registry outage does. */
+const NPM_FAILS =
+  '#!/bin/sh\necho "npm ERR! code EUSAGE, the registry is unreachable" >&2\nexit 2\n'
+
+/**
+ * An npm that "succeeds" and leaves something that is not an archive behind, which
+ * is what a corrupted pack looks like to the next step.
+ */
+const NPM_WRITES_JUNK = `#!/bin/sh
+dir=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--pack-destination" ]; then dir="$a"; fi
+  prev="$a"
+done
+printf 'not a gzip archive' > "$dir/broken.tgz"
+exit 0
+`
 
 /** An archive that carries exactly the reachable paths, plus its own manifest. */
 const goodListing = (): string =>
@@ -172,11 +189,22 @@ describe('the package contents gate, when it cannot run', () => {
   it('reports a pack failure as exit 2, not as a failed check', () => {
     // an npm whose own exit code is 2 used to be rethrown, which reached the
     // runner as exit 1 plus a stack trace - a failed check rather than no check
-    const { status, output } = runPack()
+    const { status, output } = runPack(NPM_FAILS)
 
     expect(status).toBe(2)
     expect(output).toContain('check-package could not run: npm pack failed')
     expect(output).toContain('the registry is unreachable')
+    expect(output).not.toContain('Error:')
+  })
+
+  it('names tar, not npm, when the archive npm wrote cannot be read', () => {
+    // one catch around both tools reported every failure as an npm one, so a
+    // corrupt archive sent whoever debugged it to the registry
+    const { status, output } = runPack(NPM_WRITES_JUNK)
+
+    expect(status).toBe(2)
+    expect(output).toContain('check-package could not run: tar could not list')
+    expect(output).not.toContain('npm pack failed')
     expect(output).not.toContain('Error:')
   })
 })

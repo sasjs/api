@@ -139,21 +139,33 @@ const judge = (manifest, listing) => {
   return { entries, missing, leaked, unmatched }
 }
 
+/** Why a wrapped tool failed, for the message that names it. */
+const detail = (error) =>
+  error?.stderr ? `:\n${String(error.stderr).trim()}` : ''
+
+/**
+ * Every failure here is "the check could not run", whichever exit code the tool it
+ * wrapped used - including one that exits 2 of its own. A throw escaping would
+ * report exit 1 with a stack trace, which reads as a failed check rather than a
+ * check that never happened. The two tools are caught separately so the message
+ * names the one that failed: blaming npm for a corrupt archive sends whoever
+ * debugs it to the registry.
+ */
 const listingFromArchive = () => {
   if (spawnSync('tar', ['--version'], { stdio: 'ignore' }).status !== 0)
     fail(2, 'check-package could not run: tar is not on PATH')
 
   const into = mkdtempSync(join(tmpdir(), 'api-pack-'))
   try {
-    execFileSync(
-      'npm',
-      ['pack', '--pack-destination', into, '--ignore-scripts'],
-      {
-        cwd: root,
-        encoding: 'utf8',
-        stdio: 'pipe'
-      }
-    )
+    try {
+      execFileSync(
+        'npm',
+        ['pack', '--pack-destination', into, '--ignore-scripts'],
+        { cwd: root, encoding: 'utf8', stdio: 'pipe' }
+      )
+    } catch (error) {
+      fail(2, `check-package could not run: npm pack failed${detail(error)}`)
+    }
 
     const archive = readdirSync(into).find((name) => name.endsWith('.tgz'))
     if (!archive)
@@ -162,23 +174,21 @@ const listingFromArchive = () => {
         `check-package could not run: npm pack wrote no archive into ${into}`
       )
 
-    const tar = execFileSync('tar', ['-tzf', join(into, archive)], {
-      encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024
-    })
+    let tar
+    try {
+      tar = execFileSync('tar', ['-tzf', join(into, archive)], {
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024
+      })
+    } catch (error) {
+      fail(
+        2,
+        `check-package could not run: tar could not list ${archive}${detail(error)}`
+      )
+    }
+
     console.log(`packed ${archive} (${relative(process.cwd(), into) || into})`)
     return tar
-  } catch (error) {
-    // Any failure here is "the check could not run", whichever exit code the tool
-    // it wrapped happened to use - including one that exits 2 of its own. A throw
-    // escaping this would report exit 1 with a stack trace, which reads as a
-    // failed check rather than a check that never happened.
-    fail(
-      2,
-      `check-package could not run: npm pack failed${
-        error?.stderr ? `:\n${String(error.stderr).trim()}` : ''
-      }`
-    )
   } finally {
     rmSync(into, { recursive: true, force: true })
   }

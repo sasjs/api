@@ -38,6 +38,32 @@ describe('the code service', () => {
     })
   })
 
+  it('runs the supplied language printer before the resolved lint rules', async () => {
+    const configured = createCodeService({
+      lintConfig: async () =>
+        new LintConfig({
+          hasDoxygenHeader: false,
+          keywordCase: 'upper',
+          maxLineLength: 30
+        }),
+      reprint: async (text, options) => {
+        expect(options.keywordCase).toBe('upper')
+        return (
+          text.replace('data foo; x=1; run;', 'DATA foo;\n  x=1;\nRUN;') +
+          '%put this is a long message with enough words to require wrapping;\n'
+        )
+      }
+    })
+
+    const formatted = await configured.format(caller, {
+      code: 'data foo; x=1; run;\n'
+    })
+    expect(formatted).toContain('DATA foo;\n  x=1;\nRUN;\n')
+    expect(formatted).toContain(
+      '%put this is a long%trim(\n  ) message with enough%trim(\n  ) words to require wrapping;'
+    )
+  })
+
   it('asks the host which file the rules come from', async () => {
     const asked: (string | undefined)[] = []
     const configured = createCodeService({

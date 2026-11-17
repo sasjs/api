@@ -1,6 +1,6 @@
 {
   "name": "@sasjs/api",
-  "version": "0.0.0-semantically-released",
+  "version": "0.0.0",
   "description": "The SASjs Server API, described once - a generated route table, the services behind it, and the conformance corpus both hosts run",
   "license": "MIT",
   "author": "SASjs",
@@ -50,14 +50,12 @@
     "check:builds": "node scripts/check-builds.mjs",
     "audit:gate": "node scripts/audit.mjs",
     "check:appstream": "node scripts/appstream-browser-check.cjs",
-    "conformance": "node tools/viya-conformance/conformance.mjs"
+    "conformance": "node tools/viya-conformance/conformance.mjs",
+    "release": "sasjs-release",
+    "prepublishOnly": "node -e \"const v=require('./package.json').version; if (/^0\\.0\\.0/.test(v)) { console.error('refusing to publish ' + v + ': the version is stamped from the tag by @sasjs/release --prepare-publish'); process.exit(1) }\""
   },
   "devDependencies": {
-    "@semantic-release/commit-analyzer": "13.0.1",
-    "@semantic-release/exec": "7.1.0",
-    "@semantic-release/github": "12.0.10",
-    "@semantic-release/npm": "13.2.0",
-    "@semantic-release/release-notes-generator": "14.1.1",
+    "@sasjs/release": "0.11.1",
     "@types/jest": "30.0.0",
     "@types/node": "22.20.5",
     "deepmerge": "file:./vendor/deepmerge",
@@ -65,7 +63,6 @@
     "jest": "30.5.2",
     "prettier": "3.9.10",
     "rimraf": "6.1.4",
-    "semantic-release": "25.0.9",
     "ts-jest": "29.4.15",
     "typescript": "5.9.3",
     "yaml": "2.9.1"

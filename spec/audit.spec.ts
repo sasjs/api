@@ -6,17 +6,24 @@ import { join } from 'node:path'
 /**
  * `npm audit --audit-level=high` ignores the moderate class, so this gate is what
  * refuses a 37th moderate. It is run from CI as `npm run audit:gate`; these cases
- * feed it saved reports so the decisions are pinned without reaching the registry.
+ * feed it a saved report and an allowlist of their own, so the decisions are
+ * pinned without reaching the registry and without depending on what the
+ * repository's allowlist carries.
  */
-const run = (report: unknown): { status: number; output: string } => {
+const run = (
+  report: unknown,
+  allowlist: unknown[] = ENTRIES
+): { status: number; output: string } => {
   const dir = mkdtempSync(join(tmpdir(), 'audit-'))
   const path = join(dir, 'report.json')
+  const list = join(dir, 'allowlist.json')
   writeFileSync(path, JSON.stringify(report))
+  writeFileSync(list, JSON.stringify(allowlist))
 
   try {
     const output = execFileSync(
       process.execPath,
-      ['scripts/audit.mjs', '--report', path],
+      ['scripts/audit.mjs', '--report', path, '--allowlist', list],
       { encoding: 'utf8' }
     )
     return { status: 0, output }
@@ -54,6 +61,12 @@ const MINIMATCH = {
   severity: 'moderate',
   title: 'minimatch has potential denial of service via globparts amplification'
 }
+
+/** An allowlist carrying both, so the cases can be about the decision and not the list. */
+const ENTRIES = [
+  { ...GLOB, package: 'glob', reason: 'test fixture' },
+  { ...MINIMATCH, package: 'minimatch', reason: 'test fixture' }
+]
 
 describe('the advisory gate', () => {
   it('passes when every advisory is allowlisted', () => {

@@ -96,25 +96,20 @@ jobs:
           # strictly than the repository it sits in is a hole, not a detail
           npm audit --prefix tools/viya-capture --omit=dev --audit-level=low
 
-      # No high or critical advisory, in any dependency, published or not.
-      #
-      # The tree carries 36 moderates that cannot be cleared from here: every one
-      # is inside the npm tree that @semantic-release/npm bundles, where glob
-      # 13.0.6 and minimatch 10.2.5 are affected (fixed in 14.0.2 and 11.0.1) and
-      # `overrides` cannot reach a bundled dependency. Issue #8 records that with
-      # the evidence; it unblocks when npm ships fixed bundled versions. Until
-      # then the gate stays at high - which is stricter than production-only and
-      # catches the case that would matter, a high or critical appearing anywhere,
-      # including in the release toolchain.
-      # What ships is one dependency (@sasjs/lint) and its tree, so this is no
-      # longer vacuous: it audits a real production tree at the lowest severity.
-      # It needs no exemption today, which is the state to keep.
+      # No advisory in what ships: production dependencies only - @sasjs/lint and
+      # its tree - held to the lowest severity. The runtime tree needs no
+      # exemption, which is the state to keep, and it is the reason the release
+      # toolchain has no dependencies of its own: a tool that depends on npm
+      # carries npm's bundled glob and minimatch, where `overrides` do not reach
+      # and no bump of the tool clears them (sasjs/api#8 carries the measurement).
       - name: No advisory in what ships
         run: npm audit --omit=dev --audit-level=low
 
-      # The step above ignores the moderate class, so a new moderate used to ship
-      # silently. Every moderate we carry is listed in scripts/audit-allowlist.json
-      # with the reason it is still open; a 37th fails here.
+      # And this one covers the whole tree, devDependencies included, at the
+      # lowest severity - so a high or critical anywhere fails here too. A
+      # moderate that is not in scripts/audit-allowlist.json fails the build; an
+      # entry in that file records why something cannot be fixed and is a
+      # standing decision to re-examine, not a way to pass.
       - name: No new moderate advisory
         run: npm run audit:gate
 

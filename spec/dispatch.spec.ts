@@ -577,25 +577,38 @@ describe('dispatch', () => {
 
     for (const layout of [false, true, undefined]) await send(layout)
 
-    // the two spellings the server's schema coerces, so a client that sent a
-    // string is answered the way it would be by an installation
+    // the spellings the server's schema converts, so a client that sent a string
+    // is answered the way it would be by an installation: Joi 18 reads the two
+    // words case-insensitively and trims them, so `' TRUE '` is the same request
+    // as `true`
     await send('false')
     await send('true')
+    await send(' true ')
+    await send('TRUE')
 
-    // neither a boolean nor one of those strings: the field's default, which is
-    // the engine, rather than a silent `false`
-    await send('yes')
-    await send(0)
+    expect(seen).toEqual([false, true, undefined, false, true, true, true])
+  })
 
-    expect(seen).toEqual([
-      false,
-      true,
-      undefined,
-      false,
-      true,
-      undefined,
-      undefined
-    ])
+  it('refuses a layout value the document does not allow', async () => {
+    // the answer an installation gives these, because guessing leaves a caller's
+    // mistake unanswered - `"yes"` read as the default would run the engine and
+    // report 200. `["true"]` is the shape that a `String(value)` conversion would
+    // have let through: it stringifies to 'true', and the schema refuses it.
+    const code = {
+      lint: async () => [],
+      format: async () => 'data a;\nrun;\n'
+    }
+
+    for (const layout of ['yes', 0, '', null, ['true'], { layout: true }]) {
+      expect(
+        await failure(() =>
+          dispatch({ code } as any, 'POST /SASjsApi/code/format', {
+            subject: { userId: 'user-admin', clientId: 'web_app' },
+            body: { code: 'data a; run;', layout }
+          })
+        )
+      ).toEqual({ status: 400, message: '"layout" must be a boolean.' })
+    }
   })
 
   it('answers 501 where the route needs a service the host does not have', async () => {

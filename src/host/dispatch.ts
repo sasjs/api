@@ -38,7 +38,8 @@ import type { HomeService } from '../home/service.js'
 import type { Subject } from '../identity/types.js'
 import {
   DEFAULT_GRANTABLE_ROUTES,
-  TOP_LEVEL_ROUTES
+  TOP_LEVEL_ROUTES,
+  isRouteGranted
 } from '../identity/routeAccess.js'
 import { ApiError, isApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
@@ -329,11 +330,16 @@ export const dispatch = async (
   // request meets is the one `myAuthorizedRoutes` reported for the same caller.
   const adminScoped = ADMIN_ROUTES.includes(routeId) && Boolean(services.admin)
   const grantScoped = grantPath(route.path)
+  const appDetailScoped = routeId === 'GET /SASjsApi/app/{id}'
 
   // A host with identity is enforcing access and must not silently skip a
   // permission gate when its record service is absent. A drive-only host has
   // no identity model at all and retains its existing desktop-style behavior.
-  if (grantScoped && (identity || request.subject || request.token) && !records)
+  if (
+    (grantScoped || appDetailScoped) &&
+    (identity || request.subject || request.token) &&
+    !records
+  )
     throw new ApiError(
       501,
       `This host has no record service, so it cannot answer ${routeId}.`
@@ -368,6 +374,24 @@ export const dispatch = async (
     }
     return subject
   }
+
+  // Detail uses authentication but is not an ordinary grantable API path:
+  // its own app-specific decision is made after lookup and conceals denials.
+  if (
+    appDetailScoped &&
+    (identity || records || request.subject || request.token) &&
+    !(await caller())
+  ) {
+    if (!identity)
+      throw new ApiError(
+        501,
+        `This host has no identity service, so it cannot answer ${routeId}.`
+      )
+    throw new ApiError(401, 'Unauthorized')
+  }
+
+  if (appDetailScoped && records && !(await records.mayAct(await caller())))
+    throw new ApiError(401, 'Unauthorized')
 
   if (
     (identityScoped && records) ||
@@ -872,6 +896,27 @@ export const dispatch = async (
 
           throw err
         })
+
+      if (records) {
+        const subject = await caller()
+        if (!(await records.mayAdminister(subject))) {
+          // listPermissions exposes the caller's user/group rules of all types.
+          // Only routes select the id or name and decide /AppStream access.
+          const rules = (await records.listPermissions(subject)).filter(
+            (rule) => rule.type === 'Route'
+          )
+          const paths = [`/AppStream/${entry.id}`, `/AppStream/${entry.name}`]
+          const decided =
+            paths.find((path) => rules.some((rule) => rule.path === path)) ??
+            paths[0]
+          const routeRules = {
+            user: rules.filter((rule) => rule.user === subject!.userId),
+            group: rules.filter((rule) => rule.group !== undefined)
+          }
+          if (!isRouteGranted(routeRules, decided, '/AppStream'))
+            throw appNotRegistered()
+        }
+      }
 
       // the entry's own folder, whichever shape it was published in: `streamWebFolder`
       // is the field that separates them - an entry carrying it is served from

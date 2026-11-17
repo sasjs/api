@@ -2,11 +2,9 @@
  * The App Stream detail route's conformance corpus.
  *
  * `GET /SASjsApi/app/{id}` describes an app by its id: the entry as registered, the
- * file it is served from, and whether that file is there. Two answers are the
- * package's - the `200` and the `404` - and both have a case here, which is what
- * `spec/corpus-parity.spec.ts` enforces in both directions. The `401` is the host's
- * (the route is mounted behind its authenticator) and is marked as such in the
- * overlay.
+ * file it is served from, and whether that file is there. The `200`, `401`, and
+ * `404` answers have cases here, which `spec/corpus-parity.spec.ts` enforces in
+ * both directions. The host also authenticates at the HTTP boundary.
  *
  * The cases name the same app the rest of the corpus starts from (`CORPUS_APP`), so
  * a host running this corpus against a live server sees the same id the package
@@ -38,6 +36,13 @@ const FRONTEND_ENTRY_FILE = `/apps/${FRONTEND_APP.name}/index.html`
 const ENTRY_FILE_PATH = `${CORPUS_APP.appLoc}/services/${CORPUS_APP.streamWebFolder}/index.html`
 
 export const APP_CORPUS: CorpusCase[] = [
+  {
+    id: 'app-detail-anonymous',
+    route: 'GET /SASjsApi/app/{id}',
+    description: 'refuses an anonymous caller before looking up an app',
+    request: { params: { id: CORPUS_APP.id } },
+    expect: { status: 401, error: 'Unauthorized' }
+  },
   {
     id: 'app-detail-published',
     route: 'GET /SASjsApi/app/{id}',
@@ -98,6 +103,17 @@ export const APP_CORPUS: CorpusCase[] = [
       status: 200,
       partial: { entryFileExists: false, lastModified: null }
     }
+  },
+  {
+    id: 'app-detail-denied',
+    route: 'GET /SASjsApi/app/{id}',
+    description:
+      'conceals a registered app from a caller without a stream grant',
+    request: {
+      subject: { userId: 'user-restricted', clientId: 'web_app' },
+      params: { id: CORPUS_APP.id }
+    },
+    expect: { status: 404, error: 'No App Stream is registered with that id.' }
   },
   {
     id: 'app-detail-unknown-id',

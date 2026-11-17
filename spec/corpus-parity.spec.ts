@@ -52,6 +52,27 @@ const corpusByRoute = () => {
   return byRoute
 }
 
+describe('app detail authentication coverage', () => {
+  it('includes an anonymous app detail 401 case', () => {
+    expect(
+      APP_CORPUS.some(
+        (testCase) =>
+          testCase.route === 'GET /SASjsApi/app/{id}' &&
+          testCase.expect.status === 401 &&
+          testCase.request.params?.id &&
+          !testCase.request.subject &&
+          !testCase.request.token
+      )
+    ).toBe(true)
+  })
+
+  it('treats app detail 401 as a package response rather than host-only', () => {
+    expect(routeById('GET /SASjsApi/app/{id}')?.hostResponses).not.toContain(
+      401
+    )
+  })
+})
+
 describe('the document and the corpus agree, in both directions', () => {
   const cases = corpusByRoute()
   const implemented = ROUTES.filter((route) => route.implemented)

@@ -343,9 +343,8 @@ export const OVERLAY: Record<string, RouteOverlay> = {
   // sasjs/cli#1550, not this package's.
   'GET /SASjsApi/app/{id}': {
     implemented: true,
-    // the caller's token is the host's middleware, and a failure that is not the
-    // index refusing the id - a drive read that broke - is the host's to answer
-    hostResponses: [401, 500],
+    // a drive read that broke is the host's to answer
+    hostResponses: [500],
     // the shape a client reads: the entry as registered, the file it is served from,
     // and whether that file is there
     responses: {

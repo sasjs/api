@@ -14,7 +14,7 @@ import {
   createAppStreamService
 } from '../src/appstream/service.js'
 import { isApiError } from '../src/types.js'
-import { runCase, servicesFor } from '../src/corpus/runner.js'
+import { runCase, servicesFor, CORPUS_APP } from '../src/corpus/runner.js'
 import type { CorpusCase } from '../src/corpus/drive.js'
 import { DEPLOY_CORPUS } from '../src/corpus/deploy.js'
 import { APP_CORPUS } from '../src/corpus/app.js'
@@ -713,6 +713,324 @@ describe('a package whose backend names no folder', () => {
 })
 
 describe('an app detail answer', () => {
+  it('refuses an anonymous caller before revealing an app', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      request: { params: testCase.request.params }
+    })
+    expect(result.status).toBe(401)
+  })
+
+  it('conceals the app from a signed-in caller without a stream grant', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    })
+    expect({ status: result.status, error: result.error }).toEqual({
+      status: 404,
+      error: 'No App Stream is registered with that id.'
+    })
+  })
+
+  it('refuses an inactive subject before looking up an unknown app', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-unknown-id'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        users: DEFAULT_IDENTITY.users.map((user) =>
+          user.uid === 'user-restricted' ? { ...user, isActive: false } : user
+        )
+      },
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    })
+    expect(result.status).toBe(401)
+  })
+
+  it('lets a legacy name rule grant access without an inventory entry', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        permissions: [
+          {
+            uid: 'name-grant',
+            path: `/AppStream/${CORPUS_APP.name}`,
+            type: 'Route',
+            setting: 'Grant',
+            user: 'user-restricted'
+          }
+        ]
+      },
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    })
+    expect(result.status).toBe(200)
+  })
+
+  it('ignores a non-route app grant and conceals its details', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const restrictedCase = {
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        permissions: [
+          {
+            uid: 'other-grant',
+            type: 'Other',
+            path: `/AppStream/${CORPUS_APP.id}`,
+            setting: 'Grant',
+            user: 'user-restricted'
+          }
+        ]
+      },
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    }
+    const host = servicesFor(restrictedCase)
+    const tree = jest.spyOn(host.drive!, 'tree')
+    expect((await runCase(restrictedCase, host)).status).toBe(404)
+    expect(tree).not.toHaveBeenCalled()
+  })
+
+  it('ignores a non-route id deny when selecting a route name grant', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        permissions: [
+          {
+            uid: 'other-deny',
+            type: 'Other',
+            path: `/AppStream/${CORPUS_APP.id}`,
+            setting: 'Deny',
+            user: 'user-restricted'
+          },
+          {
+            uid: 'route-name-grant',
+            type: 'Route',
+            path: `/AppStream/${CORPUS_APP.name}`,
+            setting: 'Grant',
+            user: 'user-restricted'
+          }
+        ]
+      },
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    })
+    expect(result.status).toBe(200)
+  })
+
+  it.each([
+    [
+      'id grant',
+      [{ path: `/AppStream/${CORPUS_APP.id}`, setting: 'Grant' }],
+      200
+    ],
+    ['stream grant', [{ path: '/AppStream', setting: 'Grant' }], 200],
+    [
+      'id deny overrides name grant',
+      [
+        { path: `/AppStream/${CORPUS_APP.id}`, setting: 'Deny' },
+        { path: `/AppStream/${CORPUS_APP.name}`, setting: 'Grant' }
+      ],
+      404
+    ],
+    [
+      'id grant overrides name deny',
+      [
+        { path: `/AppStream/${CORPUS_APP.id}`, setting: 'Grant' },
+        { path: `/AppStream/${CORPUS_APP.name}`, setting: 'Deny' }
+      ],
+      200
+    ],
+    [
+      'id group deny overrides stream group grant',
+      [
+        { path: `/AppStream/${CORPUS_APP.id}`, setting: 'Deny', group: true },
+        { path: '/AppStream', setting: 'Grant', group: true }
+      ],
+      404
+    ]
+  ])('uses the server rule precedence: %s', async (_label, rules, status) => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        permissions: rules.map((rule, i) => ({
+          uid: `test-${i}`,
+          type: 'Route',
+          path: rule.path,
+          setting: rule.setting,
+          ...('group' in rule && rule.group
+            ? { group: 'group-data-controller' }
+            : { user: 'user-restricted' })
+        }))
+      },
+      request: {
+        ...testCase.request,
+        subject: { userId: 'user-restricted', clientId: 'web_app' }
+      }
+    })
+    expect(result.status).toBe(status)
+  })
+
+  it('preserves desktop access with no identity services', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const host = servicesFor(testCase)
+    const result = await runCase(
+      { ...testCase, request: { params: testCase.request.params } },
+      { drive: host.drive, appStream: host.appStream }
+    )
+    expect(result.status).toBe(200)
+  })
+
+  it('fails closed for a subject when the host has no record service', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const host = servicesFor(testCase)
+    const result = await runCase(testCase, {
+      drive: host.drive,
+      appStream: host.appStream
+    })
+    expect(result.status).toBe(501)
+  })
+
+  it('fails closed for identity without a record service', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const host = servicesFor(testCase)
+    const result = await runCase(testCase, {
+      drive: host.drive,
+      appStream: host.appStream,
+      identity: host.identity
+    })
+    expect(result.status).toBe(501)
+  })
+
+  it('does not use public AppStream grants to authenticate anonymous detail requests', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        groups: [
+          ...DEFAULT_IDENTITY.groups,
+          {
+            uid: 'public-group',
+            name: 'public',
+            description: '',
+            isActive: true,
+            users: []
+          }
+        ],
+        permissions: [
+          {
+            uid: 'public-grant',
+            type: 'Route',
+            path: `/AppStream/${CORPUS_APP.id}`,
+            setting: 'Grant',
+            group: 'public-group'
+          }
+        ]
+      },
+      request: { params: testCase.request.params }
+    })
+    expect(result.status).toBe(401)
+  })
+
+  it('authenticates a valid token for an administrator', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      identity: {
+        ...DEFAULT_IDENTITY,
+        tokens: [
+          {
+            username: 'sasjsadmin',
+            clientId: 'web_app',
+            accessToken: 'detail-access',
+            refreshToken: 'detail-refresh'
+          }
+        ]
+      },
+      request: { params: testCase.request.params, token: 'detail-access' }
+    })
+    expect(result.status).toBe(200)
+  })
+
+  it('refuses an invalid token', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const result = await runCase({
+      ...testCase,
+      request: { params: testCase.request.params, token: 'not-valid' }
+    })
+    expect(result.status).toBe(401)
+  })
+
+  it('does not read drive details for a denied app', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-denied'
+    ) as CorpusCase
+    const host = servicesFor(testCase)
+    const tree = jest.spyOn(host.drive!, 'tree')
+    expect((await runCase(testCase, host)).status).toBe(404)
+    expect(tree).not.toHaveBeenCalled()
+  })
+
+  it('requires a subject from a records-only host', async () => {
+    const testCase = APP_CORPUS.find(
+      (candidate) => candidate.id === 'app-detail-published'
+    ) as CorpusCase
+    const host = servicesFor(testCase)
+    const result = await runCase(
+      { ...testCase, request: { params: testCase.request.params } },
+      { drive: host.drive, appStream: host.appStream, records: host.records }
+    )
+    expect(result.status).toBe(501)
+  })
+
   it('omits a field the entry does not carry, rather than answering undefined', async () => {
     const testCase = APP_CORPUS.find(
       (candidate) => candidate.id === 'app-detail-frontend'

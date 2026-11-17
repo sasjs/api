@@ -20,7 +20,8 @@
  *     node scripts/audit.mjs --report audit.json # judge a saved report
  *
  * Exit 0: nothing above the floor outside the allowlist.
- * Exit 1: an advisory at or above the floor, or one whose severity was raised.
+ * Exit 1: an advisory at or above the floor, or one whose severity was raised,
+ *         or one waived as dev-only that now reaches the production set.
  * Exit 2: the audit could not run, or did not produce a report.
  */
 import { execFileSync } from 'node:child_process'
@@ -62,17 +63,24 @@ const readable = (report) => {
  * `npm audit --json` exits 1 when it finds something, which is the report we
  * asked for; any other status, or a 1 with nothing parsable, means the audit did
  * not run. stderr is kept so the log says why rather than showing a clean gate.
+ *
+ * `savedReport` is the path a caller handed in, and `omitDev` asks npm for the
+ * production set alone: the two differ only in what is asked for, so the failure
+ * handling cannot drift between them.
  */
-const auditReport = () => {
-  const saved = arg('report')
-  if (saved) return readable(JSON.parse(readFileSync(saved, 'utf8')))
+const auditReport = (savedReport, omitDev = false) => {
+  if (savedReport)
+    return readable(JSON.parse(readFileSync(savedReport, 'utf8')))
 
   let stdout = ''
   let stderr = ''
   let status = 0
 
+  const args = ['audit', '--json']
+  if (omitDev) args.push('--omit=dev')
+
   try {
-    stdout = execFileSync('npm', ['audit', '--json'], {
+    stdout = execFileSync('npm', args, {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024
     })
@@ -124,7 +132,7 @@ const main = () => {
   if (!SEVERITY.includes(floor))
     throw new Error(`--floor must be one of ${SEVERITY.join(', ')}`)
 
-  const report = auditReport()
+  const report = auditReport(arg('report'))
   const allowlist = JSON.parse(readFileSync(allowlistPath, 'utf8'))
   const advisories = advisoriesIn(report)
   const allowed = new Map(allowlist.map((entry) => [`${entry.source}`, entry]))
@@ -141,6 +149,35 @@ const main = () => {
     (entry) => !advisories.some((a) => `${a.source}` === `${entry.source}`)
   )
 
+  /**
+   * A `devOnly` waiver says the package cannot reach what ships - that it arrives
+   * through the test and build tooling alone. Matching is by advisory id over the
+   * whole tree, so that sentence would go on waiving the advisory after a
+   * production dependency pulled the same package in; the claim is therefore
+   * measured rather than written down. An id that appears in the production set
+   * fails the gate, and the reason has to be replaced with one that accounts for
+   * the exposure.
+   *
+   * The second report is asked for only when the allowlist carries such an entry,
+   * so a tree without one pays nothing for the check. In saved-report mode it has
+   * to be handed in: an unverified waiver is a green gate that checked less than
+   * it says, which is the failure mode this script exists to avoid.
+   */
+  const devOnly = allowlist.filter((entry) => entry.devOnly)
+  let shipped = []
+  if (devOnly.length) {
+    const production = arg('production-report')
+    if (arg('report') && !production)
+      throw new Error(
+        'a dev-only waiver needs --production-report, or it is a claim nothing checks'
+      )
+    shipped = advisoriesIn(auditReport(production, true))
+  }
+
+  const reachedProduction = devOnly.filter((entry) =>
+    shipped.some((a) => `${a.source}` === `${entry.source}`)
+  )
+
   console.log(
     `${advisories.length} distinct advisory/advisories, ${allowlist.length} allowlisted, floor ${floor}`
   )
@@ -148,6 +185,22 @@ const main = () => {
     console.log(
       `  stale: ${entry.package} ${entry.source} "${entry.title}" - ${entry.reason}`
     )
+  for (const entry of devOnly)
+    if (!reachedProduction.includes(entry))
+      console.log(
+        `  waived as dev-only: ${entry.source} ${entry.package} - not in the production set`
+      )
+
+  if (reachedProduction.length) {
+    for (const entry of reachedProduction)
+      console.log(
+        `  REFUSED ${entry.severity}: ${entry.package} ${entry.source} was waived as dev-only, but it now reaches a production dependency`
+      )
+    console.log(
+      'Fix it, or give it a reason that accounts for production exposure.'
+    )
+    process.exit(1)
+  }
 
   if (refused.length) {
     for (const entry of refused)

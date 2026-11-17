@@ -12,7 +12,8 @@ import { join } from 'node:path'
  */
 const run = (
   report: unknown,
-  allowlist: unknown[] = ENTRIES
+  allowlist: unknown[] = ENTRIES,
+  production?: unknown
 ): { status: number; output: string } => {
   const dir = mkdtempSync(join(tmpdir(), 'audit-'))
   const path = join(dir, 'report.json')
@@ -20,12 +21,16 @@ const run = (
   writeFileSync(path, JSON.stringify(report))
   writeFileSync(list, JSON.stringify(allowlist))
 
+  const args = ['scripts/audit.mjs', '--report', path, '--allowlist', list]
+
+  if (production !== undefined) {
+    const shipped = join(dir, 'production.json')
+    writeFileSync(shipped, JSON.stringify(production))
+    args.push('--production-report', shipped)
+  }
+
   try {
-    const output = execFileSync(
-      process.execPath,
-      ['scripts/audit.mjs', '--report', path, '--allowlist', list],
-      { encoding: 'utf8' }
-    )
+    const output = execFileSync(process.execPath, args, { encoding: 'utf8' })
     return { status: 0, output }
   } catch (error) {
     const failure = error as { status: number; stdout: string; stderr: string }
@@ -107,6 +112,71 @@ describe('the advisory gate', () => {
 
     expect(status).toBe(0)
     expect(output).toContain('stale: minimatch 1244623')
+  })
+})
+
+describe('a waiver that says the advisory cannot reach what ships', () => {
+  const PICOMATCH = {
+    source: 1247710,
+    severity: 'high',
+    title:
+      'picomatch vulnerable to ReDoS through single-branch repeated extglobs'
+  }
+
+  const waiver = [
+    {
+      ...PICOMATCH,
+      package: 'picomatch',
+      devOnly: true,
+      reason: 'test fixture'
+    }
+  ]
+
+  const productionWith = (advisory?: typeof PICOMATCH) =>
+    reportWith(advisory ? [advisory] : [], 'picomatch')
+
+  it('passes when the production set does not carry the waived advisory', () => {
+    const { status, output } = run(
+      reportWith([PICOMATCH], 'picomatch'),
+      waiver,
+      productionWith()
+    )
+
+    expect(status).toBe(0)
+    expect(output).toContain(
+      'waived as dev-only: 1247710 picomatch - not in the production set'
+    )
+  })
+
+  it('refuses a dev-only waiver whose advisory now reaches a production dependency', () => {
+    // matching is by advisory id over the whole tree, so the reason would go on
+    // waiving it after a shipped dependency pulled the same package in
+    const { status, output } = run(
+      reportWith([PICOMATCH], 'picomatch'),
+      waiver,
+      productionWith(PICOMATCH)
+    )
+
+    expect(status).toBe(1)
+    expect(output).toContain(
+      'REFUSED high: picomatch 1247710 was waived as dev-only, but it now reaches a production dependency'
+    )
+  })
+
+  it('refuses to leave the claim unverified when no production report is given', () => {
+    // a saved-report run that skipped the second audit would be a green gate
+    // that checked less than the entry says it did
+    const { status, output } = run(reportWith([PICOMATCH], 'picomatch'), waiver)
+
+    expect(status).toBe(2)
+    expect(output).toContain('a dev-only waiver needs --production-report')
+  })
+
+  it('asks for no second audit when no entry claims to be dev-only', () => {
+    const { status, output } = run(reportWith([GLOB]), ENTRIES)
+
+    expect(status).toBe(0)
+    expect(output).not.toContain('waived as dev-only')
   })
 })
 

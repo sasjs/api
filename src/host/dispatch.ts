@@ -280,6 +280,25 @@ const validate = (route: Route, request: ApiRequest): void => {
 const APP_ENTRY_FILE = 'index.html'
 
 /**
+ * A body field the document states as a boolean, read the way the server reads it.
+ *
+ * The server validates this one with `Joi.boolean()`, which converts the two
+ * strings `'true'` and `'false'` as well as real booleans, and refuses anything
+ * else. There is no schema in this package to run, so the two spellings a caller
+ * might mean are read here: a client that sent the string `"false"` and had its
+ * buffer laid out anyway would find two hosts disagreeing about which button it
+ * pressed. Anything else is left undefined, which is the field's default rather
+ * than a refusal - the Studio's own client sends a boolean, so this is the
+ * boundary making sense of a caller the package did not write.
+ */
+const flagOf = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
+/**
  * An app the index does not hold, in the wording the route answers with.
  *
  * The package's own message names the id ("No app is published with that id"); the
@@ -1187,7 +1206,10 @@ export const dispatch = async (
         status: 200,
         body: await code.format(await caller(), {
           code: body.code as string,
-          filePath: body.filePath as string | undefined
+          filePath: body.filePath as string | undefined,
+          // the body is rebuilt field by field here, so a flag the service reads
+          // has to be named or the request's own answer is lost on the way
+          layout: flagOf(body.layout)
         })
       }
 

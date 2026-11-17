@@ -9,6 +9,17 @@ export interface CodeRequest {
   code: string
   /** The drive path the code belongs to, so a host can pick that folder's rules. */
   filePath?: string
+  /**
+   * Whether the format route runs the host's layout engine as well as the rules.
+   * Defaults to true, which is what "format" means.
+   *
+   * `false` is the editor's "fix lint issues": the rules are the changes that can
+   * be made without judgement - trailing spaces, tabs, line endings, the header's
+   * macro list, the wrapping a long line gets - and an author who asks for those
+   * does not want the engine's statement breaks and indentation rewritten at the
+   * same time. The answer is still the rewritten buffer, header and all.
+   */
+  layout?: boolean
 }
 
 export interface CodeServiceOptions {
@@ -95,8 +106,12 @@ export const createCodeService = (
 
     async format(caller, body) {
       requireCaller(caller)
+      // A caller that asked for the rules alone gets them alone. The flag is read
+      // here and not left to a host: a browser host always has its engine to hand,
+      // so a request that could not turn it off would be laid out anyway - which is
+      // two buttons in the Studio doing one job.
       return formatText(codeOf(body), await configFor(body.filePath), {
-        reprint: options.reprint
+        reprint: body.layout === false ? undefined : options.reprint
       })
     }
   }

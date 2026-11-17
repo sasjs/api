@@ -1,5 +1,5 @@
 import { formatText, lintText } from '@sasjs/lint'
-import type { Diagnostic, LintConfig } from '@sasjs/lint'
+import type { Diagnostic, FormatOptions, LintConfig } from '@sasjs/lint'
 
 import { ApiError } from '../types.js'
 import type { Subject } from '../identity/types.js'
@@ -12,6 +12,12 @@ export interface CodeRequest {
 }
 
 export interface CodeServiceOptions {
+  /**
+   * Optional host-supplied layout engine, run before the lint rules. Without it,
+   * formatting applies lint fixes only, as before. Browser hosts must provide
+   * the engine and serve its vocabulary themselves.
+   */
+  reprint?: FormatOptions['reprint']
   /**
    * The lint configuration that applies to a file.
    *
@@ -89,7 +95,9 @@ export const createCodeService = (
 
     async format(caller, body) {
       requireCaller(caller)
-      return formatText(codeOf(body), await configFor(body.filePath))
+      return formatText(codeOf(body), await configFor(body.filePath), {
+        reprint: options.reprint
+      })
     }
   }
 }

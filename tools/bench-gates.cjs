@@ -47,6 +47,12 @@ const bench = async (label, routeId, request, fixture) => {
     )
   }
 
+  // Separate live/admin/rule queries keep the RecordService interface unchanged.
+  const app = { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60', name: 'bench' }
+  services.appStream = API.createAppStreamService(
+    new API.MemoryAppStreamStore([app])
+  )
+
   // one warm-up call, so a cold JIT is not in the number
   await API.dispatch(services, routeId, request).catch(() => undefined)
   for (const key of Object.keys(counts)) counts[key] = 0
@@ -106,6 +112,34 @@ const run = { body: { code: 'data _null_; run;', runTime: 'sas' } }
     'GET /SASjsApi/drive/file',
     { subject: RESTRICTED, query: { _filePath: '/data/bench.csv' } },
     { ...API.DEFAULT_IDENTITY, permissions: [] }
+  )
+  await bench('app detail as admin', 'GET /SASjsApi/app/{id}', {
+    subject: ADMIN,
+    params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+  })
+  await bench('app detail as restricted', 'GET /SASjsApi/app/{id}', {
+    subject: RESTRICTED,
+    params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+  })
+  await bench(
+    'app detail as granted user',
+    'GET /SASjsApi/app/{id}',
+    {
+      subject: RESTRICTED,
+      params: { id: '6f1c1c1e-6a1e-4c4a-9d1a-1b2c3d4e5f60' }
+    },
+    {
+      ...API.DEFAULT_IDENTITY,
+      permissions: [
+        {
+          uid: 'bench-grant',
+          path: '/AppStream',
+          type: 'Route',
+          setting: 'Grant',
+          user: 'user-restricted'
+        }
+      ]
+    }
   )
   await bench('admin report as admin', 'GET /SASjsApi/admin/logs', {
     subject: ADMIN

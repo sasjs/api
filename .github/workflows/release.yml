@@ -119,6 +119,14 @@ jobs:
         if: steps.publish.outputs.publish == 'true'
         run: npm run build
 
+      # The build writes the paths `files` and `exports` name, and npm does not
+      # check that they are there: a renamed path publishes a package quietly
+      # missing that surface. This reads the archive npm would upload, before it
+      # is the one npm uploaded.
+      - name: The tarball carries the public API
+        if: steps.publish.outputs.publish == 'true'
+        run: npm run check:package
+
       - name: The app stream works from the browser bundle
         if: steps.publish.outputs.publish == 'true'
         run: npm run check:appstream

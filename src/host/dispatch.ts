@@ -282,20 +282,34 @@ const APP_ENTRY_FILE = 'index.html'
 /**
  * A body field the document states as a boolean, read the way the server reads it.
  *
- * The server validates this one with `Joi.boolean()`, which converts the two
- * strings `'true'` and `'false'` as well as real booleans, and refuses anything
- * else. There is no schema in this package to run, so the two spellings a caller
- * might mean are read here: a client that sent the string `"false"` and had its
- * buffer laid out anyway would find two hosts disagreeing about which button it
- * pressed. Anything else is left undefined, which is the field's default rather
- * than a refusal - the Studio's own client sends a boolean, so this is the
- * boundary making sense of a caller the package did not write.
+ * The server validates this one with `Joi.boolean()`, which converts real booleans
+ * and the string spellings of them - case-insensitively, and trimmed, as Joi 18
+ * does - and refuses every other shape. Both halves are reproduced here: a client
+ * that sent the string `"false"` and had its buffer laid out anyway would find two
+ * hosts disagreeing about which button it pressed.
+ *
+ * The conversion is limited to strings on purpose. `String(value)` would also read
+ * shapes the schema refuses - a one-element array `["true"]` stringifies to
+ * `'true'` - so a non-string, non-boolean value is not looked at, it is refused.
+ *
+ * A value that cannot be read is refused rather than guessed at, with the answer an
+ * installation gives it: `"yes"` is a caller's bug, and reading it as the default
+ * leaves that bug unanswered. `replaceOf` refuses its own boolean field for the
+ * same reason, though not by the same rules - an empty string there means the query
+ * parameter was not stated, and for this body field the schema refuses it.
  */
-const flagOf = (value: unknown): boolean | undefined => {
+const layoutOf = (value: unknown): boolean | undefined => {
+  if (value === undefined) return undefined
   if (typeof value === 'boolean') return value
-  if (value === 'true') return true
-  if (value === 'false') return false
-  return undefined
+
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase()
+
+    if (text === 'true') return true
+    if (text === 'false') return false
+  }
+
+  throw new ApiError(400, '"layout" must be a boolean.')
 }
 
 /**
@@ -1209,7 +1223,7 @@ export const dispatch = async (
           filePath: body.filePath as string | undefined,
           // the body is rebuilt field by field here, so a flag the service reads
           // has to be named or the request's own answer is lost on the way
-          layout: flagOf(body.layout)
+          layout: layoutOf(body.layout)
         })
       }
 

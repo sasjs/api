@@ -397,6 +397,51 @@ describe('the paths a request can name', () => {
     expect((answer.body as { size: number }).size).toBe(3)
   })
 
+  // A file PUT puts the content on the wire as the body itself, with the file's
+  // own content type, which is what `updateFileContent` in `@sasjs/adapter` sends
+  // and what no JSON parser reads. The body is bytes as often as it is text.
+  it('accepts the content as raw bytes', async () => {
+    const { shared, folderId } = await withFolder()
+    const uploaded = await upload(
+      shared,
+      `/folders/folders/${folderId}`,
+      'a.bin',
+      'x'
+    )
+    const id = (uploaded.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'PUT',
+      `/files/files/${id}/content`,
+      { contents: new Uint8Array([0, 1, 2, 250]) }
+    )
+
+    expect(answer.status).toBe(200)
+    expect((answer.body as { size: number }).size).toBe(4)
+  })
+
+  it('accepts the content as raw text', async () => {
+    const { shared, folderId } = await withFolder()
+    const uploaded = await upload(
+      shared,
+      `/folders/folders/${folderId}`,
+      'a.sas',
+      'x'
+    )
+    const id = (uploaded.body as { id: string }).id
+
+    const answer = await dispatchViya(
+      shared,
+      'PUT',
+      `/files/files/${id}/content`,
+      { contents: 'data c; run;' }
+    )
+
+    expect(answer.status).toBe(200)
+    expect((answer.body as { size: number }).size).toBe(12)
+  })
+
   it('accepts a replacement body that carries its content under `contents`', async () => {
     const { shared, folderId } = await withFolder()
     const uploaded = await upload(
@@ -415,5 +460,83 @@ describe('the paths a request can name', () => {
     )
 
     expect((answer.body as { size: number }).size).toBe(12)
+  })
+})
+
+describe('a folder member', () => {
+  /**
+   * `getFileContent` and `updateFileContent` in `@sasjs/adapter` find a file by
+   * listing its folder and reading `member.uri`, then fetching
+   * `${uri}/content`. A path in that field sends the client to
+   * `/app/program.sas/content`, which answers 404 on every host, so the field is
+   * the resource a client can follow rather than a second spelling of the path.
+   */
+  it('names the resource a client fetches, not its path', async () => {
+    const { shared, folderId } = await withFolder()
+    const uploaded = await upload(
+      shared,
+      `/folders/folders/${folderId}`,
+      'program.sas',
+      '%put hello;'
+    )
+    const fileId = (uploaded.body as { id: string }).id
+    const folderUri = `/folders/folders/${folderId}`
+
+    const members = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${folderId}/members`,
+      { query: {} }
+    )
+
+    const items = (
+      members.body as {
+        items: Array<{ name: string; uri: string; type: string }>
+      }
+    ).items
+
+    const file = items.find((item) => item.name === 'program.sas')
+    const folder = items.find((item) => item.type === 'folder')
+
+    expect(file?.uri).toBe(`/files/files/${fileId}`)
+
+    // the uri is followable: it is the same address the `self` link carries, and
+    // the one a client reaches the content from
+    const read = await dispatchViya(shared, 'GET', file?.uri as string)
+    expect(read.status).toBe(200)
+
+    // the bytes travel in `contents`: a body field would make a host JSON-encode
+    // them under a text/html header
+    const content = await dispatchViya(shared, 'GET', `${file?.uri}/content`)
+
+    expect(content.status).toBe(200)
+    expect(Buffer.from(content.contents as Uint8Array).toString()).toBe(
+      '%put hello;'
+    )
+
+    // an empty app folder has no folder member to name; create one to prove the
+    // folder branch follows the same rule
+    expect(folder).toBeUndefined()
+
+    await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: folderUri },
+      body: { name: 'sub' }
+    })
+
+    const listed = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${folderId}/members`,
+      { query: {} }
+    )
+
+    const sub = (
+      listed.body as { items: Array<{ name: string; uri: string }> }
+    ).items.find((item) => item.name === 'sub')
+
+    expect(sub?.uri).toMatch(/^\/folders\/folders\//)
+    expect((await dispatchViya(shared, 'GET', sub?.uri as string)).status).toBe(
+      200
+    )
   })
 })

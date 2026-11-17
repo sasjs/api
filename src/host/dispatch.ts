@@ -111,6 +111,12 @@ export interface ApiRequest {
    * states them.
    */
   params?: Record<string, string>
+  /**
+   * The raw request body, for the routes that take the body as content rather
+   * than as JSON - a file PUT, whose bytes carry the file's own content type and
+   * which no JSON parser reads. It mirrors `ApiResponse.contents`.
+   */
+  contents?: string | Uint8Array
   /** The multipart payload: the API names it `file` on every route that takes one. */
   file?: { name: string; contents: string | Uint8Array }
   /**

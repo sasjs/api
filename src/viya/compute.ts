@@ -19,8 +19,17 @@ import { seedOf } from './seed.js'
 import { estateFor, type EmulatedJob } from './sessions.js'
 import { EMULATED_USER, idFor } from './ids.js'
 
-/** The name the emulator answers when a client asks for no particular context. */
-export const DEFAULT_CONTEXT_NAME = 'Emulated Compute Context'
+/**
+ * The name the emulator answers when a client asks for no particular context.
+ *
+ * It is the name of the context a Viya estate ships with, because that is the
+ * name a client carries: `SASViyaApiClient.createSession` lists `/compute/contexts`
+ * with no filter and picks the entry whose name it was given, so a default of the
+ * emulator's own choosing fails every caller with a name that is right everywhere
+ * else. A client may still name any context it likes - see `contextNameFrom` - and
+ * the estate answers under that name.
+ */
+export const DEFAULT_CONTEXT_NAME = 'SAS Job Execution compute context'
 
 /** The one context id this estate mints, whatever name it is asked for. */
 export const EMULATED_CONTEXT_ID = idFor('emulated-context', 'context')

@@ -1,4 +1,5 @@
-# Vendored from sasjs/server: api/public/swagger.yaml at feat/app-package-deploy (1fe4684, the app-package deploy fields; this ref becomes the merge commit on main when sasjs/server lands it).
+# Vendored from sasjs/server: api/public/swagger.yaml at feat/app-package-deploy (1fe4684, the app-package deploy fields).
+# Selective subsequent updates include drive read changes and 401 responses from feat/drive-route-401 (c8b864cd); this is not a full re-vendor.
 # Regenerate in that repo with `npm run swagger` (tsoa spec), then copy the body
 # here, KEEPING this header, and run `npm run sync:routes`. The route table is
 # derived from this file, so a difference between the two is a failing build
@@ -1770,6 +1771,8 @@ paths:
                             examples:
                                 'Example 1':
                                     value: {status: failure, message: 'Provided not supported data format.'}
+                '401':
+                    description: Unauthorized
                 '413':
                     description: 'File tree exceeds the deploy limit'
                     content:
@@ -1820,6 +1823,8 @@ paths:
                             examples:
                                 'Example 1':
                                     value: {status: failure, message: 'Unpublishing failed!'}
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'No app is published with that id'
             description: "Removes a published app.\n\nThe body names the app by **id** - the value the publish answered with - and\nnothing else. An app's label is shared by design (two folders may both be\ncalled \"report\") and its folder is where it was published rather than what it\nis, so neither is an identity: a removal that named a label could take down\nan app nobody meant, and a removal that named a folder would miss an app\nwhose deployment has since gone. The id removes exactly the app it names,\nwhatever the app is currently called.\n\nThe entry stops being advertised - the landing page and `/app/apps.json` are\nboth built from the index - and stops being served, because the id leaves the\nroute inventory as well. The drive content is left alone: deleting the folder\nis `DELETE /SASjsApi/drive/folder`, so unpublishing never destroys a\ndeployment, and publishing created no permission rule, so there is none to\nwithdraw. A caller needs the same `/SASjsApi/drive/deploy` grant this route\nalready requires.\n\nAn id the index does not hold answers `404`; a body that names no id answers\n`400`."
@@ -1858,6 +1863,8 @@ paths:
                             examples:
                                 'Example 1':
                                     value: {status: failure, message: 'Provided not supported data format.'}
+                '401':
+                    description: Unauthorized
                 '413':
                     description: 'File tree exceeds the deploy limit'
                     content:
@@ -1946,6 +1953,8 @@ paths:
                     description: 'The contents of the file'
                 '400':
                     description: 'A path outside the drive, a refused extension, or a request naming neither or both'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'File doesn''t exist'
                 '202':
@@ -1989,6 +1998,8 @@ paths:
                                 type: object
                 '400':
                     description: 'Can''t delete file outside drive'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'File doesn''t exist'
             description: "Deletes a file from SASjs Drive.\n\nA `400` is returned for a path outside the drive and a `404` when the file\ndoes not exist."
@@ -2021,6 +2032,8 @@ paths:
                                     value: {status: success}
                 '400':
                     description: 'Can''t put file outside drive'
+                '401':
+                    description: Unauthorized
                 '409':
                     description: 'File already exists'
             description: "Uploads a new file into SASjs Drive, creating any missing parent folders.\n\nThe destination is given either as the `_filePath` query parameter or as the\n`filePath` form field; one of the two is required. A `400` is returned for a\npath outside the drive and a `409` when a file already exists at that path\n(use `PATCH /SASjsApi/drive/file` to replace one)."
@@ -2067,6 +2080,8 @@ paths:
                                     value: {status: success}
                 '400':
                     description: 'Can''t modify file outside drive'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'File doesn''t exist'
             description: "Replaces the content of an existing file in SASjs Drive.\n\nThe destination is given either as the `_filePath` query parameter or as the\n`filePath` form field; one of the two is required. A `400` is returned for a\npath outside the drive and a `404` when no file exists at that path."
@@ -2117,6 +2132,8 @@ paths:
                                 type: object
                 '400':
                     description: 'Can''t get folder outside drive'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'Folder doesn''t exist'
             description: "Returns the names of the files and sub-folders directly inside a folder of\nSASjs Drive. With no `_folderPath`, the drive root is listed.\n\nA `400` is returned for a path outside the drive and a `404` when the\nfolder does not exist."
@@ -2150,6 +2167,8 @@ paths:
                                 type: object
                 '400':
                     description: 'Can''t delete folder outside drive'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'Folder doesn''t exist'
             description: "Deletes a folder, and everything inside it, from SASjs Drive.\n\nA `400` is returned for a path outside the drive and a `404` when the\nfolder does not exist."
@@ -2182,6 +2201,8 @@ paths:
                                     value: {status: success}
                 '400':
                     description: 'Can''t put folder outside drive'
+                '401':
+                    description: Unauthorized
                 '409':
                     description: 'Folder already exists. The body is that message as plain text.'
             description: "Creates an empty folder in SASjs Drive, including any missing parent\nfolders.\n\nA `400` is returned for a path outside the drive and a `409` when the folder\nalready exists."
@@ -2213,6 +2234,8 @@ paths:
                                     value: {status: success}
                 '400':
                     description: 'Can''t rename outside drive'
+                '401':
+                    description: Unauthorized
                 '404':
                     description: 'No file/folder found for provided path'
                 '409':
@@ -2241,6 +2264,8 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetFileTreeResponse'
+                '401':
+                    description: Unauthorized
             description: "Returns the folder-and-file tree of SASjs Drive, for rendering the drive\nbrowser.\n\nWith no `_folderPath` the whole tree is returned, which is kept for callers\nthat want to hash or mirror the drive in one request. With `_folderPath`\nthe response holds that folder and its IMMEDIATE children only, which is\nwhat the Studio browser uses: it loads a level when a folder is expanded\nrather than walking the entire drive on every page load. Each child folder\ncarries `hasChildren` so the caller can render an expander before\nrequesting that folder's contents."
             summary: 'Get the SASjs Drive file tree, or one folder of it'
             tags:

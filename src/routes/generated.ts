@@ -582,6 +582,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Invalid Format'
       },
       {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
         status: 404,
         description: 'No app is published with that id'
       }
@@ -646,6 +650,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: 'Invalid Format'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 413,
@@ -718,6 +726,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Invalid Format'
       },
       {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
         status: 413,
         description: 'File tree exceeds the deploy limit'
       },
@@ -750,6 +762,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: "Can't delete file outside drive"
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 404,
@@ -794,6 +810,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
           'A path outside the drive, a refused extension, or a request naming neither or both'
       },
       {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
         status: 404,
         description: "File doesn't exist"
       }
@@ -834,6 +854,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: "Can't modify file outside drive"
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 404,
@@ -878,6 +902,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: "Can't put file outside drive"
       },
       {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
         status: 409,
         description: 'File already exists'
       }
@@ -902,6 +930,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       }
     ]
   },
@@ -928,6 +960,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: "Can't delete folder outside drive"
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 404,
@@ -960,6 +996,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: "Can't get folder outside drive"
       },
       {
+        status: 401,
+        description: 'Unauthorized'
+      },
+      {
         status: 404,
         description: "Folder doesn't exist"
       }
@@ -988,6 +1028,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: "Can't put folder outside drive"
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 409,
@@ -1025,6 +1069,10 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 400,
         description: "Can't rename outside drive"
+      },
+      {
+        status: 401,
+        description: 'Unauthorized'
       },
       {
         status: 404,

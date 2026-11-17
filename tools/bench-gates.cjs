@@ -26,8 +26,8 @@ const counting = (store) => {
   return counts
 }
 
-const bench = async (label, routeId, request) => {
-  const store = new API.MemoryIdentityStore()
+const bench = async (label, routeId, request, fixture) => {
+  const store = new API.MemoryIdentityStore(fixture)
   const counts = counting(store)
   const services = {
     identity: API.createIdentityService(store),
@@ -42,7 +42,9 @@ const bench = async (label, routeId, request) => {
       execute: async () => ({ sessionId: 's', log: '', webout: '', print: '' }),
       trigger: async () => ({})
     },
-    drive: API.createDriveService(new API.MemoryDriveStore())
+    drive: API.createDriveService(
+      new API.MemoryDriveStore({ '/data/bench.csv': 'bench' })
+    )
   }
 
   // one warm-up call, so a cold JIT is not in the number
@@ -91,6 +93,20 @@ const run = { body: { code: 'data _null_; run;', runTime: 'sas' } }
     ...run,
     subject: RESTRICTED
   })
+  await bench('drive file as admin', 'GET /SASjsApi/drive/file', {
+    subject: ADMIN,
+    query: { _filePath: '/data/bench.csv' }
+  })
+  await bench('drive file as restricted', 'GET /SASjsApi/drive/file', {
+    subject: RESTRICTED,
+    query: { _filePath: '/data/bench.csv' }
+  })
+  await bench(
+    'drive file as refused user',
+    'GET /SASjsApi/drive/file',
+    { subject: RESTRICTED, query: { _filePath: '/data/bench.csv' } },
+    { ...API.DEFAULT_IDENTITY, permissions: [] }
+  )
   await bench('admin report as admin', 'GET /SASjsApi/admin/logs', {
     subject: ADMIN
   })

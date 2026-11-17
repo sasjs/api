@@ -183,8 +183,9 @@ export interface RecordService {
    * rules can address. For anyone else a path outside the inventory answers
    * `false`, exactly as `myAuthorizedRoutes` omits it.
    *
-   * `false` for a caller that is absent or deactivated, so a host answers a
-   * `401` rather than letting the call through.
+   * An absent caller is admitted only by an exact public-group grant; neither
+   * top-level grants nor always-visible routes authenticate anonymous callers.
+   * A supplied caller whose account is absent or deactivated is refused.
    */
   mayUseRoute(caller: Subject | undefined, path: string): Promise<boolean>
 
@@ -675,6 +676,22 @@ export const createRecordService = (
     },
 
     async mayUseRoute(caller, path) {
+      if (!caller) {
+        const rules = await store.permissions()
+        if (!rules.some((rule) => rule.group !== undefined)) return false
+        const publicGroup = (await store.groups()).find(
+          (group) => group.name === PUBLIC_GROUP
+        )
+        return Boolean(
+          publicGroup &&
+          rules.some(
+            (rule) =>
+              rule.group === publicGroup.uid &&
+              rule.path === path &&
+              rule.setting === 'Grant'
+          )
+        )
+      }
       const reader = await readerOf(store, caller)
       if (!reader) return false
 

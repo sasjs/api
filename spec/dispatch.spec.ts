@@ -4,6 +4,7 @@
  */
 import { dispatch, noHandler } from '../src/host/dispatch.js'
 import { createRecordService } from '../src/identity/records.js'
+import { createIdentityService } from '../src/identity/service.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 import { createDriveService } from '../src/drive/service.js'
@@ -36,6 +37,70 @@ const recordsOnly = (): ReturnType<typeof createRecordService> =>
   createRecordService(new MemoryIdentityStore({ ...DEFAULT_IDENTITY }))
 
 describe('dispatch', () => {
+  it('fails closed when an authenticated host lacks permission records', async () => {
+    const identity = createIdentityService(
+      new MemoryIdentityStore(DEFAULT_IDENTITY)
+    )
+    const drive = createDriveService(
+      new MemoryDriveStore({ '/data/private.csv': 'secret' })
+    )
+    expect(
+      await failure(() =>
+        dispatch({ drive, identity }, 'GET /SASjsApi/drive/file', {
+          subject: { userId: 'user-restricted', clientId: 'web_app' },
+          query: { _filePath: '/data/private.csv' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/drive/file.'
+    })
+  })
+
+  it('fails closed when a host receives a subject without permission records', async () => {
+    const drive = createDriveService(
+      new MemoryDriveStore({ '/data/private.csv': 'secret' })
+    )
+    expect(
+      await failure(() =>
+        dispatch({ drive }, 'GET /SASjsApi/drive/file', {
+          subject: { userId: 'user-restricted', clientId: 'web_app' },
+          query: { _filePath: '/data/private.csv' }
+        })
+      )
+    ).toEqual({
+      status: 501,
+      message:
+        'This host has no record service, so it cannot answer GET /SASjsApi/drive/file.'
+    })
+  })
+
+  it('honours a fileTree grant using the inventory spelling', async () => {
+    const testCase: CorpusCase = {
+      id: 'filetree-granted',
+      route: 'GET /SASjsApi/drive/filetree',
+      description: 'a non-administrator is granted the canonical fileTree path',
+      identity: {
+        ...DEFAULT_IDENTITY,
+        permissions: [
+          ...DEFAULT_IDENTITY.permissions,
+          {
+            uid: 'rule-filetree',
+            path: '/SASjsApi/drive/fileTree',
+            type: 'Route',
+            setting: 'Grant',
+            group: 'group-data-controller'
+          }
+        ]
+      },
+      request: { subject: { userId: 'user-restricted', clientId: 'web_app' } },
+      expect: { status: 200 }
+    }
+
+    expect((await runCase(testCase)).status).toBe(200)
+  })
+
   it('refuses an operation the table states but no case answers', () => {
     // unreachable while every operation has a handler; exported so the safety
     // net is itself tested rather than trusted

@@ -458,6 +458,12 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         in: 'body',
         required: false,
         type: 'string'
+      },
+      {
+        name: 'layout',
+        in: 'body',
+        required: false,
+        type: 'boolean'
       }
     ],
     requestBodies: ['application/json'],

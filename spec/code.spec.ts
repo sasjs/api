@@ -64,6 +64,37 @@ describe('the code service', () => {
     )
   })
 
+  /**
+   * Two jobs behind one route. The Studio's "format" and its "fix lint issues"
+   * post the same buffer and differ only in `layout`, and a host that supplies an
+   * engine has to leave it out for the second: a browser host always has one, so
+   * a service that ran it regardless answered both buttons the same way.
+   *
+   * The marker the stub appends is the only thing that separates them - both
+   * answers carry the header, which is the rules' work and not the engine's.
+   */
+  it('runs the host engine only for the requests that ask for the layout', async () => {
+    const configured = createCodeService({
+      reprint: async (text) => `${text}/* laid out */\n`
+    })
+
+    const body = { code: 'data _null_;\nrun;\n' }
+
+    for (const layout of [undefined, true]) {
+      const answer = await configured.format(caller, { ...body, layout })
+      expect(answer).toContain('/* laid out */')
+      expect(answer).toContain('@brief')
+    }
+
+    const rulesOnly = await configured.format(caller, {
+      ...body,
+      layout: false
+    })
+    expect(rulesOnly).not.toContain('/* laid out */')
+    // the rules still ran: the header is written by them, not by the engine
+    expect(rulesOnly).toContain('@brief')
+  })
+
   it('asks the host which file the rules come from', async () => {
     const asked: (string | undefined)[] = []
     const configured = createCodeService({

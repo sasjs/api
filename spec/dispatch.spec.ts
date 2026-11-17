@@ -549,6 +549,55 @@ describe('dispatch', () => {
     ).rejects.toMatchObject({ status: 404 })
   })
 
+  it('hands the format route the layout flag the request carried', async () => {
+    // the dispatcher rebuilds this route's body field by field, so a flag the
+    // service reads is dropped unless it is named here - and the Studio's lint-fix
+    // button sends `layout: false` for exactly this to survive the trip
+    const seen: (boolean | undefined)[] = []
+    const code = {
+      lint: async () => [],
+      format: async (_caller: unknown, body: { layout?: boolean }) => {
+        seen.push(body.layout)
+        return 'data a;\nrun;\n'
+      }
+    }
+
+    const send = async (layout: unknown) => {
+      const answer = await dispatch(
+        { code } as any,
+        'POST /SASjsApi/code/format',
+        {
+          subject: { userId: 'user-admin', clientId: 'web_app' },
+          body: { code: 'data a; run;', layout }
+        }
+      )
+
+      expect(answer.status).toBe(200)
+    }
+
+    for (const layout of [false, true, undefined]) await send(layout)
+
+    // the two spellings the server's schema coerces, so a client that sent a
+    // string is answered the way it would be by an installation
+    await send('false')
+    await send('true')
+
+    // neither a boolean nor one of those strings: the field's default, which is
+    // the engine, rather than a silent `false`
+    await send('yes')
+    await send(0)
+
+    expect(seen).toEqual([
+      false,
+      true,
+      undefined,
+      false,
+      true,
+      undefined,
+      undefined
+    ])
+  })
+
   it('answers 501 where the route needs a service the host does not have', async () => {
     for (const routeId of [
       'POST /SASjsApi/code/lint',

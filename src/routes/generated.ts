@@ -1122,7 +1122,7 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         name: 'description',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
@@ -1137,6 +1137,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'A body the schema refuses, e.g. `"isActive" must be a boolean`.'
       },
       {
         status: 401,
@@ -1844,6 +1849,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Ok'
       },
       {
+        status: 400,
+        description:
+          'A body the schema refuses, e.g. `"isAdmin" must be a boolean`.'
+      },
+      {
         status: 401,
         description: 'Admin account required'
       },
@@ -1878,6 +1888,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Account Deleted!'
+      },
+      {
+        status: 400,
+        description:
+          'A password shorter than six characters, or a key the deletion takes none of; e.g. `"password" is required`'
       },
       {
         status: 401,
@@ -1935,19 +1950,19 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         name: 'displayName',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
         name: 'username',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
         name: 'password',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
@@ -1974,6 +1989,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'A body the schema refuses, e.g. `"isAdmin" must be a boolean`.'
       },
       {
         status: 401,
@@ -2021,6 +2041,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Account Deleted!'
       },
       {
+        status: 400,
+        description:
+          'A username the schema refuses, a password shorter than six characters, or a key an administrator\'s deletion takes none of; e.g. `"password" is required`'
+      },
+      {
         status: 401,
         description: 'Admin account required, or invalid password'
       },
@@ -2051,6 +2076,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
         description: 'Ok'
       },
       {
+        status: 400,
+        description:
+          'A username the schema refuses, e.g. `"username" must only contain alpha-numeric characters`'
+      },
+      {
         status: 401,
         description: 'Unauthorized'
       },
@@ -2076,19 +2106,19 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         name: 'displayName',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
         name: 'username',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
         name: 'password',
         in: 'body',
-        required: true,
+        required: false,
         type: 'string'
       },
       {
@@ -2115,6 +2145,11 @@ export const GENERATED_ROUTES: GeneratedRoute[] = [
       {
         status: 200,
         description: 'Ok'
+      },
+      {
+        status: 400,
+        description:
+          'A body the schema refuses, e.g. `"isAdmin" must be a boolean`.'
       },
       {
         status: 401,

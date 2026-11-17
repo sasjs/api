@@ -166,6 +166,25 @@ export const RECORD_CORPUS: CorpusCase[] = [
     }
   },
   {
+    id: 'get-user-by-username-mixed-case',
+    route: 'GET /SASjsApi/user/by/username/{username}',
+    description: 'finds the account when the path names it in another case',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: ADMIN, params: { username: 'SASJSUSER' } },
+    expect: { status: 200, partial: { uid: RESTRICTED_UID } }
+  },
+  {
+    id: 'get-user-by-username-refused-name',
+    route: 'GET /SASjsApi/user/by/username/{username}',
+    description: 'refuses a path parameter the username schema does not allow',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: ADMIN, params: { username: 'a-b' } },
+    expect: {
+      status: 400,
+      error: '"username" must only contain alpha-numeric characters'
+    }
+  },
+  {
     id: 'get-user-by-username-unauthenticated',
     route: 'GET /SASjsApi/user/by/username/{username}',
     description: 'refuses the by-username read with no caller',
@@ -244,6 +263,49 @@ export const RECORD_CORPUS: CorpusCase[] = [
     },
     expect: { status: 409, error: 'Username already exists.' }
   },
+  {
+    id: 'create-user-bad-admin-flag',
+    route: 'POST /SASjsApi/user',
+    description: 'refuses an isAdmin the schema does not call a boolean',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      body: {
+        username: 'flaguser',
+        displayName: 'Flag User',
+        password: 'password',
+        isAdmin: 'yes'
+      }
+    },
+    expect: { status: 400, error: '"isAdmin" must be a boolean' }
+  },
+  {
+    id: 'create-user-bad-active-flag',
+    route: 'POST /SASjsApi/user',
+    description: 'refuses an isActive the schema does not call a boolean',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      body: {
+        username: 'flaguser',
+        displayName: 'Flag User',
+        password: 'password',
+        isActive: 'sometimes'
+      }
+    },
+    expect: { status: 400, error: '"isActive" must be a boolean' }
+  },
+  {
+    id: 'create-user-not-admin-incomplete',
+    route: 'POST /SASjsApi/user',
+    description: 'refuses a non-admin before it reads the body it sent',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      body: { username: 'incomplete' }
+    },
+    expect: { status: 401, error: 'Admin account required' }
+  },
 
   {
     id: 'update-user',
@@ -272,13 +334,50 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: RESTRICTED,
       params: { uid: ADMIN_UID },
-      body: {
-        displayName: 'Hijacked',
-        username: 'sasjsadmin',
-        password: 'Orion123'
-      }
+      // the body is one the schema would refuse too, so the case only passes when
+      // the caller is gated before the body is read, as the middleware order has it
+      body: { isAdmin: 'yes' }
     },
     expect: { status: 401, error: 'Admin account required' }
+  },
+  {
+    id: 'update-user-empty-body',
+    route: 'PATCH /SASjsApi/user/{uid}',
+    description:
+      'applies an update that omits every field, which the controller stores as an empty name',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: ADMIN, params: { uid: RESTRICTED_UID }, body: {} },
+    // the controller always puts the sanitised display name into the update, so an
+    // omitted one is written as the empty string rather than left as it was
+    expect: {
+      status: 200,
+      partial: { uid: RESTRICTED_UID, displayName: '' }
+    }
+  },
+  {
+    id: 'update-user-self-admin-flag',
+    route: 'PATCH /SASjsApi/user/{uid}',
+    description:
+      "refuses a flag only an administrator may send, on the caller's own account",
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { uid: RESTRICTED_UID },
+      body: { isAdmin: true }
+    },
+    expect: { status: 400, error: '"isAdmin" is not allowed' }
+  },
+  {
+    id: 'update-user-by-username-self-admin-flag',
+    route: 'PATCH /SASjsApi/user/by/username/{username}',
+    description: 'refuses a flag only an administrator may send, by username',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { username: 'sasjsuser' },
+      body: { isAdmin: true }
+    },
+    expect: { status: 400, error: '"isAdmin" is not allowed' }
   },
   {
     id: 'update-user-missing',
@@ -353,13 +452,56 @@ export const RECORD_CORPUS: CorpusCase[] = [
     request: {
       token: RESTRICTED,
       params: { username: 'sasjsadmin' },
-      body: {
-        displayName: 'Hijacked',
-        username: 'sasjsadmin',
-        password: 'Orion123'
-      }
+      // a body the schema would refuse for this caller, so the case only passes
+      // when the caller is gated before the body is read
+      body: { isAdmin: 'yes' }
     },
     expect: { status: 401, error: 'Admin account required' }
+  },
+  {
+    id: 'update-user-by-username-mixed-case',
+    route: 'PATCH /SASjsApi/user/by/username/{username}',
+    description: 'finds the account when the path names it in another case',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      params: { username: 'SASJSUSER' },
+      body: { displayName: 'Renamed User' }
+    },
+    expect: {
+      status: 200,
+      partial: { uid: RESTRICTED_UID, displayName: 'Renamed User' }
+    }
+  },
+  {
+    id: 'update-user-by-username-parameter-before-body',
+    route: 'PATCH /SASjsApi/user/by/username/{username}',
+    description: 'refuses the path parameter before the body it is sent with',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      params: { username: 'a-b' },
+      body: { displayName: 'x' }
+    },
+    expect: {
+      status: 400,
+      error: '"username" must only contain alpha-numeric characters'
+    }
+  },
+  {
+    id: 'update-user-by-username-refused-name',
+    route: 'PATCH /SASjsApi/user/by/username/{username}',
+    description: 'refuses a path parameter the username schema does not allow',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      params: { username: 'a-b' },
+      body: { displayName: 'Renamed User' }
+    },
+    expect: {
+      status: 400,
+      error: '"username" must only contain alpha-numeric characters'
+    }
   },
   {
     id: 'update-user-by-username-missing',
@@ -423,6 +565,18 @@ export const RECORD_CORPUS: CorpusCase[] = [
     expect: { status: 401, error: 'Admin account required' }
   },
   {
+    id: 'delete-user-not-admin-no-password',
+    route: 'DELETE /SASjsApi/user/{uid}',
+    description: "requires the caller's own password when it is not an admin",
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { uid: RESTRICTED_UID },
+      body: {}
+    },
+    expect: { status: 400, error: '"password" is required' }
+  },
+  {
     id: 'delete-user-missing',
     route: 'DELETE /SASjsApi/user/{uid}',
     description: 'answers 404 for an identifier no account has',
@@ -441,6 +595,73 @@ export const RECORD_CORPUS: CorpusCase[] = [
       body: {}
     },
     expect: { status: 200, body: 'Account Deleted!' }
+  },
+  {
+    id: 'delete-user-admin-bodys-refused',
+    route: 'DELETE /SASjsApi/user/by/username/{username}',
+    description: "refuses a body an administrator's deletion takes none of",
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      params: { username: 'sasjsuser' },
+      body: { password: 'Orion123' }
+    },
+    expect: { status: 400, error: '"password" is not allowed' }
+  },
+  {
+    id: 'delete-user-by-username-extra-key',
+    route: 'DELETE /SASjsApi/user/by/username/{username}',
+    description: 'refuses a key outside the password a self-deletion carries',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { username: 'sasjsuser' },
+      body: { password: 'Orion123', extra: 1 }
+    },
+    expect: { status: 400, error: '"extra" is not allowed' }
+  },
+  {
+    id: 'delete-user-by-username-parameter-before-body',
+    route: 'DELETE /SASjsApi/user/by/username/{username}',
+    description: 'refuses the path parameter before the body it is sent with',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      params: { username: 'a-b' },
+      body: { password: 'Orion123' }
+    },
+    expect: {
+      status: 400,
+      error: '"username" must only contain alpha-numeric characters'
+    }
+  },
+  {
+    id: 'delete-user-by-username-short-password',
+    route: 'DELETE /SASjsApi/user/by/username/{username}',
+    description:
+      'refuses a password shorter than the schema allows, uncompared',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { username: 'sasjsuser' },
+      body: { password: 'abc' }
+    },
+    expect: {
+      status: 400,
+      error: '"password" length must be at least 6 characters long'
+    }
+  },
+  {
+    id: 'delete-user-by-username-no-password',
+    route: 'DELETE /SASjsApi/user/by/username/{username}',
+    description: "requires the caller's own password for a self-deletion",
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: RESTRICTED,
+      params: { username: 'sasjsuser' },
+      body: {}
+    },
+    expect: { status: 400, error: '"password" is required' }
   },
   {
     id: 'delete-user-by-username-wrong-password',
@@ -573,6 +794,43 @@ export const RECORD_CORPUS: CorpusCase[] = [
     identity: ADMIN_SIGNED_IN,
     request: { token: ADMIN, body: { name: 'DCGroup', description: 'again' } },
     expect: { status: 409, error: 'Group name already exists.' }
+  },
+  {
+    id: 'create-group-empty-description',
+    route: 'POST /SASjsApi/group',
+    description:
+      'refuses an empty description, which the schema does not allow',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      body: { name: 'EmptyDescription', description: '' }
+    },
+    expect: {
+      status: 400,
+      error: '"description" is not allowed to be empty'
+    }
+  },
+  {
+    id: 'create-group-no-description',
+    route: 'POST /SASjsApi/group',
+    description: 'creates a group whose description the caller left out',
+    identity: ADMIN_SIGNED_IN,
+    request: { token: ADMIN, body: { name: 'NoDescription' } },
+    expect: {
+      status: 200,
+      partial: { name: 'NoDescription', description: 'Group description.' }
+    }
+  },
+  {
+    id: 'create-group-bad-active-flag',
+    route: 'POST /SASjsApi/group',
+    description: 'refuses an isActive the schema does not call a boolean',
+    identity: ADMIN_SIGNED_IN,
+    request: {
+      token: ADMIN,
+      body: { name: 'FlagGroup', description: 'a group', isActive: 'yes' }
+    },
+    expect: { status: 400, error: '"isActive" must be a boolean' }
   },
 
   {
@@ -989,16 +1247,9 @@ export const RECORD_CORPUS: CorpusCase[] = [
     route: 'POST /SASjsApi/permission',
     description: 'refuses a creation by a non-administrator',
     identity: ADMIN_SIGNED_IN,
-    request: {
-      token: RESTRICTED,
-      body: {
-        path: '/SASjsApi/drive/folder',
-        type: 'Route',
-        setting: 'Grant',
-        principalType: 'user',
-        principalId: RESTRICTED_UID
-      }
-    },
+    // an empty body, which the document requires five fields of, so the case only
+    // passes when the caller is refused before the schema is consulted
+    request: { token: RESTRICTED, body: {} },
     expect: { status: 401, error: 'Admin account required' }
   },
   {
@@ -1076,11 +1327,8 @@ export const RECORD_CORPUS: CorpusCase[] = [
     route: 'PATCH /SASjsApi/permission/{uid}',
     description: 'refuses a change by a non-administrator',
     identity: ADMIN_SIGNED_IN,
-    request: {
-      token: RESTRICTED,
-      params: { uid: 'rule-code' },
-      body: { setting: 'Grant' }
-    },
+    // `setting` is required, so an empty body only reaches 401 when the gate runs first
+    request: { token: RESTRICTED, params: { uid: 'rule-code' }, body: {} },
     expect: { status: 401, error: 'Admin account required' }
   },
   {
@@ -1202,15 +1450,9 @@ export const RECORD_CORPUS: CorpusCase[] = [
     route: 'POST /SASjsApi/client',
     description: 'refuses a registration by a non-administrator',
     identity: ADMIN_SIGNED_IN,
-    request: {
-      token: RESTRICTED,
-      body: {
-        clientId: 'new_app',
-        clientSecret: 'new_secret',
-        accessTokenExpiration: 3600,
-        refreshTokenExpiration: 86400
-      }
-    },
+    // the document requires `clientId` here, so an empty body would be refused
+    // first by a host that validated before it gated
+    request: { token: RESTRICTED, body: {} },
     expect: { status: 401, error: 'Admin account required' }
   },
   {

@@ -15,7 +15,7 @@ import type { Route } from '../types.js'
 import { routeById } from '../routes/index.js'
 import type { DriveService } from '../drive/service.js'
 import type { IdentityService } from '../identity/service.js'
-import type { RecordService } from '../identity/records.js'
+import type { RecordService, UserDetailsResponse } from '../identity/records.js'
 import type { SessionService } from '../session/service.js'
 import type { ViyaSeedSettings } from '../viya/seed.js'
 import type { RuntimeService } from '../runtime/service.js'
@@ -279,14 +279,285 @@ const validate = (route: Route, request: ApiRequest): void => {
 /** The file an app is served from for a directory request, as the surface serves it. */
 const APP_ENTRY_FILE = 'index.html'
 
+/** A refusal worded the way Joi words it, so a caller sees one message on either host. */
+const refused = (message: string) => new ApiError(400, message)
+
+/** `Joi.string()`, with its type and emptiness refusals. */
+const stringField = (
+  field: string,
+  value: unknown,
+  allowEmpty = false
+): string => {
+  if (typeof value !== 'string') throw refused(`"${field}" must be a string`)
+  if (value === '' && !allowEmpty)
+    throw refused(`"${field}" is not allowed to be empty`)
+  return value
+}
+
+/** `Joi.string().required()`, with its refusal for a field that is missing. */
+const requiredField = (field: string, value: unknown): string => {
+  if (value === undefined) throw refused(`"${field}" is required`)
+  return stringField(field, value)
+}
+
+/** `Joi.string().alphanum().min(n).max(m)`, in its order and its wording. */
+const alphanumeric = (
+  field: string,
+  value: string,
+  min: number,
+  max: number
+): string => {
+  // alphanumeric, in either case: a username is folded before it is tested, a
+  // group's name is a label and keeps the case it was given
+  if (!/^[A-Za-z0-9]+$/.test(value))
+    throw refused(`"${field}" must only contain alpha-numeric characters`)
+  if (value.length < min)
+    throw refused(`"${field}" length must be at least ${min} characters long`)
+  if (value.length > max)
+    throw refused(
+      `"${field}" length must be less than or equal to ${max} characters long`
+    )
+  return value
+}
+
+/** `Joi.string().min(n).max(m)`, in its order and its wording. */
+const lengthBetween = (
+  field: string,
+  value: string,
+  min: number,
+  max: number
+): string => {
+  if (value.length < min)
+    throw refused(`"${field}" length must be at least ${min} characters long`)
+  if (value.length > max)
+    throw refused(
+      `"${field}" length must be less than or equal to ${max} characters long`
+    )
+  return value
+}
+
+/**
+ * `displayName`'s rule, `Joi.string().trim().min(6)`: trimmed first, so a name of
+ * spaces is empty rather than short, which is the answer an installation gives.
+ */
+const trimmedName = (field: string, value: string): string => {
+  const name = value.trim()
+
+  if (name === '') throw refused(`"${field}" is not allowed to be empty`)
+  if (name.length < 6)
+    throw refused(`"${field}" length must be at least 6 characters long`)
+
+  return name
+}
+
+/** The keys each of these bodies states; anything else is refused, as Joi does. */
+const refuseUnknown = (body: Record<string, unknown>, keys: string[]) => {
+  for (const key of Object.keys(body))
+    if (!keys.includes(key)) throw refused(`"${key}" is not allowed`)
+}
+
+/**
+ * The routes sasjs/server guards with `verifyAdmin` before their schema runs.
+ *
+ * They are refused as callers first, so their body checks follow the gate - the order
+ * the installation's middleware produce. The identity routes gate the same way but
+ * validate through `controllerRules`, because their body rules are not the document's;
+ * `GET /permission` is absent because a caller may read their own rules there.
+ */
+const ADMIN_GATED_ROUTES = new Set([
+  'POST /SASjsApi/permission',
+  'PATCH /SASjsApi/permission/{uid}',
+  'DELETE /SASjsApi/permission/{uid}',
+  'GET /SASjsApi/client',
+  'POST /SASjsApi/client'
+])
+
+/**
+ * `getUserValidation` for a `by/username` path parameter.
+ *
+ * The server validates that parameter with `usernameSchema` before the controller
+ * looks anything up, so the value is folded to lower case and checked against the
+ * same 3-to-16 alphanumeric rule - which is why `by/username/SASJSUSER` finds
+ * `sasjsuser` there. The gate that runs before it compares the raw parameter, so
+ * the folding happens here rather than in the caller's hands.
+ */
+const foldedUsername = (value: unknown): string =>
+  alphanumeric(
+    'username',
+    requiredField('username', value).toLowerCase(),
+    3,
+    16
+  )
+
+/**
+ * `deleteUserValidation`: the body a deletion carries.
+ *
+ * A caller deleting their own account supplies the password, and it is checked
+ * against the password schema before it is compared - so a short one is a 400 and
+ * never reaches the comparison. An administrator's deletion takes no body at all,
+ * and the schema declares no key for one.
+ */
+const deletionBody = (
+  body: Record<string, unknown>,
+  admin: boolean
+): Record<string, unknown> => {
+  if (admin) {
+    for (const key of Object.keys(body))
+      throw refused(`"${key}" is not allowed`)
+
+    return {}
+  }
+
+  const password = lengthBetween(
+    'password',
+    requiredField('password', body.password),
+    6,
+    1024
+  )
+
+  for (const key of Object.keys(body))
+    if (key !== 'password') throw refused(`"${key}" is not allowed`)
+
+  return { password }
+}
+
+/** The keys either user operation's body states; the two schemas declare the same six. */
+const USER_KEYS = [
+  'displayName',
+  'username',
+  'password',
+  'isAdmin',
+  'isActive',
+  'autoExec'
+]
+
+/**
+ * `registerUserValidation`, in its order and its wording.
+ *
+ * The shared `validate` checks presence only, and in the document's order - so a
+ * body that trips two rules is refused for a different field here than on an
+ * installation, which is the class the update routes already had fixed. The
+ * conversion is the schema's too: the display name trimmed, the username folded.
+ */
+const userCreate = (body: Record<string, unknown>): Record<string, unknown> => {
+  const displayName = trimmedName(
+    'displayName',
+    requiredField('displayName', body.displayName)
+  )
+  const username = alphanumeric(
+    'username',
+    requiredField('username', body.username).toLowerCase(),
+    3,
+    16
+  )
+  const password = lengthBetween(
+    'password',
+    requiredField('password', body.password),
+    6,
+    1024
+  )
+  // the flags before `autoExec`, which is where `registerUserValidation` declares
+  // them, and both before the unknown keys, which Joi reports last of all
+  const isAdmin = booleanOf(body.isAdmin, 'isAdmin')
+  const isActive = booleanOf(body.isActive, 'isActive')
+  const autoExec =
+    body.autoExec === undefined
+      ? undefined
+      : stringField('autoExec', body.autoExec, true)
+
+  refuseUnknown(body, USER_KEYS)
+
+  return { displayName, username, password, isAdmin, isActive, autoExec }
+}
+
+const GROUP_CREATE_KEYS = ['name', 'description', 'isActive']
+
+/** `registerGroupValidation`, in its order and its wording. */
+const groupCreate = (
+  body: Record<string, unknown>
+): Record<string, unknown> => {
+  // a group's name is a label rather than a login handle, so it is not folded
+  const name = alphanumeric('name', requiredField('name', body.name), 3, 16)
+  const description =
+    body.description === undefined
+      ? undefined
+      : stringField('description', body.description)
+
+  // as in `userCreate`: the flag first, the unknown keys last, which is the order
+  // the schema reports them in
+  const isActive = booleanOf(body.isActive, 'isActive')
+
+  refuseUnknown(body, GROUP_CREATE_KEYS)
+
+  return { name, description, isActive }
+}
+
+/**
+ * `updateUserValidation`, in its order and its wording.
+ *
+ * Every string here is optional, because an update may carry nothing but the flag
+ * it is changing - the document's `required` flags are tsoa's, not the schema's.
+ * The two flags themselves are declared only for an administrator, so a non-admin
+ * that sends one is refused as an unknown key, as is any key the schema omits.
+ */
+const userUpdate = (
+  body: Record<string, unknown>,
+  admin: boolean
+): Record<string, unknown> => {
+  const changes: Record<string, unknown> = { ...body }
+
+  if (changes.displayName !== undefined)
+    changes.displayName = trimmedName(
+      'displayName',
+      stringField('displayName', changes.displayName)
+    )
+
+  if (changes.username !== undefined)
+    changes.username = alphanumeric(
+      'username',
+      stringField('username', changes.username).toLowerCase(),
+      3,
+      16
+    )
+
+  if (changes.password !== undefined)
+    lengthBetween(
+      'password',
+      stringField('password', changes.password),
+      6,
+      1024
+    )
+
+  if (changes.autoExec !== undefined)
+    stringField('autoExec', changes.autoExec, true)
+
+  // On a non-admin's own update the schema declares neither flag, so the two are
+  // unknown keys like any other - and `refuseUnknown` reports whichever the body
+  // states first, which is the order Joi reports them in. Reporting them ahead of
+  // that loop would answer `"isAdmin" is not allowed` to a body whose first
+  // unknown key is something else.
+  const declared = admin
+    ? USER_KEYS
+    : USER_KEYS.filter((key) => key !== 'isAdmin' && key !== 'isActive')
+
+  for (const field of ['isAdmin', 'isActive'])
+    if (admin && field in changes)
+      changes[field] = booleanOf(changes[field], field)
+
+  refuseUnknown(changes, declared)
+
+  return changes
+}
+
 /**
  * A body field the document states as a boolean, read the way the server reads it.
  *
- * The server validates this one with `Joi.boolean()`, which converts real booleans
+ * The server validates these with `Joi.boolean()`, which converts real booleans
  * and the string spellings of them - case-insensitively, and trimmed, as Joi 18
  * does - and refuses every other shape. Both halves are reproduced here: a client
- * that sent the string `"false"` and had its buffer laid out anyway would find two
- * hosts disagreeing about which button it pressed.
+ * that sent the string `"false"` and had its buffer laid out anyway, or an
+ * `isAdmin` of `"yes"` and had it stored, would find two hosts disagreeing about
+ * what it asked for.
  *
  * The conversion is limited to strings on purpose. `String(value)` would also read
  * shapes the schema refuses - a one-element array `["true"]` stringifies to
@@ -296,9 +567,9 @@ const APP_ENTRY_FILE = 'index.html'
  * installation gives it: `"yes"` is a caller's bug, and reading it as the default
  * leaves that bug unanswered. `replaceOf` refuses its own boolean field for the
  * same reason, though not by the same rules - an empty string there means the query
- * parameter was not stated, and for this body field the schema refuses it.
+ * parameter was not stated, and for a body field the schema refuses it.
  */
-const layoutOf = (value: unknown): boolean | undefined => {
+const booleanOf = (value: unknown, field: string): boolean | undefined => {
   if (value === undefined) return undefined
   if (typeof value === 'boolean') return value
 
@@ -309,7 +580,7 @@ const layoutOf = (value: unknown): boolean | undefined => {
     if (text === 'false') return false
   }
 
-  throw new ApiError(400, '"layout" must be a boolean.')
+  throw new ApiError(400, `"${field}" must be a boolean`)
 }
 
 /**
@@ -488,8 +759,6 @@ export const dispatch = async (
       throw new ApiError(401, 'Unauthorized')
   }
 
-  validate(route, request)
-
   const query = request.query || {}
   const body = request.body || {}
   const params = request.params || {}
@@ -546,6 +815,45 @@ export const dispatch = async (
     contents: output.contents
   })
 
+  /**
+   * The caller's own record, as the administration routes read it.
+   *
+   * The user routes ask two questions about the caller before they look at the
+   * body - who is this, and are they an administrator - because an installation
+   * mounts `authenticateAccessToken` and `verifyAdmin`/`verifyAdminIfNeeded`
+   * ahead of the schema. The store's own refusal travels from here rather than
+   * being folded into "not an admin": a caller it does not hold is refused
+   * `Unauthorized`, which is the answer the token gate gives.
+   */
+  const callerRecord = async (): Promise<UserDetailsResponse> => {
+    const recordsService = required()
+    const subject = await caller()
+
+    return recordsService.getUser(subject, {
+      uid: String(subject?.userId ?? '')
+    })
+  }
+
+  /**
+   * `verifyAdminIfNeeded`: the caller is an administrator, or the account the
+   * route names is their own. Answers whether they are an administrator, which
+   * is what the schema is built with on an installation.
+   */
+  const verifyAdminIfNeeded = async (target: {
+    uid?: string
+    username?: string
+  }): Promise<boolean> => {
+    const me = await callerRecord()
+    if (me.isAdmin) return true
+
+    const ownAccount =
+      (target.uid !== undefined && target.uid === me.uid) ||
+      (target.username !== undefined && target.username === me.username)
+
+    if (!ownAccount) throw new ApiError(401, 'Admin account required')
+    return false
+  }
+
   const required = (): RecordService => {
     if (!records)
       throw new ApiError(
@@ -553,6 +861,91 @@ export const dispatch = async (
         `This host has no record service, so it cannot answer ${routeId}.`
       )
     return records
+  }
+
+  /**
+   * The routes whose caller gate and body rules belong to the controller.
+   *
+   * An installation mounts `authenticateAccessToken`, then `verifyAdmin` or
+   * `verifyAdminIfNeeded`, and only then the schema - so on these routes the caller
+   * is refused before a field is read. And on the update and delete routes the
+   * schema is `updateUserValidation`'s or `deleteUserValidation`'s rather than the
+   * document's: every string on an update is optional, the two flags are declared
+   * only for an administrator, and a deletion carries the caller's password, which
+   * is checked against the password schema before it is compared.
+   *
+   * One entry per route answers both questions and hands back the body to apply, so
+   * the gate and the field rules it belongs with cannot drift apart, and the shared
+   * `validate` - which knows only what the document states - is skipped for exactly
+   * these routes rather than for a list that has to agree with the switch below.
+   */
+  const controllerRules: Record<
+    string,
+    (
+      request: ApiRequest
+    ) => Promise<{ body: Record<string, unknown>; username?: string }>
+  > = {
+    'POST /SASjsApi/user': async (request) => {
+      if (!(await callerRecord()).isAdmin)
+        throw new ApiError(401, 'Admin account required')
+
+      return { body: userCreate(request.body || {}) }
+    },
+    'POST /SASjsApi/group': async (request) => {
+      if (!(await callerRecord()).isAdmin)
+        throw new ApiError(401, 'Admin account required')
+
+      return { body: groupCreate(request.body || {}) }
+    },
+    'PATCH /SASjsApi/user/{uid}': async (request) => {
+      const admin = await verifyAdminIfNeeded({
+        uid: String(request.params?.uid ?? '')
+      })
+
+      return { body: userUpdate(request.body || {}, admin) }
+    },
+    'PATCH /SASjsApi/user/by/username/{username}': async (request) => {
+      // the gate compares the raw parameter, as the server's does, and the schema
+      // checks it before the body is read
+      const admin = await verifyAdminIfNeeded({
+        username: String(request.params?.username ?? '')
+      })
+      const username = foldedUsername(request.params?.username)
+
+      return { body: userUpdate(request.body || {}, admin), username }
+    },
+    'DELETE /SASjsApi/user/by/username/{username}': async (request) => {
+      const admin = await verifyAdminIfNeeded({
+        username: String(request.params?.username ?? '')
+      })
+      // the parameter is checked before the body, as `getUserValidation` is mounted
+      // ahead of the deletion's own schema
+      const username = foldedUsername(request.params?.username)
+
+      return { body: deletionBody(request.body || {}, admin), username }
+    },
+    'DELETE /SASjsApi/user/{uid}': async (request) => {
+      const admin = await verifyAdminIfNeeded({
+        uid: String(request.params?.uid ?? '')
+      })
+
+      return { body: deletionBody(request.body || {}, admin) }
+    }
+  }
+
+  const controllerRule = controllerRules[routeId]
+  const controllerAnswer = controllerRule
+    ? await controllerRule(request)
+    : undefined
+
+  // the routes a controller owns were validated above, after their gate; the
+  // admin mounts refuse the caller before the schema, and everything else takes
+  // the document's checks as they come
+  if (!controllerRule) {
+    if (ADMIN_GATED_ROUTES.has(routeId) && !(await callerRecord()).isAdmin)
+      throw new ApiError(401, 'Admin account required')
+
+    validate(route, request)
   }
 
   if (
@@ -1145,20 +1538,23 @@ export const dispatch = async (
       return {
         status: 200,
         body: await required().getUser(await caller(), {
-          username: String(params.username ?? '')
+          username: foldedUsername(params.username)
         })
       }
     case 'POST /SASjsApi/user':
       return {
         status: 200,
-        body: await required().createUser(await caller(), {
-          username: String(body.username ?? ''),
-          displayName: String(body.displayName ?? ''),
-          password: String(body.password ?? ''),
-          isAdmin: body.isAdmin as boolean | undefined,
-          isActive: body.isActive as boolean | undefined,
-          autoExec: body.autoExec as string | undefined
-        })
+        body: await required().createUser(
+          await caller(),
+          controllerAnswer!.body as {
+            username: string
+            displayName: string
+            password: string
+            isAdmin?: boolean
+            isActive?: boolean
+            autoExec?: string
+          }
+        )
       }
     case 'PATCH /SASjsApi/user/{uid}':
       return {
@@ -1166,7 +1562,9 @@ export const dispatch = async (
         body: await required().updateUser(
           await caller(),
           { uid: String(params.uid ?? '') },
-          body
+          // the body the controller's own schema accepted, with what Joi converts
+          // already converted
+          controllerAnswer!.body
         )
       }
     case 'PATCH /SASjsApi/user/by/username/{username}':
@@ -1174,8 +1572,8 @@ export const dispatch = async (
         status: 200,
         body: await required().updateUser(
           await caller(),
-          { username: String(params.username ?? '') },
-          body
+          { username: controllerAnswer!.username ?? '' },
+          controllerAnswer!.body
         )
       }
     case 'DELETE /SASjsApi/user/{uid}':
@@ -1184,7 +1582,7 @@ export const dispatch = async (
         body: await required().deleteUser(
           await caller(),
           { uid: String(params.uid ?? '') },
-          { password: body.password as string | undefined }
+          { password: controllerAnswer!.body.password as string | undefined }
         )
       }
     case 'DELETE /SASjsApi/user/by/username/{username}':
@@ -1192,7 +1590,7 @@ export const dispatch = async (
         status: 200,
         body: await required().deleteUser(
           await caller(),
-          { username: String(params.username ?? '') },
+          { username: controllerAnswer!.username ?? '' },
           { password: body.password as string | undefined }
         )
       }
@@ -1223,7 +1621,7 @@ export const dispatch = async (
           filePath: body.filePath as string | undefined,
           // the body is rebuilt field by field here, so a flag the service reads
           // has to be named or the request's own answer is lost on the way
-          layout: layoutOf(body.layout)
+          layout: booleanOf(body.layout, 'layout')
         })
       }
 
@@ -1258,9 +1656,10 @@ export const dispatch = async (
       return {
         status: 200,
         body: await required().createGroup(await caller(), {
-          name: String(body.name ?? ''),
-          description: String(body.description ?? ''),
-          isActive: body.isActive as boolean | undefined
+          name: String(controllerAnswer!.body.name ?? ''),
+          // left absent rather than made empty: the service applies the model's default
+          description: controllerAnswer!.body.description as string | undefined,
+          isActive: controllerAnswer!.body.isActive as boolean | undefined
         })
       }
     case 'POST /SASjsApi/group/{groupUid}/{userUid}':

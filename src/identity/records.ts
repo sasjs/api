@@ -123,7 +123,7 @@ export interface RecordService {
   ): Promise<GroupDetailsResponse>
   createGroup(
     caller: Subject | undefined,
-    body: { name: string; description: string; isActive?: boolean }
+    body: { name: string; description?: string; isActive?: boolean }
   ): Promise<GroupDetailsResponse>
   deleteGroup(caller: Subject | undefined, uid: string): Promise<void>
   addUserToGroup(
@@ -515,7 +515,9 @@ export const createRecordService = (
         change.username = body.username
       }
 
-      if (displayName) change.displayName = displayName
+      // the controller always puts the sanitised name in the update, so an update
+      // that omits one stores the empty string rather than keeping the old name
+      change.displayName = displayName
       if (body.isAdmin !== undefined) change.isAdmin = body.isAdmin
       if (body.isActive !== undefined) change.isActive = body.isActive
       if (body.autoExec !== undefined) change.autoExec = body.autoExec
@@ -579,7 +581,8 @@ export const createRecordService = (
 
       const created = await store.createGroup({
         name: body.name,
-        description: body.description,
+        // the model defaults the field, so an absent description is the model's
+        description: body.description ?? 'Group description.',
         isActive: body.isActive !== false
       })
       return groupDetails(created)

@@ -20,21 +20,21 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 /**
  * The version the banner names, or an empty string when there is not one yet.
  *
- * package.json carries `0.0.0-semantically-released` until semantic-release
- * writes a real version, and a local build runs before that step - so a number
- * taken from the placeholder would be one the artefact never shipped as. The
- * release path is the case that matters: npm runs `prepare` during publish,
- * after semantic-release has written the version, so the published bundle names
- * it. `SASJS_API_VERSION` lets a release job stamp one explicitly.
+ * package.json carries `0.0.0` - unset, not stale: the version is the git tag,
+ * and the release pipeline stamps it into the working tree
+ * (`@sasjs/release --prepare-publish`) rather than committing it back. A local
+ * build therefore runs against the placeholder, and a number taken from it would
+ * be one the artefact never shipped as. The release path is the case that
+ * matters: the stamp lands before `npm run build`, so the published bundle names
+ * the version its tag does. `SASJS_API_VERSION` lets a job stamp one explicitly
+ * instead.
  */
 const bannerVersion = () => {
   const given = (process.env.SASJS_API_VERSION || '').trim()
   if (given) return given
 
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  return String(manifest.version).includes('semantically-released')
-    ? ''
-    : manifest.version
+  return /^0\.0\.0(-|$)/.test(String(manifest.version)) ? '' : manifest.version
 }
 
 const version = bannerVersion()

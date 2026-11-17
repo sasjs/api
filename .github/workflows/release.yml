@@ -1,26 +1,32 @@
 name: release
 
+# Cuts the tag and the GitHub release from the conventional commits merged since
+# the last one, then publishes exactly that version - in one job, because npm's
+# trusted publisher is registered against this workflow file and validates the
+# workflow that actually runs `npm publish` (the OIDC `job_workflow_ref` claim).
+#
+# The release toolchain is @sasjs/release: zero dependencies, so nothing in the
+# tree carries an advisory we cannot fix. It replaced semantic-release, whose
+# dependency on npm arrived with npm bundled and put 36 moderates in the dev tree
+# that no `overrides` could reach (sasjs/api#8).
+#
+# Nothing is committed: the tag is the version, it is stamped into the working
+# tree before the build (`@sasjs/release --prepare-publish`) because npm reads
+# package.json, and the tree is thrown away.
 on:
   push:
     branches: [main]
-  # The one-time bootstrap. semantic-release opens at 1.0.0 on a repository with
-  # no tags, which is not the version this package should start at - so the first
-  # version is published here, once, and tagged, and every release after it is
-  # derived from the commit messages as usual.
+  # a manual run releases whatever has been merged since the last tag
   workflow_dispatch:
-    inputs:
-      bootstrap_version:
-        description: 'Publish this version once and tag it (e.g. 0.1.0). Leave empty to run semantic-release.'
-        required: false
 
-# read-only by default; the release job asks for the three writes it needs, so a
-# later change that stops needing one cannot keep it by accident
+# read-only by default; the job asks for the two writes it needs, so a later
+# change that stops needing one cannot keep it by accident
 permissions: read-all
 
-# One release at a time. A push to main and a bootstrap dispatch, or two quick
-# pushes, would otherwise both reach npm publish and the tag push, and one of them
-# fails on a version or a tag that already exists. Not cancelled in progress: a
-# release that has started is the wrong thing to interrupt.
+# One release at a time. Two quick pushes would otherwise both reach npm publish
+# and the tag, and one of them fails on a version or a tag that already exists.
+# Not cancelled in progress: a release that has started is the wrong thing to
+# interrupt.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -30,33 +36,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # npm trusted publishing (OIDC) - no NPM_TOKEN secret
-      contents: write # the tag, the release, and the bootstrap's tag push
-      issues: write # semantic-release comments when a release fails
+      contents: write # the tag and the release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # semantic-release needs the history and the tags
+          # the range is classified from tags: a shallow clone sees one commit and
+          # invents a version
+          fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
 
       # trusted publishing needs npm >= 11.5.1, and node 22 ships npm 10.x.
-      # Pinned rather than @latest so the toolchain that publishes is the one
-      # this commit was reviewed with.
+      # Pinned rather than @latest so the toolchain that publishes is the one this
+      # commit was reviewed with. It is a global install: it is deliberately not a
+      # dependency of this package, so it is not part of the audited tree either.
       - name: Update npm
         run: npm install -g npm@12.2.0
 
       - name: Install
         run: npm ci --ignore-scripts
 
-      # the release runs the same gates as the test workflow rather than a
-      # subset: a package that fails its own checks must not reach npm because
-      # the commit happened to land on main
-      - name: Advisories
-        run: npm audit --audit-level=high
+      # The release runs the same gates as the test workflow rather than a subset:
+      # a package that fails its own checks must not reach npm because the commit
+      # happened to land on main.
+      - name: No advisory in what ships
+        run: npm audit --omit=dev --audit-level=low
+
+      - name: No new moderate advisory
+        run: npm run audit:gate
 
       - name: Formatting
         run: npm run lint
@@ -70,46 +81,49 @@ jobs:
       - name: Test
         run: npm test
 
+      # Cuts the tag and the release if the commits since the last tag call for
+      # one. `released=false` is the ordinary state of a push that carried only
+      # chores, and every step below is skipped then rather than publishing the
+      # previous version again.
+      - name: Tag and release, if there is anything to release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release -- --host github --release --output "$GITHUB_OUTPUT"
+
+      # Stamps the tag's version into package.json, refuses a tag that is not on
+      # the default branch, and asks the registry whether this version is already
+      # published (which is what makes a failed publish re-runnable). The tree is
+      # still clean here, which is what lets it write package.json directly.
+      - name: Stamp the version, and ask whether it is published
+        id: publish
+        if: steps.release.outputs.released == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: >-
+          npx sasjs-release --prepare-publish
+          --tag "$TAG" --branch main
+          --output "$GITHUB_OUTPUT"
+
+      # After the stamp, so the browser bundle's banner names the version its tag
+      # does - the artefact a service worker loads has no package.json beside it.
       - name: Build
+        if: steps.publish.outputs.publish == 'true'
         run: npm run build
-        env:
-          # unset on the semantic-release path: the manifest still holds the
-          # placeholder there, and the exec plugin restamps the bundle with the
-          # version it is about to publish. A missing version beats a wrong one.
-          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
 
-      # A `fix:` or `feat:` landing before the bootstrap would publish 1.0.0
-      # without anyone deciding on it. Fail loudly instead: the bootstrap below
-      # is one dispatch away, and the alternative is a version nobody chose.
-      - name: Refuse a release before the first tag exists
-        if: ${{ !inputs.bootstrap_version }}
-        run: |
-          if ! git tag -l 'v*' | grep -q .; then
-            echo "::error::No release tag exists yet. Run this workflow with bootstrap_version=0.1.0 first, or semantic-release will open at 1.0.0."
-            exit 1
-          fi
+      - name: The app stream works from the browser bundle
+        if: steps.publish.outputs.publish == 'true'
+        run: npm run check:appstream
 
-      - name: Publish the first version
-        if: ${{ inputs.bootstrap_version }}
-        env:
-          VERSION: ${{ inputs.bootstrap_version }}
-          # the version this build is, named in the browser bundle's banner;
-          # semantic-release stamps its own through @semantic-release/exec
-          SASJS_API_VERSION: ${{ inputs.bootstrap_version }}
-        run: |
-          if npm view "@sasjs/api@$VERSION" version >/dev/null 2>&1; then
-            echo "::error::@sasjs/api@$VERSION is already on npm - nothing to bootstrap."
-            exit 1
-          fi
-          npm version "$VERSION" --no-git-tag-version --allow-same-version --force
-          npm run build
-          npm publish --access public
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
-          echo "published and tagged v$VERSION"
+      - name: All three builds load
+        if: steps.publish.outputs.publish == 'true'
+        run: npm run check:builds
 
-      - name: Semantic Release
-        if: ${{ !inputs.bootstrap_version }}
-        run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # No NODE_AUTH_TOKEN: the OIDC token is exchanged for a short-lived
+      # credential, so there is no long-lived secret in this repository.
+      # --ignore-scripts=false re-enables this package's own prepublishOnly, which
+      # .npmrc disables for every other command; nothing is installed at publish
+      # time, so no dependency's script can run from it.
+      - name: Publish to npm with trusted publisher
+        if: steps.publish.outputs.publish == 'true'
+        run: npm publish --access public --ignore-scripts=false

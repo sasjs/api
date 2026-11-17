@@ -100,8 +100,9 @@ const auditReport = () => {
 
 /**
  * One entry per advisory, not per affected package: npm reports the same
- * advisory once for every package in the tree it reaches, and glob and minimatch
- * between them account for all 36 of the moderates today.
+ * advisory once for every package in the tree it reaches, so a single advisory
+ * inside a bundled tool arrives under a dozen names, and an allowlist keyed by
+ * package would carry twelve copies of one reason.
  */
 const advisoriesIn = (report) => {
   const seen = new Map()

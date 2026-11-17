@@ -98,14 +98,12 @@ jobs:
 
       # No high or critical advisory, in any dependency, published or not.
       #
-      # The tree carries 36 moderates that cannot be cleared from here: every one
-      # is inside the npm tree that @semantic-release/npm bundles, where glob
-      # 13.0.6 and minimatch 10.2.5 are affected (fixed in 14.0.2 and 11.0.1) and
-      # `overrides` cannot reach a bundled dependency. Issue #8 records that with
-      # the evidence; it unblocks when npm ships fixed bundled versions. Until
-      # then the gate stays at high - which is stricter than production-only and
-      # catches the case that would matter, a high or critical appearing anywhere,
-      # including in the release toolchain.
+      # The tree is clean at every severity: it used to carry 36 moderates inside
+      # the npm package that @semantic-release/npm bundles - where glob 13.0.6 and
+      # minimatch 10.2.5 were affected and `overrides` cannot reach a bundled
+      # dependency - and the release toolchain moving to @sasjs/release removed
+      # them with it (issue #8 carries the measurement).
+      #
       # What ships is one dependency (@sasjs/lint) and its tree, so this is no
       # longer vacuous: it audits a real production tree at the lowest severity.
       # It needs no exemption today, which is the state to keep.
@@ -114,7 +112,9 @@ jobs:
 
       # The step above ignores the moderate class, so a new moderate used to ship
       # silently. Every moderate we carry is listed in scripts/audit-allowlist.json
-      # with the reason it is still open; a 37th fails here.
+      # with the reason it is still open - and there are none, so the list is
+      # empty: the next one fails here instead of being found in a consumer. An
+      # entry added here is a reason to keep, not a way to pass.
       - name: No new moderate advisory
         run: npm run audit:gate
 

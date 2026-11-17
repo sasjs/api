@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -36,6 +36,26 @@ const reachable = (): string[] => {
   return [...paths]
 }
 
+const execute = (
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env
+): { status: number; output: string } => {
+  try {
+    const output = execFileSync(process.execPath, args, {
+      encoding: 'utf8',
+      env
+    })
+    return { status: 0, output }
+  } catch (error) {
+    const failure = error as { status: number; stdout: string; stderr: string }
+    return {
+      status: failure.status,
+      output: `${failure.stdout}${failure.stderr}`
+    }
+  }
+}
+
+/** Judge a saved listing, so nothing is packed and nothing is installed. */
 const run = (
   listing: string | undefined
 ): { status: number; output: string } => {
@@ -50,16 +70,26 @@ const run = (
     args.push('--list', join(dir, 'absent.txt'))
   }
 
-  try {
-    const output = execFileSync(process.execPath, args, { encoding: 'utf8' })
-    return { status: 0, output }
-  } catch (error) {
-    const failure = error as { status: number; stdout: string; stderr: string }
-    return {
-      status: failure.status,
-      output: `${failure.stdout}${failure.stderr}`
-    }
-  }
+  return execute(args)
+}
+
+/**
+ * Pack for real, through an `npm` that fails: the path a listing fixture cannot
+ * reach, and the one that used to escape as an uncaught throw.
+ */
+const runPack = (): { status: number; output: string } => {
+  const dir = mkdtempSync(join(tmpdir(), 'fake-npm-'))
+  const fake = join(dir, 'npm')
+  writeFileSync(
+    fake,
+    '#!/bin/sh\necho "npm ERR! code EUSAGE, the registry is unreachable" >&2\nexit 2\n'
+  )
+  chmodSync(fake, 0o755)
+
+  return execute(['scripts/check-package.mjs'], {
+    ...process.env,
+    PATH: `${dir}:${process.env.PATH}`
+  })
 }
 
 /** An archive that carries exactly the reachable paths, plus its own manifest. */
@@ -137,5 +167,16 @@ describe('the package contents gate, when it cannot run', () => {
     expect(status).toBe(2)
     expect(output).toContain('check-package could not run')
     expect(output).toContain('absent.txt')
+  })
+
+  it('reports a pack failure as exit 2, not as a failed check', () => {
+    // an npm whose own exit code is 2 used to be rethrown, which reached the
+    // runner as exit 1 plus a stack trace - a failed check rather than no check
+    const { status, output } = runPack()
+
+    expect(status).toBe(2)
+    expect(output).toContain('check-package could not run: npm pack failed')
+    expect(output).toContain('the registry is unreachable')
+    expect(output).not.toContain('Error:')
   })
 })

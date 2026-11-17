@@ -169,7 +169,10 @@ const listingFromArchive = () => {
     console.log(`packed ${archive} (${relative(process.cwd(), into) || into})`)
     return tar
   } catch (error) {
-    if (error?.status === 2) throw error
+    // Any failure here is "the check could not run", whichever exit code the tool
+    // it wrapped happened to use - including one that exits 2 of its own. A throw
+    // escaping this would report exit 1 with a stack trace, which reads as a
+    // failed check rather than a check that never happened.
     fail(
       2,
       `check-package could not run: npm pack failed${

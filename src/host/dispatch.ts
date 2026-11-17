@@ -36,6 +36,10 @@ import type { AdminService } from '../admin/service.js'
 import type { DirectoryService } from '../directory/service.js'
 import type { HomeService } from '../home/service.js'
 import type { Subject } from '../identity/types.js'
+import {
+  DEFAULT_GRANTABLE_ROUTES,
+  TOP_LEVEL_ROUTES
+} from '../identity/routeAccess.js'
 import { ApiError, isApiError } from '../types.js'
 import { DEPLOY_SUCCESS } from '../drive/deploy.js'
 import type { DeployTree } from '../drive/deploy.js'
@@ -61,16 +65,28 @@ const RUN_ROUTES = [
 ]
 
 /**
- * The run routes a permission rule addresses.
+ * The operations a permission rule addresses.
  *
- * The triggers are not in the inventory - the server's rules do not reach them -
- * so they are gated on the caller alone, exactly as they are there.
+ * The inventory less the two entries that name a whole surface rather than an
+ * operation: `/SASjsApi` and `/AppStream` are prefixes a rule can cover
+ * everything beneath with, not routes a request is dispatched to. This is the
+ * server's `isAuthorizingRoute` - the same inventory, minus the routes every
+ * caller sees - so a request meets a rule check on exactly the calls it does
+ * there: the run routes, the drive routes, and the app stream's own paths.
+ *
+ * The triggers are absent because the rules do not reach them, and the record,
+ * identity, info and admin routes are gated separately.
  */
-const GRANTED_RUN_ROUTES = [
-  'GET /SASjsApi/stp/execute',
-  'POST /SASjsApi/stp/execute',
-  'POST /SASjsApi/code/execute'
-]
+const GRANTED_ROUTES = DEFAULT_GRANTABLE_ROUTES.filter(
+  (path) => !TOP_LEVEL_ROUTES.includes(path)
+)
+
+// The OpenAPI route table lowercases filetree; use the inventory's spelling
+// when checking rules, so dispatch and myAuthorizedRoutes agree.
+const grantPath = (path: string): string | undefined =>
+  GRANTED_ROUTES.find(
+    (candidate) => candidate.toLowerCase() === path.toLowerCase()
+  )
 
 /**
  * The host's own reports, which the server mounts `verifyAdmin` in front of.
@@ -164,7 +180,11 @@ export interface Services {
    * implement - the difference is the message, and it names the capability.
    */
   identity?: IdentityService
-  /** Users, groups, permission rules and clients. Absent, the record routes answer 501. */
+  /**
+   * Users, groups, permission rules and clients. Absent, the record routes answer
+   * 501. If an identity service is configured, permission-gated routes also
+   * answer 501 without records; a drive-only host has no identity gate.
+   */
   records?: RecordService
   /**
    * A triggered session's record, log, output and state. A host without one
@@ -308,7 +328,16 @@ export const dispatch = async (
   // permission rules address. Asked of the record service, so the answer a
   // request meets is the one `myAuthorizedRoutes` reported for the same caller.
   const adminScoped = ADMIN_ROUTES.includes(routeId) && Boolean(services.admin)
-  const grantScoped = Boolean(records) && GRANTED_RUN_ROUTES.includes(routeId)
+  const grantScoped = grantPath(route.path)
+
+  // A host with identity is enforcing access and must not silently skip a
+  // permission gate when its record service is absent. A drive-only host has
+  // no identity model at all and retains its existing desktop-style behavior.
+  if (grantScoped && (identity || request.subject || request.token) && !records)
+    throw new ApiError(
+      501,
+      `This host has no record service, so it cannot answer ${routeId}.`
+    )
 
   // The administrator routes need the record service to answer the question the
   // host's middleware answers on a server. A host that supplies the reports
@@ -344,21 +373,34 @@ export const dispatch = async (
     (identityScoped && records) ||
     (runtimeScoped && services.runtime) ||
     adminScoped ||
-    grantScoped
+    (grantScoped && records)
   ) {
     const callerSubject = await caller()
+    let publicGrant = false
 
     if (!callerSubject) {
-      // A host may serve records without a sign-in flow - it resolves the caller
-      // itself and passes `subject`. Without one it cannot authenticate at all,
-      // and a 401 would send every request round the login loop for ever, so it
-      // is told which capability it is missing instead.
-      if (!identity)
-        throw new ApiError(
-          501,
-          `This host has no identity service, so it cannot answer ${routeId}.`
-        )
-      throw new ApiError(401, 'Unauthorized')
+      // An exact public-group grant also authenticates a tokenless caller on
+      // the server. Do not treat a parent grant as public authentication.
+      publicGrant = Boolean(
+        grantScoped &&
+        records &&
+        !identityScoped &&
+        !runtimeScoped &&
+        !adminScoped &&
+        (await records.mayUseRoute(undefined, grantScoped))
+      )
+      if (!publicGrant) {
+        // A host may serve records without a sign-in flow - it resolves the caller
+        // itself and passes `subject`. Without one it cannot authenticate at all,
+        // and a 401 would send every request round the login loop for ever, so it
+        // is told which capability it is missing instead.
+        if (!identity)
+          throw new ApiError(
+            501,
+            `This host has no identity service, so it cannot answer ${routeId}.`
+          )
+        throw new ApiError(401, 'Unauthorized')
+      }
     }
 
     // `verifyAdmin`, in the wording a caller sees on a server - except for a
@@ -374,7 +416,12 @@ export const dispatch = async (
 
     // `authorize`: the rules this host's interface reads decide the call, not
     // only the menu entry beside it
-    if (grantScoped && !(await records!.mayUseRoute(callerSubject, route.path)))
+    if (
+      grantScoped &&
+      records &&
+      !publicGrant &&
+      !(await records.mayUseRoute(callerSubject, grantScoped))
+    )
       throw new ApiError(401, 'Unauthorized')
   }
 

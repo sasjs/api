@@ -51,7 +51,7 @@ describe('route table', () => {
       route?.params.map((param) => [param.name, param.in, param.required])
     ).toEqual([['id', 'body', true]])
     expect(route?.responses.map((response) => response.status)).toEqual([
-      200, 400, 404
+      200, 400, 401, 404
     ])
 
     // Unpublishing needs only the host's stream registry, which it supplies
@@ -153,11 +153,20 @@ describe('route table', () => {
       // the 400 is the validation refusal the implementation has always sent
       // (a path outside the drive, a blocked extension, a missing payload); the
       // document gained it in sasjs/server#538 rather than the table losing it
-      expect(statuses('POST /SASjsApi/drive/file')).toEqual([200, 400, 409])
-      expect(statuses('PATCH /SASjsApi/drive/file')).toEqual([200, 400, 404])
+      // 401 is the permission gate's, documented once the drive routes stated it
+      expect(statuses('POST /SASjsApi/drive/file')).toEqual([
+        200, 400, 401, 409
+      ])
+      expect(statuses('PATCH /SASjsApi/drive/file')).toEqual([
+        200, 400, 401, 404
+      ])
       // 202 is the streamed read's answer for a file that is not there
-      expect(statuses('GET /SASjsApi/drive/file')).toEqual([200, 202, 400, 404])
-      expect(statuses('GET /SASjsApi/drive/folder')).toEqual([200, 400, 404])
+      expect(statuses('GET /SASjsApi/drive/file')).toEqual([
+        200, 202, 400, 401, 404
+      ])
+      expect(statuses('GET /SASjsApi/drive/folder')).toEqual([
+        200, 400, 401, 404
+      ])
     })
   })
 })

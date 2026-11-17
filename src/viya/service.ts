@@ -252,6 +252,15 @@ export const VIYA_HANDLERS: Record<
     const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
 
+    /**
+     * A member's `uri` is the resource, not its path.
+     *
+     * `@sasjs/adapter`'s `getFileUri` reads `member.uri` and fetches
+     * `${uri}/content`, so a path here sends the client to
+     * `/someFolder/some.txt/content`, which is not a route any host has. The
+     * value also has to agree with the `self` link in the same entry: two
+     * spellings of one member is a client choosing between them.
+     */
     const items = [
       ...listing.folders.map((name) => ({
         id: idFor(`${path}/${name}`.replace(/\/{2,}/g, '/')),
@@ -263,7 +272,7 @@ export const VIYA_HANDLERS: Record<
         creationTimeStamp: EMULATED_NOW,
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
-        uri: `${path}/${name}`.replace(/\/{2,}/g, '/'),
+        uri: `/folders/folders/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'))}`,
         links: linksFor(
           `/folders/folders/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'))}`
         )
@@ -280,7 +289,7 @@ export const VIYA_HANDLERS: Record<
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
         added: EMULATED_NOW,
-        uri: `${path}/${name}`.replace(/\/{2,}/g, '/'),
+        uri: `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`,
         links: linksFor(
           `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`
         )

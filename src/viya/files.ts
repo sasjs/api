@@ -200,6 +200,7 @@ export const FILE_HANDLERS: Record<
     request: {
       query?: Record<string, string | undefined>
       body?: unknown
+      contents?: string | Uint8Array
       file?: { name: string; contents: string | Uint8Array }
       token?: string
       subject?: unknown
@@ -266,19 +267,23 @@ export const FILE_HANDLERS: Record<
     const drive = requireDrive(services)
     const path = await pathForFileId(drive, params.id)
 
-    // a host may hand the bytes over as the multipart part or as the body
+    // a host may hand the bytes over as the multipart part, as the raw body (a
+    // file PUT carries the content, with the file's own content type), or as a
+    // JSON body carrying `contents`. Raw content is bytes as often as it is text -
+    // an upload is not required to be UTF-8 - so both are accepted here.
     const body = request.body as unknown
 
     const contents =
+      request.contents ??
       request.file?.contents ??
-      (typeof body === 'string'
+      (typeof body === 'string' || body instanceof Uint8Array
         ? body
-        : (body as { contents?: string } | undefined)?.contents)
+        : (body as { contents?: string | Uint8Array } | undefined)?.contents)
 
     if (contents === undefined || contents === null)
       throw new ApiError(400, 'File content is required.')
 
-    await drive.update(path, contents as string | Uint8Array)
+    await drive.update(path, contents)
 
     return { status: 200, body: fileBody(await bodyOf(drive, path)) }
   }

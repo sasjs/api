@@ -12,7 +12,11 @@ import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { createIdentityService } from '../src/identity/service.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
-import { EMULATED_CONTEXT_ID, contextNameFrom } from '../src/viya/compute.js'
+import {
+  DEFAULT_CONTEXT_NAME,
+  EMULATED_CONTEXT_ID,
+  contextNameFrom
+} from '../src/viya/compute.js'
 import { generator, normaliseServerUrl, seedOf } from '../src/viya/seed.js'
 import type { Services } from '../src/host/dispatch.js'
 
@@ -132,7 +136,21 @@ describe('the compute context', () => {
   it('reads a double-quoted filter too, and answers a default otherwise', () => {
     expect(contextNameFrom('eq(name,"Mine")')).toBe('Mine')
     expect(contextNameFrom('eq(name,"Mine")')).not.toBe('Mine"')
-    expect(contextNameFrom(undefined)).toMatch(/Emulated/)
+    expect(contextNameFrom(undefined)).toBe(DEFAULT_CONTEXT_NAME)
+  })
+
+  // `SASViyaApiClient.createSession` lists the contexts with no filter and picks
+  // the entry whose name it was given, so the unfiltered answer has to be the
+  // context name a client carries - anything the emulator invents fails a caller
+  // that has nothing wrong with it.
+  it('names the estate default in an unfiltered list', async () => {
+    const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
+      query: { limit: '10000' }
+    })
+
+    const body = answer.body as { items: Array<{ name: string }> }
+
+    expect(body.items[0].name).toBe('SAS Job Execution compute context')
   })
 
   it('keeps one id whatever name it is asked for', async () => {
@@ -409,7 +427,7 @@ describe('the parts of the estate that only a second call reaches', () => {
 
     expect(
       (answer.body as { items: Array<{ name: string }> }).items[0].name
-    ).toMatch(/Emulated/)
+    ).toBe(DEFAULT_CONTEXT_NAME)
   })
 })
 

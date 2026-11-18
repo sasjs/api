@@ -607,8 +607,452 @@ describe('dispatch', () => {
             body: { code: 'data a; run;', layout }
           })
         )
-      ).toEqual({ status: 400, message: '"layout" must be a boolean.' })
+      ).toEqual({ status: 400, message: '"layout" must be a boolean' })
     }
+  })
+
+  it('refuses a boolean body field the document does not allow', async () => {
+    // the same rule `layout` settled, on the fields the user and group routes
+    // read as booleans: an installation answers `"isAdmin" must be a boolean` and
+    // this package used to pass `"yes"` straight to the record service
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+    const subject = { userId: 'user-admin', clientId: 'web_app' }
+
+    const cases: [string, Record<string, unknown>, string][] = [
+      [
+        'POST /SASjsApi/user',
+        {
+          username: 'newuser',
+          displayName: 'New User',
+          password: 'password',
+          isAdmin: 'yes'
+        },
+        'isAdmin'
+      ],
+      [
+        'POST /SASjsApi/user',
+        {
+          username: 'newuser',
+          displayName: 'New User',
+          password: 'password',
+          isActive: 'no'
+        },
+        'isActive'
+      ],
+      [
+        'POST /SASjsApi/group',
+        { name: 'newgroup', description: 'a group', isActive: 'sometimes' },
+        'isActive'
+      ],
+      [
+        // the minimal update the schema allows: the flags are the only fields
+        // such a request needs to carry
+        'PATCH /SASjsApi/user/{uid}',
+        { isAdmin: 'yes' },
+        'isAdmin'
+      ],
+      // the shapes a `String(value)` conversion would have read as the flag: an
+      // array stringifies to 'true', and a number to '1', which is neither
+      [
+        'POST /SASjsApi/user',
+        {
+          username: 'newuser',
+          displayName: 'One User',
+          password: 'password',
+          isAdmin: ['true']
+        },
+        'isAdmin'
+      ],
+      [
+        'POST /SASjsApi/user',
+        {
+          username: 'newuser',
+          displayName: 'One User',
+          password: 'password',
+          isAdmin: 1
+        },
+        'isAdmin'
+      ],
+      [
+        'POST /SASjsApi/user',
+        {
+          username: 'newuser',
+          displayName: 'One User',
+          password: 'password',
+          isAdmin: '1'
+        },
+        'isAdmin'
+      ]
+    ]
+
+    for (const [routeId, body, field] of cases) {
+      expect(
+        await failure(() =>
+          dispatch(services, routeId, {
+            subject,
+            params: { uid: 'user-restricted' },
+            body: body as any
+          })
+        )
+      ).toEqual({ status: 400, message: `"${field}" must be a boolean` })
+    }
+  })
+
+  it('reads the spellings the schema converts on those routes too', async () => {
+    // `"TRUE"` is what Joi.boolean() means by true, so it is stored as one
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+
+    const answer = await dispatch(services, 'POST /SASjsApi/user', {
+      subject: { userId: 'user-admin', clientId: 'web_app' },
+      body: {
+        username: 'stringspelled',
+        displayName: 'String Spelled',
+        password: 'password',
+        isAdmin: 'TRUE'
+      } as any
+    })
+
+    expect(answer.status).toBe(200)
+    expect((answer.body as { isAdmin?: boolean }).isAdmin).toBe(true)
+  })
+
+  it('refuses an admin-only flag from a caller who is not an admin', async () => {
+    // the installation declares `isAdmin` and `isActive` on this body only for an
+    // administrator, so a signed-in user that sends one is refused before the
+    // controller could apply it to their own account. Without that half the
+    // conversion would let any user promote themselves here and nowhere else.
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+
+    const answer = await failure(() =>
+      dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+        subject: { userId: 'user-restricted', clientId: 'web_app' },
+        params: { uid: 'user-restricted' },
+        body: { isAdmin: true } as any
+      })
+    )
+
+    expect(answer).toEqual({ status: 400, message: '"isAdmin" is not allowed' })
+
+    // and nothing was applied to the account
+    const user = await services.records.getUser(
+      { userId: 'user-admin', clientId: 'web_app' },
+      { uid: 'user-restricted' }
+    )
+    expect(user.isAdmin).toBe(false)
+  })
+
+  it('applies an admin-only flag when the caller is an admin', async () => {
+    // the payload a non-admin is refused is the one an administrator's update
+    // converts and stores, so the difference in the two answers is the caller
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+    const admin = { userId: 'user-admin', clientId: 'web_app' }
+
+    const answer = await dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+      subject: admin,
+      params: { uid: 'user-restricted' },
+      body: { isAdmin: 'TRUE' } as any
+    })
+
+    expect(answer.status).toBe(200)
+
+    const user = await services.records.getUser(admin, {
+      uid: 'user-restricted'
+    })
+    expect(user.isAdmin).toBe(true)
+  })
+
+  it('asks about the caller before it asks about the body', async () => {
+    // the installation mounts `authenticateAccessToken`, then `verifyAdmin` /
+    // `verifyAdminIfNeeded`, and only then the schema - so the caller refusals
+    // come first. Converting the body first would answer 400 to a request an
+    // installation refuses as 401, and would say which field was wrong to a
+    // caller who is not allowed to know.
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+    const restricted = { userId: 'user-restricted', clientId: 'web_app' }
+    const update = {
+      displayName: 'Restricted One',
+      username: 'restrictedone',
+      password: 'password',
+      isAdmin: 'yes'
+    }
+
+    // a non-admin creating an account: the admin gate, not the field
+    expect(
+      await failure(() =>
+        dispatch(services, 'POST /SASjsApi/user', {
+          subject: restricted,
+          body: { ...update, username: 'someone-new' } as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+
+    // a non-admin acting on another account: the same gate
+    expect(
+      await failure(() =>
+        dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+          subject: restricted,
+          params: { uid: 'user-admin' },
+          body: update as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+
+    // a caller the store does not hold: the token gate, which is what the
+    // installation sends before any schema runs
+    expect(
+      await failure(() =>
+        dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+          subject: { userId: 'no-such-user', clientId: 'web_app' },
+          params: { uid: 'user-restricted' },
+          body: update as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Unauthorized' })
+
+    // the group create route gates the caller the same way, before the flag
+    expect(
+      await failure(() =>
+        dispatch(services, 'POST /SASjsApi/group', {
+          subject: restricted,
+          body: { name: 'g', description: 'd', isActive: 'sometimes' } as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+
+    // and an incomplete body does not pre-empt the gate either: the shared field
+    // check runs after the caller questions on these routes, as the middleware
+    // order has it, so a missing password is the answer only to an admin
+    expect(
+      await failure(() =>
+        dispatch(services, 'POST /SASjsApi/user', {
+          subject: restricted,
+          body: { username: 'x', displayName: 'X', isAdmin: 'yes' } as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+
+    expect(
+      await failure(() =>
+        dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+          subject: restricted,
+          params: { uid: 'user-admin' },
+          body: { username: 'user-admin' } as any
+        })
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+
+    // while an admin's incomplete body is still the field complaint it always was
+    expect(
+      await failure(() =>
+        dispatch(services, 'POST /SASjsApi/user', {
+          subject: { userId: 'user-admin', clientId: 'web_app' },
+          body: { username: 'newuser', displayName: 'New User' } as any
+        })
+      )
+    ).toEqual({ status: 400, message: '"password" is required' })
+  })
+
+  it('applies the update schema rather than the document on the update routes', async () => {
+    // the document marks displayName, username and password required; the schema
+    // makes them optional and states rules of its own, so the rules are what a
+    // caller meets - and the values Joi converts are converted before the service
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+    const admin = { userId: 'user-admin', clientId: 'web_app' }
+
+    const refusal = async (body: Record<string, unknown>) =>
+      failure(() =>
+        dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+          subject: admin,
+          params: { uid: 'user-restricted' },
+          body: body as any
+        })
+      )
+
+    expect(await refusal({ displayName: 'short' })).toEqual({
+      status: 400,
+      message: '"displayName" length must be at least 6 characters long'
+    })
+    expect(await refusal({ username: 'a-b' })).toEqual({
+      status: 400,
+      message: '"username" must only contain alpha-numeric characters'
+    })
+    expect(await refusal({ password: 'abc' })).toEqual({
+      status: 400,
+      message: '"password" length must be at least 6 characters long'
+    })
+    // an empty value is refused as empty, before any length rule: a name of
+    // spaces trims to nothing, which is what an installation answers
+    expect(await refusal({ displayName: '' })).toEqual({
+      status: 400,
+      message: '"displayName" is not allowed to be empty'
+    })
+    expect(await refusal({ displayName: '   ' })).toEqual({
+      status: 400,
+      message: '"displayName" is not allowed to be empty'
+    })
+    expect(await refusal({ username: '' })).toEqual({
+      status: 400,
+      message: '"username" is not allowed to be empty'
+    })
+    expect(await refusal({ password: '' })).toEqual({
+      status: 400,
+      message: '"password" is not allowed to be empty'
+    })
+    expect(await refusal({ displayName: 5 })).toEqual({
+      status: 400,
+      message: '"displayName" must be a string'
+    })
+    expect(await refusal({ username: 'ab' })).toEqual({
+      status: 400,
+      message: '"username" length must be at least 3 characters long'
+    })
+    expect(await refusal({ username: 'a'.repeat(17) })).toEqual({
+      status: 400,
+      message:
+        '"username" length must be less than or equal to 16 characters long'
+    })
+    expect(await refusal({ password: 'a'.repeat(1025) })).toEqual({
+      status: 400,
+      message:
+        '"password" length must be less than or equal to 1024 characters long'
+    })
+    expect(await refusal({ autoExec: 5 })).toEqual({
+      status: 400,
+      message: '"autoExec" must be a string'
+    })
+    expect(await refusal({ nonsense: 1 })).toEqual({
+      status: 400,
+      message: '"nonsense" is not allowed'
+    })
+
+    // the flag on a non-admin's own account is an unknown key like any other, and
+    // Joi reports whichever the body states first
+    expect(
+      await failure(() =>
+        dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+          subject: { userId: 'user-restricted', clientId: 'web_app' },
+          params: { uid: 'user-restricted' },
+          body: { nonsense: 1, isAdmin: true } as any
+        })
+      )
+    ).toEqual({ status: 400, message: '"nonsense" is not allowed' })
+
+    // and a folded username, as `Joi.string().lowercase()` folds it
+    const answer = await dispatch(services, 'PATCH /SASjsApi/user/{uid}', {
+      subject: admin,
+      params: { uid: 'user-restricted' },
+      body: { username: 'MixedCase' } as any
+    })
+
+    expect(answer.status).toBe(200)
+    expect((answer.body as { username?: string }).username).toBe('mixedcase')
+  })
+
+  it('enforces the create schemas the controllers state', async () => {
+    // the same class as the update routes: the document checks presence, the
+    // controller's schema checks the rules too, and in its own order
+    const store = new MemoryIdentityStore({ ...DEFAULT_IDENTITY })
+    const services = { records: createRecordService(store) } as any
+    const admin = { userId: 'user-admin', clientId: 'web_app' }
+
+    const refusedBody = async (
+      routeId: string,
+      body: Record<string, unknown>
+    ) =>
+      failure(() =>
+        dispatch(services, routeId, { subject: admin, body: body as any })
+      )
+
+    expect(
+      await refusedBody('POST /SASjsApi/user', { username: 'newuser' })
+    ).toEqual({ status: 400, message: '"displayName" is required' })
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'newuser'
+      })
+    ).toEqual({ status: 400, message: '"password" is required' })
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'a-b',
+        password: 'password'
+      })
+    ).toEqual({
+      status: 400,
+      message: '"username" must only contain alpha-numeric characters'
+    })
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'newuser',
+        password: 'password',
+        extra: 1
+      })
+    ).toEqual({ status: 400, message: '"extra" is not allowed' })
+
+    // an unknown key and an unreadable flag in one body: the schema reports its
+    // own keys in schema order and the unknown ones last
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'newuser',
+        password: 'password',
+        extra: 1,
+        isAdmin: 'yes'
+      })
+    ).toEqual({ status: 400, message: '"isAdmin" must be a boolean' })
+
+    // and the flags come before `autoExec`, where the schema declares them
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'newuser',
+        password: 'password',
+        isAdmin: 'yes',
+        autoExec: 5
+      })
+    ).toEqual({ status: 400, message: '"isAdmin" must be a boolean' })
+    expect(
+      await refusedBody('POST /SASjsApi/user', {
+        displayName: 'New User',
+        username: 'newuser',
+        password: 'password',
+        isActive: 'sometimes',
+        autoExec: 5
+      })
+    ).toEqual({ status: 400, message: '"isActive" must be a boolean' })
+
+    expect(await refusedBody('POST /SASjsApi/group', { name: 'ab' })).toEqual({
+      status: 400,
+      message: '"name" length must be at least 3 characters long'
+    })
+    expect(await refusedBody('POST /SASjsApi/group', { name: 'a-b' })).toEqual({
+      status: 400,
+      message: '"name" must only contain alpha-numeric characters'
+    })
+    expect(
+      await refusedBody('POST /SASjsApi/group', {
+        name: 'abc',
+        description: ''
+      })
+    ).toEqual({
+      status: 400,
+      message: '"description" is not allowed to be empty'
+    })
+    expect(
+      await refusedBody('POST /SASjsApi/group', {
+        name: 'abc',
+        extra: 1,
+        isActive: 'yes'
+      })
+    ).toEqual({ status: 400, message: '"isActive" must be a boolean' })
   })
 
   it('answers 501 where the route needs a service the host does not have', async () => {

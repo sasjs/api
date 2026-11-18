@@ -590,6 +590,41 @@ describe('the record service, where the store disagrees', () => {
     ).toEqual({ status: 400, message: 'Unable to update group.' })
   })
 
+  it('keeps an empty description as sent, rather than defaulting it', async () => {
+    // the route refuses an empty description before it reaches here, so the
+    // difference between `??` and `||` is only observable through the service: the
+    // model's default applies to an absent field, not to an empty string
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    const records = createRecordService(store)
+
+    expect(
+      (
+        await records.createGroup(caller, {
+          name: 'EmptyDescription',
+          description: ''
+        })
+      ).description
+    ).toBe('')
+  })
+
+  it('refuses a non-admin acting on another account, at the service', async () => {
+    // the routes gate this before the service is reached, so the service's own
+    // refusal is exercised here rather than through a request
+    const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
+    const records = createRecordService(store)
+    const restricted = { userId: 'user-restricted', clientId: 'web_app' }
+
+    expect(
+      await failure(() =>
+        records.updateUser(
+          restricted,
+          { uid: 'user-admin' },
+          { displayName: 'Renamed User' }
+        )
+      )
+    ).toEqual({ status: 401, message: 'Admin account required' })
+  })
+
   it('answers 404 when the store loses a user between the read and the write', async () => {
     const store = new MemoryIdentityStore({ ...ADMIN_SIGNED_IN })
     jest.spyOn(store, 'updateUser').mockResolvedValue(undefined)

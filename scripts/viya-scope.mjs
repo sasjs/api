@@ -46,7 +46,7 @@ const CLIENTS = [
     name: 'adapter',
     dir: join(tools, 'adapter'),
     out: join(root, 'spec/viya/adapter-paths.json'),
-    read: (dir) => ({ kept: extract(dir), dropped: 0 })
+    read: (dir) => ({ kept: extract(dir), dropped: [] })
   },
   {
     name: 'cli',
@@ -75,10 +75,10 @@ const versionOf = ({ name, dir }) => {
 /**
  * Why two inventories disagree, computed rather than assumed.
  *
- * The first version said "the same literals now live elsewhere" whenever no
- * path had been added or removed - including when the only difference was a new
- * client version, where that sentence names a cause nobody checked. A guard's
- * message is read by whoever has to fix it, so it states what it found.
+ * A guard's message is read by whoever has to fix it, so it states what it found:
+ * the version each side was measured from, and the paths added, removed or moved
+ * to another file. Naming a cause nobody checked - "the literals live elsewhere"
+ * for a version bump - is the failure this shape avoids.
  */
 const differences = (before, after) => {
   const added = Object.keys(after).filter((path) => !(path in before))
@@ -194,9 +194,8 @@ for (const client of CLIENTS) {
     )
 
   // Each field is compared above, so a difference none of them named means this
-  // check has a gap. That is a failure, not a match: the previous version reported
-  // "the extracts differ in a way this check cannot name" here, and dropping it
-  // would have turned a blind spot into a green run.
+  // check has a gap - a failure, not a match. Without it, a blind spot would be
+  // reported as a clean run.
   if (!causes.length && raw !== rendered)
     causes.push(
       'the committed inventory differs in a way this check cannot name'

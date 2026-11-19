@@ -8,15 +8,14 @@
  * tomorrow.
  *
  * The seed is therefore the identity of the estate, and the identity of an estate
- * is the address clients already use to reach it. A target that points at
- * `http://localhost:5000` and a target that points at `http://127.0.0.1:5000` are
- * the same estate spelled two ways, so the address is normalised before it is
- * hashed - and `seed` exists for the two cases where the address is the wrong
- * identity: the estate reached by a different hostname (a container name, a LAN
- * address), and the port that moves between runs (CI picks an ephemeral one).
+ * is the address clients already use to reach it, normalised so that one estate
+ * spelled two ways is one string. There is no override: an address that differs is
+ * a different estate with different data, by design. Anything that reads this
+ * data - a fixture, a screenshot, a test - has to work whatever the address is,
+ * because the address is all the identity there is.
  *
- * Absent both, every emulated estate shares one seed. That is the only honest
- * default: an emulator with no address has not told us which estate it is.
+ * An emulator with no address has not said which estate it is, so every such
+ * estate shares one seed. That is the only honest default.
  */
 
 /** The seed every emulated estate falls back to. */
@@ -60,10 +59,8 @@ export interface ViyaRun {
 }
 
 export interface ViyaSeedSettings {
-  /** The address this estate answers at. */
+  /** The address this estate answers at, which is what seeds it. */
   serverUrl?: string
-  /** Pins the generated data when the address is not the identity. */
-  seed?: string | number
   /** Runs a submitted program, when the host has an engine. */
   execute?: ViyaExecutor['execute']
 }
@@ -140,14 +137,10 @@ export const hash = (input: string): number => {
 /**
  * The number that makes this estate's generated data reproducible.
  *
- * `seed` wins over the address when both are present: it is the override a host
- * reaches for when the address disagrees with the estate, not a second opinion
- * the address gets to overrule.
+ * The address is the only input: the same estate answers the same way every time,
+ * and a different address is a different estate.
  */
 export const seedOf = (settings: ViyaSeedSettings = {}): number => {
-  if (settings.seed !== undefined && settings.seed !== '')
-    return hash(`seed:${settings.seed}`)
-
   const address = normaliseServerUrl(settings.serverUrl)
 
   return hash(`url:${address || DEFAULT_SEED}`)

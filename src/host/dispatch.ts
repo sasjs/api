@@ -201,10 +201,10 @@ export interface Services {
   /**
    * The emulated Viya estate this host mounts, when it mounts one.
    *
-   * Absent, the emulated answers fall back to one shared seed. The address is what
-   * identifies an estate, so `serverUrl` is the seed unless `seed` overrides it -
-   * which a host does when the port moves between runs or the estate answers on a
-   * second hostname.
+   * Absent, the emulated answers fall back to one shared seed. The normalised
+   * `serverUrl` is the whole identity: one address is one estate, a different
+   * address - a moved port, a second hostname - is a different estate with its own
+   * data, and there is no setting that makes two addresses one.
    */
   viya?: ViyaSeedSettings
   /**

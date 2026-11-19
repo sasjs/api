@@ -6,6 +6,9 @@ import {
   filePass,
   folderNameFor,
   folderPass,
+  jobFolderNameFor,
+  jobPass,
+  refusalPass,
   removeFolder
 } from './pass.mjs'
 
@@ -37,6 +40,9 @@ const fakeClient = (overrides = {}) => {
       createFile: record('createFile'),
       getFileContent: record('getFileContent'),
       updateFileContent: record('updateFileContent'),
+      getFolder: record('getFolder'),
+      createJobDefinition: record('createJobDefinition'),
+      executeJob: record('executeJob'),
       executeScript: record('executeScript')
     }
   }
@@ -346,4 +352,169 @@ test('a rotated token is the one that closes the session', async () => {
   })
 
   assert.deepEqual(deleted, ['the-rotated-token'])
+})
+
+test("the two refusals are asked for by name, with a token that is not the run's", async () => {
+  const { client, calls } = fakeClient({
+    getFolder: async () => {
+      throw new Error('404')
+    }
+  })
+  const { steps, runStep } = recorder()
+
+  await refusalPass({
+    client,
+    token: 'the-token',
+    appLoc: '/Public/app',
+    runStep
+  })
+
+  assert.deepEqual(steps, ['folders/missing', 'folders/unauthorized'])
+  assert.deepEqual(calls[0].args, ['/Public/app/capture-missing', 'the-token'])
+  assert.deepEqual(
+    calls[1].args,
+    ['/Public/app', 'refused-on-purpose'],
+    "the refused call must not carry the run's token - a mangled copy is still a credential in the file"
+  )
+})
+
+test('the job family deploys, executes and removes, in that order', async () => {
+  const { client, calls } = fakeClient({
+    executeJob: async () => ({ log: 'VIYA_CAPTURE=job' })
+  })
+  const { cleanups, steps, runStep, runCleanup } = recorder()
+  const deleted = []
+
+  await jobPass({
+    deployClient: client,
+    runnerClient: client,
+    requestClient: {
+      delete: async (uri) => {
+        deleted.push(uri)
+
+        return {}
+      }
+    },
+    authConfig: { access_token: 'the-token', refresh_token: 'the-refresh' },
+    appLoc: '/Public/app',
+    folderName: jobFolderNameFor(1234),
+    contextName: 'Compute Reusable',
+    runStep,
+    runCleanup
+  })
+
+  assert.deepEqual(steps, [
+    'jobs/folder-create',
+    'jobs/definition',
+    'jobs/execute',
+    'jobs/folders/delete'
+  ])
+  assert.deepEqual(
+    calls[0].args,
+    [jobFolderNameFor(1234), '/Public/app', undefined, 'the-token'],
+    'createFolder takes (name, parentPath, parentUri, token)'
+  )
+  assert.deepEqual(
+    calls[1].args.slice(0, 2),
+    ['capture', calls[1].args[1]],
+    'createJobDefinition takes the job name first'
+  )
+  assert.equal(
+    calls[1].args[2],
+    `/Public/app/${jobFolderNameFor(1234)}`,
+    'createJobDefinition takes the parent folder path third'
+  )
+  assert.equal(
+    calls[1].args[3],
+    undefined,
+    'the folder URI is looked up from the path'
+  )
+  assert.equal(calls[1].args[4], 'the-token')
+  assert.deepEqual(
+    calls[2].args.slice(0, 4),
+    [
+      `/Public/app/${jobFolderNameFor(1234)}/capture`,
+      'Compute Reusable',
+      true,
+      null
+    ],
+    'executeJob takes (sasJob, contextName, debug, data, authConfig, onTokensRefreshed)'
+  )
+  assert.equal(calls[2].args[4].access_token, 'the-token')
+  assert.deepEqual(cleanups, ['jobs/definition-cleanup'])
+  assert.deepEqual(deleted, [
+    '/jobDefinitions/definitions/createJobDefinition-id'
+  ])
+})
+
+test('a refused folder create ends the job pass before anything is deployed', async () => {
+  const { client, calls } = fakeClient({
+    createFolder: async () => {
+      throw new Error('403')
+    }
+  })
+  const { cleanups, steps, runStep, runCleanup } = recorder()
+
+  const result = await jobPass({
+    deployClient: client,
+    runnerClient: client,
+    requestClient: { delete: async () => ({}) },
+    authConfig: { access_token: 'the-token' },
+    appLoc: '/Public/app',
+    folderName: jobFolderNameFor(1234),
+    contextName: 'Compute Reusable',
+    runStep,
+    runCleanup
+  })
+
+  assert.equal(result.created, false)
+  assert.deepEqual(steps, ['jobs/folder-create'])
+  assert.deepEqual(cleanups, [])
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    ['createFolder']
+  )
+})
+
+test('a rotated token from the job execution is the one the cleanup uses', async () => {
+  const { client } = fakeClient({
+    executeJob: async (...args) => {
+      const onTokensRefreshed = args[args.length - 1]
+      onTokensRefreshed({
+        access_token: 'the-rotated-token',
+        refresh_token: 'r2'
+      })
+
+      return { log: 'VIYA_CAPTURE=job' }
+    }
+  })
+  const { runStep, runCleanup } = recorder()
+  const seen = { deleted: [], folders: [], shared: [] }
+
+  await jobPass({
+    deployClient: client,
+    runnerClient: client,
+    requestClient: {
+      delete: async (uri, token) => {
+        seen.deleted.push(token)
+
+        return {}
+      }
+    },
+    authConfig: { access_token: 'the-token', refresh_token: 'r' },
+    appLoc: '/Public/app',
+    folderName: jobFolderNameFor(1234),
+    contextName: 'Compute Reusable',
+    onTokensRefreshed: (refreshed) => seen.shared.push(refreshed.access_token),
+    runStep: async (name, action) => {
+      const result = await action()
+      seen.folders.push(name)
+
+      return result
+    },
+    runCleanup
+  })
+
+  assert.deepEqual(seen.shared, ['the-rotated-token'])
+  assert.deepEqual(seen.deleted, ['the-rotated-token'])
 })

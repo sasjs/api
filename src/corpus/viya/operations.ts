@@ -223,6 +223,28 @@ export const VIYA_CORPUS: ViyaCase[] = [
     shape: undefined
   },
   {
+    route: 'GET /compute/sessions/{}/variables/SYSJOBID',
+    step: 'compute/execute-script',
+    queries: [],
+    statuses: [200],
+    expected: 200,
+    shape: {
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      scope: 'string',
+      value: 'string',
+      version: 'number'
+    }
+  },
+  {
     route: 'POST /files/files',
     step: 'files/create',
     queries: ['parentFolderUri', 'typeDefName'],
@@ -631,6 +653,264 @@ export const VIYA_CORPUS: ViyaCase[] = [
     }
   },
   {
+    route: 'POST /jobDefinitions/definitions',
+    step: 'jobs/definition',
+    queries: ['parentFolderUri'],
+    statuses: [201],
+    expected: 201,
+    shape: {
+      code: 'string',
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      id: 'string',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      name: 'string',
+      parameters: [
+        {
+          defaultValue: 'string',
+          name: 'string',
+          required: 'boolean',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      type: 'string',
+      version: 'number'
+    }
+  },
+  {
+    route: 'GET /jobDefinitions/definitions/{}',
+    step: 'jobs/execute',
+    queries: [],
+    statuses: [200],
+    expected: 200,
+    shape: {
+      code: 'string',
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      id: 'string',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      name: 'string',
+      parameters: [
+        {
+          defaultValue: 'string',
+          name: 'string',
+          required: 'boolean',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      type: 'string',
+      version: 'number'
+    }
+  },
+  {
+    route: 'POST /jobExecution/jobs',
+    step: 'jobs/execute',
+    queries: ['_action'],
+    statuses: [201],
+    expected: 201,
+    shape: {
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      elapsedTime: 'number',
+      heartbeatInterval: 'number',
+      heartbeatTimeStamp: 'string',
+      id: 'string',
+      jobRequest: {
+        arguments: {
+          _DEBUG: 'string',
+          _OMITJSONLISTING: 'string',
+          _OMITJSONLOG: 'string',
+          _OMITTEXTLISTING: 'string',
+          _OMITTEXTLOG: 'string',
+          _addjesbeginendmacros: 'string',
+          _contextName: 'string',
+          _omitSessionResults: 'string',
+          _program: 'string',
+          _webin_file_count: 'string'
+        },
+        createdByApplication: 'string',
+        description: 'string',
+        jobDefinition: {
+          code: 'string',
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          id: 'string',
+          links: ['object'],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          parameters: ['object'],
+          type: 'string',
+          version: 'number'
+        },
+        name: 'string',
+        properties: 'array',
+        version: 'number'
+      },
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      results: {},
+      state: 'string',
+      submittedByApplication: 'string',
+      version: 'number'
+    }
+  },
+  {
+    route: 'GET /jobExecution/jobs/{}',
+    step: 'jobs/execute',
+    queries: [],
+    statuses: [200],
+    expected: 200,
+    shape: {
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      elapsedTime: 'number',
+      endTimeStamp: 'string',
+      heartbeatInterval: 'number',
+      heartbeatTimeStamp: 'string',
+      id: 'string',
+      jobRequest: {
+        arguments: {
+          _DEBUG: 'string',
+          _OMITJSONLISTING: 'string',
+          _OMITJSONLOG: 'string',
+          _OMITTEXTLISTING: 'string',
+          _OMITTEXTLOG: 'string',
+          _addjesbeginendmacros: 'string',
+          _contextName: 'string',
+          _omitSessionResults: 'string',
+          _program: 'string',
+          _webin_file_count: 'string'
+        },
+        createdByApplication: 'string',
+        description: 'string',
+        jobDefinition: {
+          code: 'string',
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          id: 'string',
+          links: ['object'],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          parameters: ['object'],
+          type: 'string',
+          version: 'number'
+        },
+        name: 'string',
+        properties: 'array',
+        version: 'number'
+      },
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      logLocation: 'string',
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      results: {
+        COMPUTE_CONTEXT: 'string',
+        COMPUTE_JOB: 'string',
+        COMPUTE_SESSION: 'string',
+        '{}.log': 'string',
+        '{}.log.txt': 'string'
+      },
+      state: 'string',
+      submittedByApplication: 'string',
+      version: 'number'
+    }
+  },
+  {
+    route: 'GET /jobExecution/jobs/{}/state',
+    step: 'jobs/execute',
+    queries: ['_action', 'wait'],
+    statuses: [200],
+    expected: 200,
+    shape: undefined
+  },
+  {
+    route: 'GET /launcher/contexts',
+    step: 'compute/launcher-contexts',
+    queries: ['limit'],
+    statuses: [200],
+    expected: 200,
+    shape: {
+      accept: 'string',
+      count: 'number',
+      items: [
+        {
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          description: 'string',
+          id: 'string',
+          links: [
+            {
+              href: 'string',
+              method: 'string',
+              rel: 'string',
+              type: 'string',
+              uri: 'string'
+            }
+          ],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      limit: 'number',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      start: 'number',
+      version: 'number'
+    }
+  },
+  {
     route: 'POST /SASLogon/oauth/token',
     step: 'auth/token-refresh',
     queries: [],
@@ -655,6 +935,44 @@ export const VIYA_CORPUS: ViyaCase[] = [
     queries: ['limit'],
     statuses: [200],
     expected: 200,
-    shape: undefined
+    shape: {
+      accept: 'string',
+      count: 'number',
+      items: [
+        {
+          description: 'string',
+          iconUri: 'string',
+          label: 'string',
+          links: [
+            {
+              href: 'string',
+              method: 'string',
+              rel: 'string',
+              type: 'string',
+              uri: 'string'
+            }
+          ],
+          mediaType: 'string',
+          name: 'string',
+          resourceUri: 'string',
+          tags: ['string'],
+          version: 'number'
+        }
+      ],
+      limit: 'number',
+      links: [
+        {
+          href: 'string',
+          itemType: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      start: 'number',
+      version: 'number'
+    }
   }
 ]

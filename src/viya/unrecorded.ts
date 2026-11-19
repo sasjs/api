@@ -59,34 +59,5 @@ export const UNRECORDED: UnrecordedOperation[] = [
     path: '/SASLogon/oauth/authorize',
     reason:
       'no capture: the authorisation-code step needs a browser; the pass uses the password grant'
-  },
-
-  // Compute operations the scripted passes do not reach.
-  {
-    path: '/compute/sessions/{}/variables/{}',
-    reason:
-      "no capture: the adapter reads a session variable only to report a submitted job's pid (`printPid`), which the pass does not set"
-  },
-  {
-    path: '/launcher/contexts',
-    reason:
-      'no capture: the fallback list, asked for only when the compute context list fails; a healthy estate never reaches it'
-  },
-
-  // The job path needs something deployed to run.
-  {
-    path: '/jobDefinitions/definitions',
-    reason:
-      'no capture: needs a job definition on the estate. The next pass deploys a service pack under its own app folder and reads the definition back'
-  },
-  {
-    path: '/jobExecution/jobs',
-    reason:
-      'no capture: needs a deployed service to submit. The next pass deploys a service pack under its own app folder'
-  },
-  {
-    path: '/jobExecution/jobs/{}',
-    reason:
-      'no capture: follows a submission, so it arrives with the same pass as POST /jobExecution/jobs'
   }
 ]

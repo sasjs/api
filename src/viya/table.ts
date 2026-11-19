@@ -287,6 +287,33 @@ export const VIYA_TABLE: ViyaOperation[] = [
     shape: undefined
   },
   {
+    id: 'GET /compute/sessions/{}/variables/SYSJOBID',
+    method: 'GET',
+    path: '/compute/sessions/{}/variables/SYSJOBID',
+    steps: ['compute/execute-script'],
+    statuses: [200],
+    queries: [],
+    request: {
+      queries: [],
+      body: undefined
+    },
+    shape: {
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      scope: 'string',
+      value: 'string',
+      version: 'number'
+    }
+  },
+  {
     id: 'POST /files/files',
     method: 'POST',
     path: '/files/files',
@@ -439,7 +466,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'GET /files/files/{}/content',
     method: 'GET',
     path: '/files/files/{}/content',
-    steps: ['files/content'],
+    steps: ['files/content', 'jobs/execute'],
     statuses: [200],
     queries: [],
     request: {
@@ -500,7 +527,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'POST /folders/folders',
     method: 'POST',
     path: '/folders/folders',
-    steps: ['folders/create'],
+    steps: ['folders/create', 'jobs/folder-create'],
     statuses: [201],
     queries: ['parentFolderUri'],
     request: {
@@ -536,7 +563,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'GET /folders/folders/{}',
     method: 'GET',
     path: '/folders/folders/{}',
-    steps: ['folders/delete'],
+    steps: ['folders/delete', 'jobs/folders/delete'],
     statuses: [200],
     queries: [],
     request: {
@@ -573,7 +600,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'PATCH /folders/folders/{}',
     method: 'PATCH',
     path: '/folders/folders/{}',
-    steps: ['folders/delete'],
+    steps: ['folders/delete', 'jobs/folders/delete'],
     statuses: [200],
     queries: [],
     request: {
@@ -613,8 +640,8 @@ export const VIYA_TABLE: ViyaOperation[] = [
     steps: [
       'files/content',
       'files/replace',
-      'folders/create',
-      'folders/members'
+      'folders/members',
+      'jobs/execute'
     ],
     statuses: [200],
     queries: ['limit'],
@@ -677,7 +704,13 @@ export const VIYA_TABLE: ViyaOperation[] = [
       'folders/create',
       'folders/delete',
       'folders/item',
-      'folders/members'
+      'folders/members',
+      'folders/missing',
+      'folders/unauthorized',
+      'jobs/definition',
+      'jobs/execute',
+      'jobs/folder-create',
+      'jobs/folders/delete'
     ],
     statuses: [200, 401, 404],
     queries: ['path'],
@@ -712,7 +745,7 @@ export const VIYA_TABLE: ViyaOperation[] = [
     id: 'GET /folders/folders/@myRecycleBin',
     method: 'GET',
     path: '/folders/folders/@myRecycleBin',
-    steps: ['folders/delete'],
+    steps: ['folders/delete', 'jobs/folders/delete'],
     statuses: [200],
     queries: [],
     request: {
@@ -786,6 +819,348 @@ export const VIYA_TABLE: ViyaOperation[] = [
     }
   },
   {
+    id: 'POST /jobDefinitions/definitions',
+    method: 'POST',
+    path: '/jobDefinitions/definitions',
+    steps: ['jobs/definition'],
+    statuses: [201],
+    queries: ['parentFolderUri'],
+    request: {
+      queries: ['parentFolderUri'],
+      body: {
+        code: 'string',
+        name: 'string',
+        parameters: [
+          {
+            defaultValue: 'string',
+            name: 'string',
+            type: 'string'
+          }
+        ],
+        type: 'string'
+      }
+    },
+    shape: {
+      code: 'string',
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      id: 'string',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      name: 'string',
+      parameters: [
+        {
+          defaultValue: 'string',
+          name: 'string',
+          required: 'boolean',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      type: 'string',
+      version: 'number'
+    }
+  },
+  {
+    id: 'GET /jobDefinitions/definitions/{}',
+    method: 'GET',
+    path: '/jobDefinitions/definitions/{}',
+    steps: ['jobs/execute'],
+    statuses: [200],
+    queries: [],
+    request: {
+      queries: [],
+      body: undefined
+    },
+    shape: {
+      code: 'string',
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      id: 'string',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      name: 'string',
+      parameters: [
+        {
+          defaultValue: 'string',
+          name: 'string',
+          required: 'boolean',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      type: 'string',
+      version: 'number'
+    }
+  },
+  {
+    id: 'POST /jobExecution/jobs',
+    method: 'POST',
+    path: '/jobExecution/jobs',
+    steps: ['jobs/execute'],
+    statuses: [201],
+    queries: ['_action'],
+    request: {
+      queries: ['_action'],
+      body: {
+        arguments: {
+          _DEBUG: 'string',
+          _OMITJSONLISTING: 'string',
+          _OMITJSONLOG: 'string',
+          _OMITTEXTLISTING: 'string',
+          _OMITTEXTLOG: 'string',
+          _contextName: 'string',
+          _omitSessionResults: 'string',
+          _program: 'string',
+          _webin_file_count: 'string'
+        },
+        description: 'string',
+        jobDefinition: {
+          code: 'string',
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          id: 'string',
+          links: [
+            {
+              href: 'string',
+              method: 'string',
+              rel: 'string',
+              type: 'string',
+              uri: 'string'
+            }
+          ],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          parameters: [
+            {
+              defaultValue: 'string',
+              name: 'string',
+              required: 'boolean',
+              type: 'string',
+              version: 'number'
+            }
+          ],
+          type: 'string',
+          version: 'number'
+        },
+        name: 'string'
+      }
+    },
+    shape: {
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      elapsedTime: 'number',
+      heartbeatInterval: 'number',
+      heartbeatTimeStamp: 'string',
+      id: 'string',
+      jobRequest: {
+        arguments: {
+          _DEBUG: 'string',
+          _OMITJSONLISTING: 'string',
+          _OMITJSONLOG: 'string',
+          _OMITTEXTLISTING: 'string',
+          _OMITTEXTLOG: 'string',
+          _addjesbeginendmacros: 'string',
+          _contextName: 'string',
+          _omitSessionResults: 'string',
+          _program: 'string',
+          _webin_file_count: 'string'
+        },
+        createdByApplication: 'string',
+        description: 'string',
+        jobDefinition: {
+          code: 'string',
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          id: 'string',
+          links: ['object'],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          parameters: ['object'],
+          type: 'string',
+          version: 'number'
+        },
+        name: 'string',
+        properties: 'array',
+        version: 'number'
+      },
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      results: {},
+      state: 'string',
+      submittedByApplication: 'string',
+      version: 'number'
+    }
+  },
+  {
+    id: 'GET /jobExecution/jobs/{}',
+    method: 'GET',
+    path: '/jobExecution/jobs/{}',
+    steps: ['jobs/execute'],
+    statuses: [200],
+    queries: [],
+    request: {
+      queries: [],
+      body: undefined
+    },
+    shape: {
+      createdBy: 'string',
+      creationTimeStamp: 'string',
+      elapsedTime: 'number',
+      endTimeStamp: 'string',
+      heartbeatInterval: 'number',
+      heartbeatTimeStamp: 'string',
+      id: 'string',
+      jobRequest: {
+        arguments: {
+          _DEBUG: 'string',
+          _OMITJSONLISTING: 'string',
+          _OMITJSONLOG: 'string',
+          _OMITTEXTLISTING: 'string',
+          _OMITTEXTLOG: 'string',
+          _addjesbeginendmacros: 'string',
+          _contextName: 'string',
+          _omitSessionResults: 'string',
+          _program: 'string',
+          _webin_file_count: 'string'
+        },
+        createdByApplication: 'string',
+        description: 'string',
+        jobDefinition: {
+          code: 'string',
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          id: 'string',
+          links: ['object'],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          parameters: ['object'],
+          type: 'string',
+          version: 'number'
+        },
+        name: 'string',
+        properties: 'array',
+        version: 'number'
+      },
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      logLocation: 'string',
+      modifiedBy: 'string',
+      modifiedTimeStamp: 'string',
+      results: {
+        COMPUTE_CONTEXT: 'string',
+        COMPUTE_JOB: 'string',
+        COMPUTE_SESSION: 'string',
+        '{}.log': 'string',
+        '{}.log.txt': 'string'
+      },
+      state: 'string',
+      submittedByApplication: 'string',
+      version: 'number'
+    }
+  },
+  {
+    id: 'GET /jobExecution/jobs/{}/state',
+    method: 'GET',
+    path: '/jobExecution/jobs/{}/state',
+    steps: ['jobs/execute'],
+    statuses: [200],
+    queries: ['_action', 'wait'],
+    request: {
+      queries: ['_action', 'wait'],
+      body: undefined
+    },
+    shape: undefined
+  },
+  {
+    id: 'GET /launcher/contexts',
+    method: 'GET',
+    path: '/launcher/contexts',
+    steps: ['compute/launcher-contexts'],
+    statuses: [200],
+    queries: ['limit'],
+    request: {
+      queries: ['limit'],
+      body: undefined
+    },
+    shape: {
+      accept: 'string',
+      count: 'number',
+      items: [
+        {
+          createdBy: 'string',
+          creationTimeStamp: 'string',
+          description: 'string',
+          id: 'string',
+          links: [
+            {
+              href: 'string',
+              method: 'string',
+              rel: 'string',
+              type: 'string',
+              uri: 'string'
+            }
+          ],
+          modifiedBy: 'string',
+          modifiedTimeStamp: 'string',
+          name: 'string',
+          type: 'string',
+          version: 'number'
+        }
+      ],
+      limit: 'number',
+      links: [
+        {
+          href: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      start: 'number',
+      version: 'number'
+    }
+  },
+  {
     id: 'POST /SASLogon/oauth/token',
     method: 'POST',
     path: '/SASLogon/oauth/token',
@@ -822,6 +1197,44 @@ export const VIYA_TABLE: ViyaOperation[] = [
       queries: ['limit'],
       body: undefined
     },
-    shape: undefined
+    shape: {
+      accept: 'string',
+      count: 'number',
+      items: [
+        {
+          description: 'string',
+          iconUri: 'string',
+          label: 'string',
+          links: [
+            {
+              href: 'string',
+              method: 'string',
+              rel: 'string',
+              type: 'string',
+              uri: 'string'
+            }
+          ],
+          mediaType: 'string',
+          name: 'string',
+          resourceUri: 'string',
+          tags: ['string'],
+          version: 'number'
+        }
+      ],
+      limit: 'number',
+      links: [
+        {
+          href: 'string',
+          itemType: 'string',
+          method: 'string',
+          rel: 'string',
+          type: 'string',
+          uri: 'string'
+        }
+      ],
+      name: 'string',
+      start: 'number',
+      version: 'number'
+    }
   }
 ]

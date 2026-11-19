@@ -398,3 +398,29 @@ test('a part name inside a part’s contents is not a part', () => {
   })
   assert.equal(JSON.stringify(operation).includes('memory'), false)
 })
+
+test('a key that carries an estate identifier becomes a placeholder', () => {
+  // a submitted job answers with a `results` object keyed by the file names it
+  // produced, and those carry the job's own UUID: a key is as much a value as a
+  // field value is, and the table may not keep it
+  const shape = shapeOf({
+    results: {
+      COMPUTE_JOB: '/jobExecution/jobs/1',
+      'DA055A71-A946-A843-BCB7-7D39231C1123.log': '/files/files/x/content',
+      'DA055A71-A946-A843-BCB7-7D39231C1123.log.txt': '/files/files/y/content',
+      '_webout.json': '/files/files/z/content'
+    }
+  })
+
+  assert.deepEqual(Object.keys(shape.results), [
+    'COMPUTE_JOB',
+    '_webout.json',
+    '{}.log',
+    '{}.log.txt'
+  ])
+  assert.equal(
+    JSON.stringify(shape).includes('DA055A71'),
+    false,
+    'the identifier from the estate is gone'
+  )
+})

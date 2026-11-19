@@ -209,12 +209,16 @@ export const findLeaks = (text, { host = '', secrets = [] } = {}) => {
  * fails, and the fallback only substitutes literals this run knows - so a
  * `password` field past the cap travels verbatim. A cap applied to redacted text
  * cannot do that, and the caller is told the body was cut.
+ *
+ * The cap is generous because a cut JSON cannot be parsed, and an unparsed body
+ * yields no shape for the emulator to reproduce: the launcher context list alone
+ * is tens of kilobytes on a real estate, and it is a list a client reads.
  */
 export const redactAndCap = (
   text,
   contentType = '',
   scrub = (value) => value,
-  limit = 24000
+  limit = 131072
 ) => {
   const body = redactBody(text, contentType, scrub)
 

@@ -45,6 +45,17 @@ export interface SurfaceEntry {
   decision: 'in' | 'declined'
   /** What the emulator answers, or why it does not answer this at all. */
   reason: string
+  /**
+   * Where the claim that the client calls this came from.
+   *
+   * Absent means a literal in the adapter, which is what the inventory
+   * extracts and what `npm run check:scope` re-extracts. `capture` means a
+   * route the recorder watched the adapter call but no literal states, because
+   * the adapter got the URL as data - a link inside a response - so no
+   * extraction over source text can see it. A capture-sourced entry must be
+   * absent from the inventory, and the spec holds both directions.
+   */
+  source?: 'capture'
 }
 
 /** Pinned to the adapter the inventory was extracted from. */
@@ -343,6 +354,14 @@ export const SURFACE: SurfaceEntry[] = [
     family: 'viya-jobs',
     decision: 'in',
     reason: 'the job path a deployed service runs through'
+  },
+  {
+    path: '/jobDefinitions/definitions/{}',
+    family: 'viya-jobs',
+    decision: 'in',
+    source: 'capture',
+    reason:
+      'the definition itself, which the client reads through the link a folder listing handed it - the URL arrives as data, so no literal in the adapter states it'
   },
   {
     path: '/jobExecution/jobs',

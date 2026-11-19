@@ -65,6 +65,17 @@ const typeOf = (value) => {
 }
 
 /**
+ * A key that carries an identifier is a placeholder, the way a path segment is.
+ *
+ * A job's `results` object is keyed by the file names the estate produced, and
+ * those carry the job's own UUID; leaving the key alone would put an estate's
+ * identifier into the table while every other value was replaced by its type.
+ */
+const ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+const keyOf = (key) => (ID.test(key) ? key.replace(ID, '{}') : key)
+
+/**
  * A body as a type sketch: keys with types, arrays as their first element's
  * shape, and values never.
  *
@@ -92,8 +103,10 @@ export const shapeOf = (value, depth = 0) => {
 
   return Object.fromEntries(
     Object.keys(value)
-      .sort()
-      .map((key) => [key, shapeOf(value[key], depth + 1)])
+      // normalise, then sort: sorting the raw keys leaves `{}.log` where the
+      // identifier used to be and the output is no longer in key order
+      .map((key) => [keyOf(key), shapeOf(value[key], depth + 1)])
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
   )
 }
 

@@ -8,13 +8,18 @@
  *
  * A file id is derived from its path, like a folder id: a client stores the id an
  * upload answered and asks for it later, so the id cannot move between runs.
+ *
+ * `createdBy`, `modifiedBy` and `properties.typeRegistrant` name the asking
+ * caller, not the account that uploaded the bytes - the drive stores contents,
+ * not authorship. See `service.ts` for why that is the honest answer here.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
 import { requireDrive } from './ports.js'
 import type { TreeNode } from '../types.js'
-import { EMULATED_NOW, EMULATED_USER, idFor } from './ids.js'
+import { EMULATED_NOW, idFor, callerId } from './ids.js'
 
 /** What an upload answers about itself, whichever operation asked. */
 export interface EmulatedFile {
@@ -41,7 +46,7 @@ const contentTypeOf = (name: string): string => {
  * client reads rather than placeholders: the three `content.*` flags say what can
  * be done with the file, and `typeRegistrant` says who registered the type.
  */
-const fileBody = (file: EmulatedFile) => {
+const fileBody = (file: EmulatedFile, caller: string) => {
   const id = idFor(file.path, 'file')
   const uri = `/files/files/${id}`
   const contentType = contentTypeOf(file.name)
@@ -57,8 +62,8 @@ const fileBody = (file: EmulatedFile) => {
     fileVersion: 1,
     version: 2,
     typeDefName: 'file',
-    createdBy: EMULATED_USER.id,
-    modifiedBy: EMULATED_USER.id,
+    createdBy: caller,
+    modifiedBy: caller,
     creationTimeStamp: EMULATED_NOW,
     modifiedTimeStamp: EMULATED_NOW,
     quarantine: false,
@@ -70,7 +75,7 @@ const fileBody = (file: EmulatedFile) => {
       'content.openInBrowser': 'true',
       'content.preview': 'false',
       sasIconKey: 'file',
-      typeRegistrant: EMULATED_USER.id
+      typeRegistrant: caller
     },
     links: [
       {
@@ -203,7 +208,7 @@ export const FILE_HANDLERS: Record<
       contents?: string | Uint8Array
       file?: { name: string; contents: string | Uint8Array }
       token?: string
-      subject?: unknown
+      subject?: Subject
     }
     params: Record<string, string>
   }) => Promise<ApiResponse>
@@ -220,14 +225,20 @@ export const FILE_HANDLERS: Record<
 
     await drive.save(path, upload.contents)
 
-    return { status: 201, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 201,
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
+    }
   },
 
-  'GET /files/files/{}': async ({ services, params }) => {
+  'GET /files/files/{}': async ({ services, params, request }) => {
     const drive = requireDrive(services)
     const path = await pathForFileId(drive, params.id)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
+    }
   },
 
   'PATCH /files/files/{}': async ({ services, params, request }) => {
@@ -243,7 +254,10 @@ export const FILE_HANDLERS: Record<
 
     if (target !== path) await drive.rename(path, target)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, target)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, target), callerId(request.subject))
+    }
   },
 
   'GET /files/files/{}/content': async ({ services, params }) => {
@@ -285,6 +299,9 @@ export const FILE_HANDLERS: Record<
 
     await drive.update(path, contents)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
+    }
   }
 }

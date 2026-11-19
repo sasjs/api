@@ -13,11 +13,12 @@
  * name, so a session can be created for the id the list returned.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { normaliseServerUrl } from './seed.js'
 import { seedOf } from './seed.js'
 import { estateFor, type EmulatedJob } from './sessions.js'
-import { EMULATED_USER, idFor } from './ids.js'
+import { idFor, callerId } from './ids.js'
 
 /**
  * The name the emulator answers when a client asks for no particular context.
@@ -95,10 +96,10 @@ export const contextNameFrom = (filter: string | undefined): string => {
   return match?.[1] ?? match?.[2] ?? DEFAULT_CONTEXT_NAME
 }
 
-const contextBody = (name: string) => ({
+const contextBody = (name: string, caller: string) => ({
   id: EMULATED_CONTEXT_ID,
   name,
-  createdBy: EMULATED_USER.id,
+  createdBy: caller,
   version: 2,
   links: linksFor(
     `/compute/contexts/${EMULATED_CONTEXT_ID}`,
@@ -109,7 +110,8 @@ const contextBody = (name: string) => ({
 const sessionBody = (
   services: Services,
   session: { id: string; createdAt: string },
-  autoExecLines: string[]
+  autoExecLines: string[],
+  caller: string
 ) => {
   const { id } = session
   const uri = `/compute/sessions/${id}`
@@ -117,7 +119,7 @@ const sessionBody = (
   return {
     id,
     applicationName: 'emulated',
-    owner: EMULATED_USER.id,
+    owner: caller,
     serverId: idFor(
       normaliseServerUrl(services.viya?.serverUrl) || 'emulated',
       'server'
@@ -212,7 +214,7 @@ export const COMPUTE_HANDLERS: Record<
       query?: Record<string, string | undefined>
       body?: unknown
       token?: string
-      subject?: unknown
+      subject?: Subject
     }
     params: Record<string, string>
   }) => Promise<ApiResponse>
@@ -229,7 +231,12 @@ export const COMPUTE_HANDLERS: Record<
         limit,
         count: 1,
         version: 2,
-        items: [contextBody(contextNameFrom(request.query?.filter))],
+        items: [
+          contextBody(
+            contextNameFrom(request.query?.filter),
+            callerId(request.subject)
+          )
+        ],
         links: linksFor(
           '/compute/contexts',
           'application/vnd.sas.compute.context',
@@ -258,7 +265,8 @@ export const COMPUTE_HANDLERS: Record<
       body: sessionBody(
         services,
         session,
-        body.environment?.autoExecLines ?? []
+        body.environment?.autoExecLines ?? [],
+        callerId(request.subject)
       )
     }
   },

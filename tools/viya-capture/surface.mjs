@@ -22,6 +22,11 @@ import { join, relative } from 'node:path'
 
 const isPathLike = (literal) =>
   literal.startsWith('/') &&
+  // two slashes open a comment (and would open a protocol-relative URL, which is
+  // not a route either). Without this, the text of a `//` comment in a build -
+  // the CLI generates several - is read as a path, lands in the inventory as an
+  // English sentence, and makes the guard redden when a comment is reworded
+  !literal.startsWith('//') &&
   literal.length > 1 &&
   /[A-Za-z]/.test(literal) &&
   // a route carries no newline or tab, and no length a URL could not have: the

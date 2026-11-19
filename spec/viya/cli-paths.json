@@ -13,8 +13,6 @@
     "/launcher"
   ],
   "dropped": [
-    "/ neither is a real lookup in a worker, and both are answered in one place",
-    "/ the linter reads process.env for a default and process.cwd() for a root;",
     "/Public/app/{}",
     "/Public/apps/myapp",
     "/SASJobExecution",

@@ -217,6 +217,21 @@ test('the mock site bundle is not read as the CLI own calls', () => {
   )
 })
 
+test('the text of a comment in a build is not a path', () => {
+  // CLI builds carry generated comments, and `// x` normalises to `/ x` - which
+  // made an English sentence an entry in the inventory, and made the guard redden
+  // when a comment was reworded
+  withTree(
+    {
+      'build/utils/gen.js':
+        "const a = '// the linter reads process.env for a default';\nconst b = '/folders/folders'"
+    },
+    (root) => {
+      assert.deepEqual(Object.keys(extract(root)), ['/folders/folders'])
+    }
+  )
+})
+
 test('the adapter is read whole, with no prefix filter applied', () => {
   withTree(
     {

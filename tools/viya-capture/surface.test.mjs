@@ -183,7 +183,11 @@ test('the CLI inventory keeps the Viya prefixes and counts what it set aside', (
         '/SASLogon/authorize',
         '/files/files/{}/content'
       ])
-      assert.equal(dropped, 1, 'the SASjs API path is not the Viya surface')
+      assert.deepEqual(
+        dropped,
+        ['/SASjsApi/drive/file'],
+        'the SASjs API path is not the Viya surface, and the inventory records which'
+      )
     }
   )
 })
@@ -204,9 +208,9 @@ test('the mock site bundle is not read as the CLI own calls', () => {
         '/folders/folders/{id}/members'
       ])
       assert.deepEqual(Object.keys(filtered.kept), ['/SASLogon/authorize'])
-      assert.equal(
+      assert.deepEqual(
         filtered.dropped,
-        0,
+        [],
         'the bundle is skipped before it is counted, not filtered as a path'
       )
     }

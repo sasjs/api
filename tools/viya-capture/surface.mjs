@@ -24,6 +24,12 @@ const isPathLike = (literal) =>
   literal.startsWith('/') &&
   literal.length > 1 &&
   /[A-Za-z]/.test(literal) &&
+  // a route carries no newline or tab, and no length a URL could not have: the
+  // CLI's build embeds SAS programs and documentation, so a template literal that
+  // begins with `/` and runs for a page is prose, not a call. Spaces stay allowed
+  // - `/User Folders/{}/My Folder/sasjs/runner` is a real SAS 9 path
+  !/[\r\n\t]/.test(literal) &&
+  literal.length <= 200 &&
   // a regex fragment or a lone slash is not a route
   !/^\/[a-z]?$/i.test(literal)
 
@@ -363,9 +369,13 @@ const isViyaPath = (path) =>
  */
 export const extractViya = (directory, options) => {
   const all = extract(directory, options)
-  const kept = Object.fromEntries(
-    Object.entries(all).filter(([path]) => isViyaPath(path))
-  )
+  const kept = {}
+  const dropped = []
 
-  return { kept, dropped: Object.keys(all).length - Object.keys(kept).length }
+  for (const [path, files] of Object.entries(all)) {
+    if (isViyaPath(path)) kept[path] = files
+    else dropped.push(path)
+  }
+
+  return { kept, dropped: dropped.sort() }
 }

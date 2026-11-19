@@ -122,7 +122,9 @@ for (const client of CLIENTS) {
     console.log(
       `wrote ${client.out}: ${Object.keys(kept).length} paths from ` +
         `@sasjs/${client.name} ${version}` +
-        (dropped ? ` (${dropped} literals outside the Viya prefixes)` : '')
+        (dropped.length
+          ? ` (${dropped.length} literals outside the Viya prefixes)`
+          : '')
     )
     continue
   }
@@ -157,11 +159,20 @@ for (const client of CLIENTS) {
       `the same paths are now named from other files: ${moved.join(', ')}`
     )
 
-  if (committed.dropped !== undefined && committed.dropped !== dropped)
-    causes.push(
-      `the CLI build now carries ${dropped} literals outside the Viya ` +
-        `prefixes, where the inventory recorded ${committed.dropped}`
-    )
+  // What the filter set aside, by name. A count alone moves and has to be
+  // noticed; a path that appears here is a line in a diff - which is what a call
+  // that lands outside the prefixes becomes, and the one case worth catching.
+  if (client.recordsPrefixes) {
+    const before = committed.dropped ?? []
+    const nowAside = dropped.filter((path) => !before.includes(path))
+    const noLonger = before.filter((path) => !dropped.includes(path))
+
+    if (nowAside.length)
+      causes.push(`the filter now sets aside: ${nowAside.join(', ')}`)
+
+    if (noLonger.length)
+      causes.push(`the filter no longer sets aside: ${noLonger.join(', ')}`)
+  }
 
   // The record of HOW the inventory was read, not only what it found. A prefix
   // added to `VIYA_PREFIXES` that changes no kept path would otherwise pass while

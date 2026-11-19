@@ -14,6 +14,19 @@ export const EMULATED_NOW = '2026-01-01T00:00:00.000Z'
 export const EMULATED_USER = { id: 'emulated-user', name: 'Emulated User' }
 
 /**
+ * The id the emulated estate reports as the caller.
+ *
+ * A host that resolved the caller before dispatching - the server's signed-in
+ * account - passes it as `subject`; a host with no identity (the browser worker)
+ * passes none, and the fallback names itself, so the answer says on its face that
+ * no account was resolved. Bodies that carry `createdBy`, `modifiedBy` or `owner`
+ * use this, so an application that reads its own name back is told the account it
+ * signed in with.
+ */
+export const callerId = (subject?: { userId?: string }): string =>
+  subject?.userId ?? EMULATED_USER.id
+
+/**
  * A uuid shape from a string, deterministically.
  *
  * Two 32-bit FNV-1a passes give enough of a hash to fill a uuid's fields, and the

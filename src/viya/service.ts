@@ -20,7 +20,13 @@ import { requireDrive } from './ports.js'
 import { COMPUTE_HANDLERS } from './compute.js'
 import { FILE_HANDLERS } from './files.js'
 
-import { idFor, normalisePath, EMULATED_NOW, EMULATED_USER } from './ids.js'
+import {
+  idFor,
+  normalisePath,
+  EMULATED_NOW,
+  EMULATED_USER,
+  callerId
+} from './ids.js'
 
 const linksFor = (uri: string, collection = false) => {
   const self = {
@@ -45,7 +51,11 @@ const linksFor = (uri: string, collection = false) => {
   return collection ? [members, self] : [self, members]
 }
 
-const folderBody = async (drive: DriveService, path: string) => {
+const folderBody = async (
+  drive: DriveService,
+  path: string,
+  caller: string
+) => {
   const listing = await drive.list(path)
   const id = idFor(path)
 
@@ -58,8 +68,8 @@ const folderBody = async (drive: DriveService, path: string) => {
     description: '',
     type: 'folder',
     version: 1,
-    createdBy: EMULATED_USER.id,
-    modifiedBy: EMULATED_USER.id,
+    createdBy: caller,
+    modifiedBy: caller,
     creationTimeStamp: EMULATED_NOW,
     modifiedTimeStamp: EMULATED_NOW,
     memberCount: listing.files.length + listing.folders.length,
@@ -68,7 +78,7 @@ const folderBody = async (drive: DriveService, path: string) => {
   }
 }
 
-const recycleBin = () => {
+const recycleBin = (caller: string) => {
   const path = '@myRecycleBin'
   const id = idFor(path)
 
@@ -78,8 +88,8 @@ const recycleBin = () => {
     description: 'Recycle Bin',
     type: 'trashFolder',
     version: 1,
-    createdBy: EMULATED_USER.id,
-    modifiedBy: EMULATED_USER.id,
+    createdBy: caller,
+    modifiedBy: caller,
     creationTimeStamp: EMULATED_NOW,
     modifiedTimeStamp: EMULATED_NOW,
     memberCount: 0,
@@ -88,6 +98,10 @@ const recycleBin = () => {
     links: linksFor(`/folders/folders/${id}`)
   }
 }
+
+/** The caller's id, from the subject the host resolved, else the emulated user. */
+const callerOf = (request: { subject?: unknown }) =>
+  callerId(request.subject as { userId?: string } | undefined)
 
 const pathFromQuery = (request: {
   query?: Record<string, string | undefined>
@@ -205,24 +219,32 @@ export const VIYA_HANDLERS: Record<
 
   'GET /folders/folders/@item': async ({ services, request }) => ({
     status: 200,
-    body: await folderBody(requireDrive(services), pathFromQuery(request))
+    body: await folderBody(
+      requireDrive(services),
+      pathFromQuery(request),
+      callerOf(request)
+    )
   }),
 
-  'GET /folders/folders/@myRecycleBin': async () => ({
+  'GET /folders/folders/@myRecycleBin': async ({ request }) => ({
     status: 200,
-    body: recycleBin()
+    body: recycleBin(callerOf(request))
   }),
 
-  'GET /folders/folders/{}': async ({ services, params }) => {
+  'GET /folders/folders/{}': async ({ services, params, request }) => {
     // the bin is addressed by id too, and it is not in the drive's tree
     if (params.id === idFor('@myRecycleBin'))
-      return { status: 200, body: recycleBin() }
+      return { status: 200, body: recycleBin(callerOf(request)) }
 
     const drive = requireDrive(services)
 
     return {
       status: 200,
-      body: await folderBody(drive, await pathForId(drive, params.id))
+      body: await folderBody(
+        drive,
+        await pathForId(drive, params.id),
+        callerOf(request)
+      )
     }
   },
 
@@ -251,6 +273,7 @@ export const VIYA_HANDLERS: Record<
 
     const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
+    const caller = callerOf(request)
 
     /**
      * A member's `uri` is the resource, not its path.
@@ -267,8 +290,8 @@ export const VIYA_HANDLERS: Record<
         name,
         type: 'folder',
         version: 1,
-        createdBy: EMULATED_USER.id,
-        modifiedBy: EMULATED_USER.id,
+        createdBy: caller,
+        modifiedBy: caller,
         creationTimeStamp: EMULATED_NOW,
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
@@ -283,8 +306,8 @@ export const VIYA_HANDLERS: Record<
         type: 'file',
         version: 1,
         contentType: 'text/plain',
-        createdBy: EMULATED_USER.id,
-        modifiedBy: EMULATED_USER.id,
+        createdBy: caller,
+        modifiedBy: caller,
         creationTimeStamp: EMULATED_NOW,
         modifiedTimeStamp: EMULATED_NOW,
         parentFolderUri: `/folders/folders/${idFor(path)}`,
@@ -335,7 +358,10 @@ export const VIYA_HANDLERS: Record<
 
     await drive.mkdir(path)
 
-    return { status: 201, body: await folderBody(drive, path) }
+    return {
+      status: 201,
+      body: await folderBody(drive, path, callerOf(request))
+    }
   },
 
   'PATCH /folders/folders/{}': async ({ services, request, params }) => {
@@ -353,7 +379,7 @@ export const VIYA_HANDLERS: Record<
     // shape the capture recorded for this verb. Both spellings arrive: the bin's
     // id, and the alias the emulator itself answers with
     if (isRecycleBin(body.parentFolderUri)) {
-      const removed = await folderBody(drive, path)
+      const removed = await folderBody(drive, path, callerOf(request))
 
       await drive.rmdir(path)
 
@@ -383,7 +409,10 @@ export const VIYA_HANDLERS: Record<
 
     if (target !== path) await drive.rename(path, target)
 
-    return { status: 200, body: await folderBody(drive, target) }
+    return {
+      status: 200,
+      body: await folderBody(drive, target, callerOf(request))
+    }
   },
 
   ...COMPUTE_HANDLERS,

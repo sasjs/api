@@ -9,6 +9,7 @@ import { createIdentityService } from '../src/identity/service.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
 import type { Services } from '../src/host/dispatch.js'
+import { EMULATED_CONTEXT_ID } from '../src/viya/compute.js'
 
 /**
  * Phase 1's first slice: the seam, proved end to end.
@@ -272,6 +273,79 @@ describe('the refusals a host meets', () => {
 
     expect(answer.status).toBe(200)
     expect((answer.body as { id: string }).id).toBe('emulated-user')
+  })
+})
+
+describe('the caller a host names', () => {
+  const caller = { userId: 'alice', clientId: 'sas.cli' }
+
+  it('stamps the account the host resolved, not the emulated user', async () => {
+    const shared = services()
+
+    const created = await dispatchViya(shared, 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'app' },
+      subject: caller
+    })
+
+    expect(created.status).toBe(201)
+    // the folder body and every member of its listing carry the caller
+    expect(created.body).toMatchObject({
+      createdBy: 'alice',
+      modifiedBy: 'alice'
+    })
+
+    // the parent arrives as the folder's URI, which is how the adapter spells it
+    const upload = await dispatchViya(shared, 'POST', '/files/files', {
+      query: {
+        parentFolderUri: `/folders/folders/${(created.body as { id: string }).id}`
+      },
+      file: { name: 'notes.txt', contents: 'hello' },
+      subject: caller
+    })
+
+    expect(upload.status).toBe(201)
+    expect(upload.body).toMatchObject({
+      createdBy: 'alice',
+      modifiedBy: 'alice',
+      properties: { typeRegistrant: 'alice' }
+    })
+
+    const members = await dispatchViya(
+      shared,
+      'GET',
+      `/folders/folders/${(created.body as { id: string }).id}/members`,
+      { subject: caller }
+    )
+
+    expect(members.status).toBe(200)
+    expect(
+      (members.body as { items: Array<{ createdBy: string }> }).items
+    ).toEqual([expect.objectContaining({ createdBy: 'alice' })])
+
+    // a session names its owner the same way
+    const session = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+      { body: {}, subject: caller }
+    )
+
+    expect(session.status).toBe(201)
+    expect(session.body).toMatchObject({ owner: 'alice' })
+  })
+
+  it('names the emulated user when the host names no caller', async () => {
+    const created = await dispatchViya(services(), 'POST', '/folders/folders', {
+      query: { parentFolderUri: '' },
+      body: { name: 'anonymous' }
+    })
+
+    expect(created.status).toBe(201)
+    expect(created.body).toMatchObject({
+      createdBy: 'emulated-user',
+      modifiedBy: 'emulated-user'
+    })
   })
 })
 

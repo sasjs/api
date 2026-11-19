@@ -14,7 +14,7 @@ import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
 import { requireDrive } from './ports.js'
 import type { TreeNode } from '../types.js'
-import { EMULATED_NOW, EMULATED_USER, idFor } from './ids.js'
+import { EMULATED_NOW, idFor, callerId } from './ids.js'
 
 /** What an upload answers about itself, whichever operation asked. */
 export interface EmulatedFile {
@@ -41,7 +41,11 @@ const contentTypeOf = (name: string): string => {
  * client reads rather than placeholders: the three `content.*` flags say what can
  * be done with the file, and `typeRegistrant` says who registered the type.
  */
-const fileBody = (file: EmulatedFile) => {
+/** The caller's id, from the subject the host resolved, else the emulated user. */
+const callerOf = (subject: unknown) =>
+  callerId(subject as { userId?: string } | undefined)
+
+const fileBody = (file: EmulatedFile, caller: string) => {
   const id = idFor(file.path, 'file')
   const uri = `/files/files/${id}`
   const contentType = contentTypeOf(file.name)
@@ -57,8 +61,8 @@ const fileBody = (file: EmulatedFile) => {
     fileVersion: 1,
     version: 2,
     typeDefName: 'file',
-    createdBy: EMULATED_USER.id,
-    modifiedBy: EMULATED_USER.id,
+    createdBy: caller,
+    modifiedBy: caller,
     creationTimeStamp: EMULATED_NOW,
     modifiedTimeStamp: EMULATED_NOW,
     quarantine: false,
@@ -70,7 +74,7 @@ const fileBody = (file: EmulatedFile) => {
       'content.openInBrowser': 'true',
       'content.preview': 'false',
       sasIconKey: 'file',
-      typeRegistrant: EMULATED_USER.id
+      typeRegistrant: caller
     },
     links: [
       {
@@ -220,14 +224,20 @@ export const FILE_HANDLERS: Record<
 
     await drive.save(path, upload.contents)
 
-    return { status: 201, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 201,
+      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+    }
   },
 
-  'GET /files/files/{}': async ({ services, params }) => {
+  'GET /files/files/{}': async ({ services, params, request }) => {
     const drive = requireDrive(services)
     const path = await pathForFileId(drive, params.id)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+    }
   },
 
   'PATCH /files/files/{}': async ({ services, params, request }) => {
@@ -243,7 +253,10 @@ export const FILE_HANDLERS: Record<
 
     if (target !== path) await drive.rename(path, target)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, target)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, target), callerOf(request.subject))
+    }
   },
 
   'GET /files/files/{}/content': async ({ services, params }) => {
@@ -285,6 +298,9 @@ export const FILE_HANDLERS: Record<
 
     await drive.update(path, contents)
 
-    return { status: 200, body: fileBody(await bodyOf(drive, path)) }
+    return {
+      status: 200,
+      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+    }
   }
 }

@@ -92,8 +92,7 @@ jobs:
           # the package's own `test` script, so a new suite is picked up by adding
           # it to package.json rather than to this step as well
           npm test --prefix tools/viya-capture
-          # the same level the root tree is held to: a sub-project audited less
-          # strictly than the repository it sits in is a hole, not a detail
+          # this independent package keeps its production low-severity audit
           npm audit --prefix tools/viya-capture --omit=dev --audit-level=low
 
       # No advisory in what ships: production dependencies only - @sasjs/lint and
@@ -105,12 +104,11 @@ jobs:
       - name: No advisory in what ships
         run: npm audit --omit=dev --audit-level=low
 
-      # And this one covers the whole tree, devDependencies included, at the
-      # lowest severity - so a high or critical anywhere fails here too. A
-      # moderate that is not in scripts/audit-allowlist.json fails the build; an
-      # entry in that file records why something cannot be fixed and is a
-      # standing decision to re-examine, not a way to pass.
-      - name: No new moderate advisory
+      # Full tree, including development dependencies, at info rather than the
+      # old low floor. With a waiver the shared gate checks production at info
+      # too, preserving the old rule that a dev-only source may never ship.
+      # Waivers require exact source and severity; stale waivers fail.
+      - name: No unwaived advisory
         run: npm run audit:gate
 
       - name: Formatting

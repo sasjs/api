@@ -1,215 +1,179 @@
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-/**
- * `npm audit --audit-level=high` ignores the moderate class, so this gate is what
- * refuses a 37th moderate. It is run from CI as `npm run audit:gate`; these cases
- * feed it a saved report and an allowlist of their own, so the decisions are
- * pinned without reaching the registry and without depending on what the
- * repository's allowlist carries.
- */
-const run = (
-  report: unknown,
-  allowlist: unknown[] = ENTRIES,
-  production?: unknown
-): { status: number; output: string } => {
-  const dir = mkdtempSync(join(tmpdir(), 'audit-'))
-  const path = join(dir, 'report.json')
-  const list = join(dir, 'allowlist.json')
-  writeFileSync(path, JSON.stringify(report))
-  writeFileSync(list, JSON.stringify(allowlist))
+const ID = 'GHSA-aaaa-bbbb-cccc'
+const SOURCE = 1234567
+const severities = ['info', 'low', 'moderate', 'high', 'critical'] as const
+type Severity = (typeof severities)[number]
 
-  const args = ['scripts/audit.mjs', '--report', path, '--allowlist', list]
-
-  if (production !== undefined) {
-    const shipped = join(dir, 'production.json')
-    writeFileSync(shipped, JSON.stringify(production))
-    args.push('--production-report', shipped)
-  }
-
-  try {
-    const output = execFileSync(process.execPath, args, { encoding: 'utf8' })
-    return { status: 0, output }
-  } catch (error) {
-    const failure = error as { status: number; stdout: string; stderr: string }
-    return {
-      status: failure.status,
-      output: `${failure.stdout}${failure.stderr}`
-    }
-  }
-}
-
-/** The shape `npm audit --json` produces, reduced to what the gate reads. */
-const reportWith = (
-  via: { source: number; severity: string; title: string }[],
-  pkg = 'glob'
-) => ({
+const report = (severity?: Severity) => ({
   auditReportVersion: 2,
-  metadata: {
-    vulnerabilities: { moderate: via.length, total: via.length }
-  },
-  vulnerabilities: {
-    [pkg]: { severity: 'moderate', via }
-  }
-})
-
-const GLOB = {
-  source: 1244013,
-  severity: 'moderate',
-  title:
-    'Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal'
-}
-const MINIMATCH = {
-  source: 1244623,
-  severity: 'moderate',
-  title: 'minimatch has potential denial of service via globparts amplification'
-}
-
-/** An allowlist carrying both, so the cases can be about the decision and not the list. */
-const ENTRIES = [
-  { ...GLOB, package: 'glob', reason: 'test fixture' },
-  { ...MINIMATCH, package: 'minimatch', reason: 'test fixture' }
-]
-
-describe('the advisory gate', () => {
-  it('passes when every advisory is allowlisted', () => {
-    const { status, output } = run(reportWith([GLOB, MINIMATCH]))
-
-    expect(status).toBe(0)
-    expect(output).toContain('2 distinct advisory/advisories, 2 allowlisted')
-    expect(output).toContain(
-      'no advisory above the floor outside the allowlist'
-    )
-  })
-
-  it('refuses a moderate that is not allowlisted', () => {
-    // the case the whole gate exists for: a 37th moderate must break the build
-    const { status, output } = run(
-      reportWith([
-        GLOB,
-        MINIMATCH,
-        { source: 9999999, severity: 'moderate', title: 'a new moderate' }
-      ])
-    )
-
-    expect(status).toBe(1)
-    expect(output).toContain('REFUSED moderate: glob 9999999 "a new moderate"')
-    expect(output).toContain('add it to scripts/audit-allowlist.json')
-  })
-
-  it('refuses a high even when the package is allowlisted for a moderate', () => {
-    const { status, output } = run(reportWith([{ ...GLOB, severity: 'high' }]))
-
-    expect(status).toBe(1)
-    expect(output).toContain('REFUSED high: glob 1244013')
-  })
-
-  it('reports a cleared advisory as stale rather than failing', () => {
-    // a list that fails when a fix lands gets deleted instead of maintained
-    const { status, output } = run(reportWith([GLOB]))
-
-    expect(status).toBe(0)
-    expect(output).toContain('stale: minimatch 1244623')
-  })
-})
-
-describe('a waiver that says the advisory cannot reach what ships', () => {
-  const PICOMATCH = {
-    source: 1247710,
-    severity: 'high',
-    title:
-      'picomatch vulnerable to ReDoS through single-branch repeated extglobs'
-  }
-
-  const waiver = [
-    {
-      ...PICOMATCH,
-      package: 'picomatch',
-      devOnly: true,
-      reason: 'test fixture'
-    }
-  ]
-
-  const productionWith = (advisory?: typeof PICOMATCH) =>
-    reportWith(advisory ? [advisory] : [], 'picomatch')
-
-  it('passes when the production set does not carry the waived advisory', () => {
-    const { status, output } = run(
-      reportWith([PICOMATCH], 'picomatch'),
-      waiver,
-      productionWith()
-    )
-
-    expect(status).toBe(0)
-    expect(output).toContain(
-      'waived as dev-only: 1247710 picomatch - not in the production set'
-    )
-  })
-
-  it('refuses a dev-only waiver whose advisory now reaches a production dependency', () => {
-    // matching is by advisory id over the whole tree, so the reason would go on
-    // waiving it after a shipped dependency pulled the same package in
-    const { status, output } = run(
-      reportWith([PICOMATCH], 'picomatch'),
-      waiver,
-      productionWith(PICOMATCH)
-    )
-
-    expect(status).toBe(1)
-    expect(output).toContain(
-      'REFUSED high: picomatch 1247710 was waived as dev-only, but it now reaches a production dependency'
-    )
-  })
-
-  it('refuses to leave the claim unverified when no production report is given', () => {
-    // a saved-report run that skipped the second audit would be a green gate
-    // that checked less than the entry says it did
-    const { status, output } = run(reportWith([PICOMATCH], 'picomatch'), waiver)
-
-    expect(status).toBe(2)
-    expect(output).toContain('a dev-only waiver needs --production-report')
-  })
-
-  it('asks for no second audit when no entry claims to be dev-only', () => {
-    const { status, output } = run(reportWith([GLOB]), ENTRIES)
-
-    expect(status).toBe(0)
-    expect(output).not.toContain('waived as dev-only')
-  })
-})
-
-describe('the advisory gate, when the audit did not run', () => {
-  it('fails rather than passing on a report that carries an error', () => {
-    // `npm audit` with no lockfile answers {"error":{"code":"ENOLOCK",...}} and
-    // no vulnerabilities map, which used to print a clean gate that audited
-    // nothing
-    const { status, output } = run({
-      error: {
-        code: 'ENOLOCK',
-        summary: 'This command requires an existing lockfile.'
+  vulnerabilities: severity
+    ? {
+        example: {
+          name: 'example',
+          severity,
+          isDirect: false,
+          via: [
+            {
+              source: SOURCE,
+              name: 'example',
+              dependency: 'example',
+              title: 'Test advisory',
+              url: `https://github.com/advisories/${ID}`,
+              severity,
+              range: '*'
+            }
+          ],
+          effects: [],
+          range: '*',
+          nodes: ['node_modules/example'],
+          fixAvailable: false
+        }
       }
-    })
+    : {},
+  metadata: {
+    vulnerabilities: {
+      ...Object.fromEntries(severities.map((s) => [s, severity === s ? 1 : 0])),
+      total: severity ? 1 : 0
+    },
+    dependencies: {}
+  }
+})
 
-    expect(status).toBe(2)
-    expect(output).toContain('audit gate could not run')
-    expect(output).toContain('ENOLOCK')
+const run = (
+  full: unknown,
+  allowlist: unknown[] = [],
+  production?: unknown
+) => {
+  const dir = mkdtempSync(join(tmpdir(), 'api-audit-'))
+  try {
+    const input = join(dir, 'full.json')
+    const config = join(dir, 'allowlist.json')
+    writeFileSync(input, JSON.stringify(full))
+    writeFileSync(config, JSON.stringify(allowlist))
+    const args = [
+      'run',
+      'audit:gate',
+      '--',
+      '--audit-input',
+      input,
+      '--audit-config',
+      config
+    ]
+    if (production !== undefined) {
+      const prod = join(dir, 'prod.json')
+      writeFileSync(prod, JSON.stringify(production))
+      args.push('--audit-prod-input', prod)
+    }
+    const result = spawnSync('npm', args, {
+      encoding: 'utf8',
+      cwd: process.cwd()
+    })
+    if (result.error) throw result.error
+    return { status: result.status, output: result.stdout + result.stderr }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+const waiver = {
+  id: ID,
+  source: SOURCE,
+  severity: 'high',
+  packages: ['example'],
+  devOnly: true,
+  recheckBy: '2099-01-01',
+  reason: 'Test waiver'
+}
+
+describe('npm run audit:gate', () => {
+  it('passes a clean report', () => {
+    expect(run(report()).status).toBe(0)
   })
 
-  it('fails on a report that is not an audit result', () => {
-    const { status, output } = run({ vulnerabilities: {} })
+  it.each(['info', 'low', 'moderate', 'high'] as const)(
+    'rejects an unwaived %s advisory',
+    (severity) => {
+      const result = run(report(severity))
+      expect(result.status).toBe(1)
+      expect(result.output).toContain(`${severity} ${ID} example`)
+    }
+  )
 
-    expect(status).toBe(2)
-    expect(output).toContain('no metadata or auditReportVersion')
+  it('accepts an exact development-only waiver with a clean production report', () => {
+    expect(run(report('high'), [waiver], report()).status).toBe(0)
   })
 
-  it('treats a registry failure as a failure, not as a clean tree', () => {
-    const { status, output } = run({
-      error: { summary: 'registry returned 503' }
-    })
+  it('rejects a different source under the same GHSA', () => {
+    const result = run(
+      report('high'),
+      [{ ...waiver, source: SOURCE + 1 }],
+      report()
+    )
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('source differs from allowlist')
+  })
 
-    expect(status).toBe(2)
-    expect(output).toContain('registry returned 503')
+  it('rejects a changed severity', () => {
+    const result = run(report('moderate'), [waiver], report())
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('severity differs from allowlist')
+  })
+
+  it('requires the numeric source and exact severity on waivers', () => {
+    const { source: _source, severity: _severity, ...rest } = waiver
+    expect(
+      run(report('high'), [{ ...rest, severity: 'high' }], report()).status
+    ).toBe(2)
+    expect(
+      run(report('high'), [{ ...rest, source: SOURCE }], report()).status
+    ).toBe(2)
+  })
+
+  it('rejects a missing source on the advisory', () => {
+    const full = report('high')
+    delete (full.vulnerabilities.example!.via[0] as { source?: number }).source
+    const result = run(full, [waiver], report())
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(
+      'source differs from allowlist (missing or invalid)'
+    )
+  })
+
+  it('rejects an unknown advisory severity', () => {
+    const full = report('high')
+    full.vulnerabilities.example!.via[0].severity = 'unknown' as Severity
+    const result = run(full, [waiver], report())
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('severity differs from allowlist')
+  })
+
+  it('rejects an info production finding even when the same source is waived', () => {
+    const result = run(report('high'), [waiver], report('info'))
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(
+      `info ${ID} example: in the production tree`
+    )
+  })
+
+  it('requires a recorded production report for a waiver', () => {
+    const result = run(report('high'), [waiver])
+    expect(result.status).toBe(2)
+    expect(result.output).toContain('needs --audit-prod-input')
+  })
+
+  it('rejects a stale waiver', () => {
+    const result = run(report(), [waiver], report())
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('stale=1')
+  })
+
+  it('rejects an invalid report', () => {
+    const result = run({ error: { code: 'ENOLOCK', summary: 'No lockfile' } })
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('not an npm audit report')
   })
 })

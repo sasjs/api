@@ -1,10 +1,1 @@
-[
-  {
-    "source": 1247710,
-    "package": "picomatch",
-    "severity": "high",
-    "title": "picomatch vulnerable to ReDoS through single-branch repeated extglobs",
-    "devOnly": true,
-    "reason": "GHSA-fc5q-39xc-vjpf matches every picomatch up to and including 4.0.7, which is the newest published version, and it names no first patched version: there is no upgrade and no override to point at. It reaches this tree only through the test and build tooling - jest-haste-map, jest-message-util and jest-util, and through them @parcel/watcher, anymatch and fdir - every picomatch entry in package-lock.json being dev: true, and npm audit --omit=dev reporting no vulnerabilities. What those tools ask it to do is compile glob patterns this repository writes itself, so the attacker-supplied pattern the advisory needs is not reachable here. The devOnly flag is checked on each run: a second audit of the production set fails the gate if this id ever appears in it. Review when a release past 4.0.7 is published or the advisory gains a patched version."
-  }
-]
+[]

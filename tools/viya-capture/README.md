@@ -64,3 +64,11 @@ Two suites run under `node --test`: the scrubber, and the calls themselves again
 - It does not need the CLI, a browser, or a project checkout.
 - It does not record request or response bodies in full: bodies are capped at 24 KB and are redacted.
 - It does not commit anything. `capture/` and `node_modules/` are ignored, so a capture is a file to send back, never a file to push.
+
+## The surface inventory, and the two clients
+
+`surface.mjs` is also the instrument `npm run check:scope` measures with, in `sasjs/api`. The emulator answers a client's calls and nothing else, so what the clients call is extracted rather than remembered: `extract(dir)` reads a package build and lists every path literal it can find, normalised to a template, and `spec/viya/adapter-paths.json` / `spec/viya/cli-paths.json` are those lists committed.
+
+The two clients are not read the same way, and the difference is the point. `@sasjs/adapter` is an HTTP client: nearly every path literal in it is a call, so it is read whole. `@sasjs/cli` also embeds SAS fixtures, its own documentation examples and the mock site's sources, so an unfiltered read returns several hundred literals of which a handful are calls - which is why `extractViya(dir, { skip: ['assets', 'spec'] })` keeps only the Viya prefixes the emulator is built for and reports how many literals it set aside - `assets` is the mock site's vendored bundle and `spec` is the CLI's own test files, since a fixture in a test is a fixture, not a call. That count is committed with the inventory, so a change in it is visible in a review.
+
+Both packages come from this directory's `node_modules`, pinned in `package.json`: the recorder needs the adapter, and the scope check needs the adapter and the CLI, so one install serves both rather than the library carrying a second copy of either.

@@ -66,7 +66,11 @@ export type { RouteOverlay } from './routes/overlay.js'
 
 // the client's call surface, and this package's decision about each entry: a
 // host that refuses an out-of-scope path reads the same statement the guard does
-export { SURFACE, SURFACE_ADAPTER_VERSION } from './viya/surface.js'
+export {
+  SURFACE,
+  SURFACE_ADAPTER_VERSION,
+  SURFACE_CLI_VERSION
+} from './viya/surface.js'
 export type { SurfaceEntry, SurfaceFamily } from './viya/surface.js'
 export { VIYA_TABLE } from './viya/table.js'
 export type { ViyaOperation } from './viya/table.js'

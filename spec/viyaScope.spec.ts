@@ -1,30 +1,50 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { SURFACE, SURFACE_ADAPTER_VERSION } from '../src/viya/surface.js'
+import {
+  SURFACE,
+  SURFACE_ADAPTER_VERSION,
+  SURFACE_CLI_VERSION
+} from '../src/viya/surface.js'
 
 /**
- * The declared surface and the measured one are the same list.
+ * The declared surface and the measured ones are the same list.
  *
- * `spec/viya/adapter-paths.json` is what the adapter was measured to call, and
- * `src/viya/surface.ts` is what this package has decided about each of those
- * paths. A path in one and not the other is the failure mode the guard exists
- * for in both directions: a call nobody classified is scope creep nobody chose,
- * and a classification for a path the client no longer builds is a stale claim
- * about what a host has to answer.
+ * `spec/viya/adapter-paths.json` is what the adapter was measured to call,
+ * `spec/viya/cli-paths.json` is what the CLI was, and `src/viya/surface.ts` is
+ * what this package has decided about each of those paths. A path in one and not
+ * the other is the failure mode the guard exists for in both directions: a call
+ * nobody classified is scope creep nobody chose, and a classification for a path
+ * the clients no longer build is a stale claim about what a host has to answer.
+ *
+ * Two clients rather than one because two things drive a deployment: an
+ * application ships the adapter, and `sasjs deploy` ships the CLI. The CLI's own
+ * literals are few - its commands go through the adapter - but they are the
+ * sign-in a deployment does first, so a path it adds is a call the emulator has
+ * to answer just as much as an adapter one.
  *
  * `npm run check:scope` closes the third side of the triangle: that the
- * committed inventory still describes the installed adapter.
+ * committed inventories still describe the installed adapter and CLI.
  */
-const inventory = JSON.parse(
+const adapterInventory = JSON.parse(
   readFileSync(join(__dirname, 'viya', 'adapter-paths.json'), 'utf8')
 )
 
-const measured = Object.keys(inventory.paths).sort()
+const cliInventory = JSON.parse(
+  readFileSync(join(__dirname, 'viya', 'cli-paths.json'), 'utf8')
+)
+
+const measured = Object.keys(adapterInventory.paths).sort()
+const measuredCli = Object.keys(cliInventory.paths).sort()
+const both = [...new Set([...measured, ...measuredCli])].sort()
 const declared = SURFACE.map((entry) => entry.path).sort()
 
 describe('the Viya call surface', () => {
   it('declares the adapter version the inventory was measured from', () => {
-    expect(SURFACE_ADAPTER_VERSION).toBe(inventory.adapter)
+    expect(SURFACE_ADAPTER_VERSION).toBe(adapterInventory.adapter)
+  })
+
+  it('declares the CLI version the inventory was measured from', () => {
+    expect(SURFACE_CLI_VERSION).toBe(cliInventory.cli)
   })
 
   it('classifies every path the adapter builds', () => {
@@ -33,10 +53,29 @@ describe('the Viya call surface', () => {
     expect(unclassified).toEqual([])
   })
 
-  it('declares nothing the adapter does not build', () => {
-    const imaginary = declared.filter((path) => !measured.includes(path))
+  // The CLI is the half a guard would otherwise miss: its literals live in
+  // another package, so nothing that reads only the adapter can see a new one.
+  it('classifies every path the CLI builds', () => {
+    const unclassified = measuredCli.filter((path) => !declared.includes(path))
+
+    expect(unclassified).toEqual([])
+  })
+
+  it('declares nothing neither client builds', () => {
+    const imaginary = declared.filter((path) => !both.includes(path))
 
     expect(imaginary).toEqual([])
+  })
+
+  // The CLI's own literals are mostly the adapter's, but not entirely: it signs
+  // in against this server's `/SASLogon/authorize`, which the adapter never calls
+  // (the adapter's code grant goes to `/SASLogon/oauth/authorize`). Pinned as an
+  // equality rather than a subset so both directions are guarded - a CLI path
+  // disappeared, or a second one appeared, fails here and names itself.
+  it('names the one Viya path the CLI builds and the adapter does not', () => {
+    const cliOnly = measuredCli.filter((path) => !measured.includes(path))
+
+    expect(cliOnly).toEqual(['/SASLogon/authorize'])
   })
 
   it('states a decision and a reason for every entry', () => {

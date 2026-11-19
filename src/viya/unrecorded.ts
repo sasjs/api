@@ -31,6 +31,11 @@ export const UNRECORDED: UnrecordedOperation[] = [
       'no capture: the pass authenticates outside the adapter, so the login root is never requested through the client'
   },
   {
+    path: '/SASLogon/authorize',
+    reason:
+      "no capture: this is the CLI's sign-in against this server's own auth route, which a Viya estate does not serve"
+  },
+  {
     path: '/SASLogon/login',
     reason:
       'no capture: an interactive login; the pass presents a token instead of a form'

@@ -22,8 +22,19 @@ import { join, relative } from 'node:path'
 
 const isPathLike = (literal) =>
   literal.startsWith('/') &&
+  // two slashes open a comment (and would open a protocol-relative URL, which is
+  // not a route either). Without this, the text of a `//` comment in a build -
+  // the CLI generates several - is read as a path, lands in the inventory as an
+  // English sentence, and makes the guard redden when a comment is reworded
+  !literal.startsWith('//') &&
   literal.length > 1 &&
   /[A-Za-z]/.test(literal) &&
+  // a route carries no newline or tab, and no length a URL could not have: the
+  // CLI's build embeds SAS programs and documentation, so a template literal that
+  // begins with `/` and runs for a page is prose, not a call. Spaces stay allowed
+  // - `/User Folders/{}/My Folder/sasjs/runner` is a real SAS 9 path
+  !/[\r\n\t]/.test(literal) &&
+  literal.length <= 200 &&
   // a regex fragment or a lone slash is not a route
   !/^\/[a-z]?$/i.test(literal)
 
@@ -275,7 +286,7 @@ export const literalsIn = (source) => {
 
 const SKIP = new Set(['node_modules', 'dist', 'minified', 'docs', 'vendor'])
 
-const filesUnder = (directory) =>
+const filesUnder = (directory, skip = SKIP) =>
   readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry)
 
@@ -283,7 +294,7 @@ const filesUnder = (directory) =>
       // `dist/` and `minified/` are bundles OF the same sources, and
       // `node_modules/` is the adapter's own dependencies - a path literal
       // inside a url-parsing library is not a call the adapter makes
-      return SKIP.has(entry) ? [] : filesUnder(path)
+      return skip.has(entry) ? [] : filesUnder(path, skip)
 
     return path.endsWith('.js') ? [path] : []
   })
@@ -291,11 +302,17 @@ const filesUnder = (directory) =>
 /**
  * The inventory: every distinct normalised path, with the files that name it,
  * so a reader can go and look.
+ *
+ * `skip` adds directories to the ones above. It exists for the CLI, whose build
+ * carries a vendored web bundle under `assets/`: that bundle is a browser app's
+ * own URLs, not a call the CLI makes, and read as an inventory it turns four
+ * literals into several hundred - a guard that reddens when a demo page changes
+ * a link would be measuring the wrong client.
  */
-export const extract = (adapterDir) => {
+export const extract = (adapterDir, { skip = [] } = {}) => {
   const byPath = new Map()
 
-  for (const file of filesUnder(adapterDir)) {
+  for (const file of filesUnder(adapterDir, new Set([...SKIP, ...skip]))) {
     const where = relative(adapterDir, file)
 
     for (const literal of literalsIn(readFileSync(file, 'utf8'))) {
@@ -316,4 +333,54 @@ export const extract = (adapterDir) => {
       .sort()
       .map((path) => [path, [...byPath.get(path)].sort()])
   )
+}
+
+/**
+ * The route prefixes the emulator is built for, and nothing outside them.
+ *
+ * The same list the families in `src/viya/surface.ts` belong to. It is here
+ * rather than there because this file is the instrument, and the instrument must
+ * be able to say what it kept.
+ */
+export const VIYA_PREFIXES = [
+  '/SASLogon',
+  '/folders',
+  '/files',
+  '/compute',
+  '/jobExecution',
+  '/jobDefinitions',
+  '/identities',
+  '/types',
+  '/launcher'
+]
+
+const isViyaPath = (path) =>
+  VIYA_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(prefix + '/')
+  )
+
+/**
+ * The same inventory, restricted to the Viya prefixes the emulator answers.
+ *
+ * The adapter needs no such filter: it is an HTTP client and nearly every path
+ * literal in it is a call. The CLI is not - its build embeds SAS fixtures, its
+ * own documentation examples, the mock site's sources and its own test files, so
+ * an unfiltered read of it returns several hundred literals of which a handful
+ * are calls. The tests matter as much as the rest: a fixture added to a spec file
+ * is a fixture, not a call, and reading it as one would make a CLI test change
+ * demand a classification in `src/viya/surface.ts`. Filtering by prefix is what
+ * makes the two inventories comparable; `dropped` is reported so a reader can see
+ * how much was set aside, and a change in that count is a change worth looking at.
+ */
+export const extractViya = (directory, options) => {
+  const all = extract(directory, options)
+  const kept = {}
+  const dropped = []
+
+  for (const [path, files] of Object.entries(all)) {
+    if (isViyaPath(path)) kept[path] = files
+    else dropped.push(path)
+  }
+
+  return { kept, dropped: dropped.sort() }
 }

@@ -20,13 +20,10 @@ import {
 import { generator, normaliseServerUrl, seedOf } from '../src/viya/seed.js'
 import type { Services } from '../src/host/dispatch.js'
 
-const services = (
-  serverUrl = 'http://localhost:5000',
-  seed?: string
-): Services => ({
+const services = (serverUrl = 'http://localhost:5000'): Services => ({
   drive: createDriveService(new MemoryDriveStore()),
   identity: createIdentityService(new MemoryIdentityStore(DEFAULT_IDENTITY)),
-  viya: { serverUrl, seed }
+  viya: { serverUrl }
 })
 
 const PROGRAM = 'data work.emulated;\n  x = 1;\nrun;'
@@ -98,11 +95,15 @@ describe('the seed is the estate', () => {
     )
   })
 
-  it('lets an explicit seed win, which is what a moved port needs', () => {
-    // the same estate on two addresses is one estate when the seed says so
-    expect(seedOf({ serverUrl: 'http://localhost:5000', seed: 'ci' })).toBe(
-      seedOf({ serverUrl: 'http://localhost:61001', seed: 'ci' })
-    )
+  it('is decided by the address alone, even when a caller passes a seed', () => {
+    // no cast: a variable carrying the removed key is accepted structurally, so
+    // the settings that remain are still type-checked - a literal would fail on
+    // the excess property instead
+    const stale = { serverUrl: 'http://localhost:5000', seed: 'ci' }
+    const other = { serverUrl: 'http://localhost:61001', seed: 'ci' }
+
+    expect(seedOf(stale)).toBe(seedOf({ serverUrl: 'http://localhost:5000' }))
+    expect(seedOf(other)).not.toBe(seedOf(stale))
   })
 
   it('gives every estate with no address the one default', () => {
@@ -267,8 +268,10 @@ describe('a job and its generated log', () => {
   })
 
   it('answers the same lines for the same estate and the same program', async () => {
-    const first = services('http://localhost:5000', 'stable')
-    const second = services('http://elsewhere:9999', 'stable')
+    // one address, two instances: the estate is the address, so both see the
+    // same data without anything being pinned
+    const first = services('http://localhost:5000')
+    const second = services('http://localhost:5000')
 
     const linesOf = async (target: Services) => {
       const sessionId = await sessionOn(target)
@@ -366,12 +369,6 @@ describe('the seed helper on its own', () => {
     // still an identity - it just cannot be normalised further
     expect(normaliseServerUrl('http://[::1')).toBe('http://[::1')
     expect(normaliseServerUrl('  EXAMPLE.com/  ')).toBe('http://example.com')
-  })
-
-  it('treats an empty override as no override', () => {
-    expect(seedOf({ serverUrl: 'http://a:1', seed: '' })).toBe(
-      seedOf({ serverUrl: 'http://a:1' })
-    )
   })
 
   it('answers no draw for an empty list, rather than failing', () => {

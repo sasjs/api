@@ -177,11 +177,11 @@ export const VIYA_HANDLERS: Record<
   }) => Promise<ApiResponse>
 > = {
   'GET /identities/users/@currentUser': async ({ services, request }) => {
+    // the host's resolved caller wins; a token is the second way to name one
     const subject =
-      (request.subject as { userId?: string } | undefined) ??
-      (await services.identity?.authenticate(request.token))
+      request.subject ?? (await services.identity?.authenticate(request.token))
 
-    const id = subject?.userId ?? EMULATED_USER.id
+    const id = callerId(subject)
 
     return {
       status: 200,

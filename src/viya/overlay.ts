@@ -29,6 +29,17 @@ export interface ViyaOverlayEntry {
 const NEEDS_AUTH =
   'The token endpoint is answered by the host that mounts the emulator, which owns the token port.'
 
+/**
+ * The job family is a capture without a handler.
+ *
+ * The deploy-and-run path is recorded - a service pack deploy creates a job
+ * definition and submits it - and this package answers the compute and content
+ * families, not that one. Saying so is the difference between a client learning
+ * what is missing and a client learning nothing.
+ */
+const NEEDS_JOBS =
+  'The emulator answers the compute and content families; the job definitions a deploy creates and the executions a run submits are not modelled yet.'
+
 export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   // answered here
   'POST /folders/folders': { implemented: true },
@@ -56,6 +67,37 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'PATCH /files/files/{}': { implemented: true },
   'GET /files/files/{}/content': { implemented: true },
   'PUT /files/files/{}/content': { implemented: true },
+
+  // declined: the job family needs a job service
+  //
+  // A capture describes what the estate answers on the deploy-and-run path, and
+  // the emulator does not answer that path yet: a client that deploys a service
+  // pack against an emulated estate stops here, with a reason rather than a 404.
+  'POST /jobDefinitions/definitions': {
+    implemented: false,
+    reason: NEEDS_JOBS
+  },
+  'GET /jobDefinitions/definitions/{}': {
+    implemented: false,
+    reason: NEEDS_JOBS
+  },
+  'POST /jobExecution/jobs': { implemented: false, reason: NEEDS_JOBS },
+  'GET /jobExecution/jobs/{}': { implemented: false, reason: NEEDS_JOBS },
+  'GET /jobExecution/jobs/{}/state': { implemented: false, reason: NEEDS_JOBS },
+
+  // declined: contexts come from the seed, not from the launcher
+  'GET /launcher/contexts': {
+    implemented: false,
+    reason:
+      'The emulator answers compute contexts from its seed; the launcher list a client falls back to is not modelled, and nothing on the emulated path asks for it.'
+  },
+
+  // declined: session variables are not modelled
+  'GET /compute/sessions/{}/variables/{}': {
+    implemented: false,
+    reason:
+      'The emulator does not model session variables; the client reads these only to log the pid of a job it is about to submit (SYSJOBID), and any name it asks for is refused here rather than answered with a value the emulator did not run.'
+  },
 
   // declined: the host owns the token port
   'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH },

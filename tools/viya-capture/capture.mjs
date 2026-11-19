@@ -28,6 +28,9 @@
  *   VIYA_ALLOW_EXECUTE=1                 create a session and run a program
  *   VIYA_ALLOW_WRITES=1                  create and delete one folder
  *   VIYA_ALLOW_FILES=1                   create, read and replace one file
+ *   VIYA_ALLOW_JOBS=1                    deploy a job definition, run it, and
+ *                                        remove both (needs VIYA_APP_LOC and
+ *                                        VIYA_CONTEXT)
  *   VIYA_TLS_RELAX=1                     accept a self-signed certificate
  *   CAPTURE_PORT=8899                    local proxy port
  *
@@ -60,7 +63,14 @@ import {
   redactAuthorization,
   redactBody
 } from './redact.mjs'
-import { contentPass, executePass, folderNameFor } from './pass.mjs'
+import {
+  contentPass,
+  executePass,
+  folderNameFor,
+  jobFolderNameFor,
+  jobPass,
+  refusalPass
+} from './pass.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -73,6 +83,7 @@ const APP_LOC = process.env.VIYA_APP_LOC ?? ''
 const ALLOW_EXECUTE = process.env.VIYA_ALLOW_EXECUTE === '1'
 const ALLOW_WRITES = process.env.VIYA_ALLOW_WRITES === '1'
 const ALLOW_FILES = process.env.VIYA_ALLOW_FILES === '1'
+const ALLOW_JOBS = process.env.VIYA_ALLOW_JOBS === '1'
 const TLS_RELAX = process.env.VIYA_TLS_RELAX === '1'
 
 if (!TARGET) {
@@ -294,6 +305,12 @@ await runStep('identities/current-user', () =>
 
 await runStep('compute/contexts', () => client.getComputeContexts(TOKEN))
 
+// read-only, and the list a client falls back to when the compute context call
+// fails: nothing else in this pass reaches it
+await runStep('compute/launcher-contexts', () =>
+  client.getLauncherContexts(TOKEN)
+)
+
 if (CONTEXT)
   await runStep('compute/context-by-name', () =>
     client.getComputeContextByName(CONTEXT, TOKEN)
@@ -302,6 +319,10 @@ if (CONTEXT)
 if (APP_LOC) {
   await runStep('folders/item', () => client.getFolder(APP_LOC, TOKEN))
   await runStep('folders/members', () => client.listFolder(APP_LOC, TOKEN))
+
+  // the answers to a request a client makes wrongly: a missing folder and a
+  // refused token, which the emulator has to give too
+  await refusalPass({ client, token: TOKEN, appLoc: APP_LOC, runStep })
 }
 
 if (ALLOW_EXECUTE && CONTEXT) {
@@ -340,6 +361,54 @@ if (ALLOW_WRITES || ALLOW_FILES) {
   } else console.log('  folders/create: skipped, VIYA_APP_LOC is not set')
 }
 
+// The token pair the job and execution steps share. Both refresh, and a refresh
+// rotates the pair, so the second step has to be handed what the first one got.
+const authConfig = {
+  access_token: TOKEN,
+  ...(REFRESH_TOKEN ? { refresh_token: REFRESH_TOKEN } : {})
+}
+
+const onTokensRefreshed = (refreshed) => {
+  authConfig.access_token = refreshed.access_token
+
+  if (refreshed.refresh_token)
+    authConfig.refresh_token = refreshed.refresh_token
+}
+
+// The job family: deploy a definition under a folder of its own, run it, and
+// remove both. Off unless asked for, because it writes to the estate.
+if (ALLOW_JOBS) {
+  if (APP_LOC && CONTEXT) {
+    // a second client, as a second process would be: the folder map caches a
+    // folder's members at create time in adapter versions up to 6.0.2, and the
+    // job definition does not exist yet when that happens
+    const runner = new Adapter({
+      serverUrl: proxyUrl,
+      appLoc: APP_LOC,
+      serverType: 'SASVIYA',
+      contextName: CONTEXT,
+      useComputeApi: true,
+      debug: false
+    })
+
+    await jobPass({
+      deployClient: client,
+      runnerClient: runner.sasViyaApiClient,
+      requestClient,
+      authConfig,
+      appLoc: APP_LOC,
+      folderName: jobFolderNameFor(started),
+      contextName: CONTEXT,
+      onTokensRefreshed,
+      runStep,
+      runCleanup
+    })
+  } else
+    console.log(
+      '  jobs/folder-create: skipped, VIYA_ALLOW_JOBS needs VIYA_APP_LOC and VIYA_CONTEXT'
+    )
+}
+
 // Last, because the adapter treats a fresh one-hour token as expiring and
 // refreshes it before the job is submitted: the refresh rotates the pair, so
 // every step that needs `TOKEN` runs before this one.
@@ -347,11 +416,9 @@ if (ALLOW_EXECUTE && CONTEXT) {
   const executed = await executePass({
     client,
     requestClient,
-    authConfig: {
-      access_token: TOKEN,
-      ...(REFRESH_TOKEN ? { refresh_token: REFRESH_TOKEN } : {})
-    },
+    authConfig,
     contextName: CONTEXT,
+    onTokensRefreshed,
     runStep,
     runCleanup
   })
@@ -402,6 +469,7 @@ const document = {
   allowExecute: ALLOW_EXECUTE,
   allowWrites: ALLOW_WRITES,
   allowFiles: ALLOW_FILES,
+  allowJobs: ALLOW_JOBS,
   steps: captures
 }
 

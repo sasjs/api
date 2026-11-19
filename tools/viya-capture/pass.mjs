@@ -64,6 +64,119 @@ export const removeFolder = async ({ client, token, folderPath, runStep }) => {
   await runStep('folders/delete', () => client.deleteFolder(folderPath, token))
 }
 
+/** The name of the folder a job pass deploys into. */
+export const jobFolderNameFor = (started) => `capture-jobs-${started}`
+
+/**
+ * The refusals the folder route answers, asked for on purpose.
+ *
+ * A 401 and a 404 are as much a part of the contract as a 200: a client asks for
+ * a folder that is not there, and a client is refused when its token is not
+ * accepted, so the emulator has to answer both the way the estate does. A pass
+ * that only makes successful calls records neither, and a contract generated
+ * from it says the route has one answer.
+ *
+ * The token on the second call is deliberately not a real credential - a step
+ * that sent a mangled copy of the run's token would put one in the file for the
+ * scrubber's second opinion to catch, and would teach the reader nothing.
+ */
+export const refusalPass = async ({ client, token, appLoc, runStep }) => {
+  await runStep('folders/missing', () =>
+    client.getFolder(`${appLoc}/capture-missing`, token)
+  )
+
+  await runStep('folders/unauthorized', () =>
+    client.getFolder(appLoc, 'refused-on-purpose')
+  )
+}
+
+/**
+ * The job family: deploy one definition, run it, read it back.
+ *
+ * Two clients, because a deployment and a later run are two processes and
+ * because the folder map makes them behave differently in one: adapter
+ * versions up to 6.0.2 populate the map when a folder is created, so a single
+ * instance reports the job definition it created moments later as missing. The
+ * recorder is pinned at 6.1.2, which no longer does that, and the split costs
+ * nothing and keeps the pass correct if the cache returns.
+ *
+ * `executeJob` reads the folder item, the folder's members and the job
+ * definition, posts the execution and polls it, then reads the result and the
+ * log: one step, several routes, which is why the table attributes all of them
+ * to it.
+ */
+export const jobPass = async ({
+  deployClient,
+  runnerClient,
+  requestClient,
+  authConfig,
+  appLoc,
+  folderName,
+  contextName,
+  onTokensRefreshed,
+  runStep,
+  runCleanup
+}) => {
+  const folderPath = `${appLoc}/${folderName}`
+  let token = authConfig?.access_token
+
+  const created = await runStep('jobs/folder-create', () =>
+    deployClient.createFolder(folderName, appLoc, undefined, token)
+  )
+
+  if (!created) return { folderPath, created: false }
+
+  const definition = await runStep('jobs/definition', () =>
+    deployClient.createJobDefinition(
+      'capture',
+      '%put VIYA_CAPTURE=job;\n%put &=sysvlong;',
+      folderPath,
+      undefined,
+      token
+    )
+  )
+
+  if (definition) {
+    const executed = await runStep('jobs/execute', () =>
+      runnerClient.executeJob(
+        `${folderPath}/capture`,
+        contextName,
+        true,
+        null,
+        authConfig,
+        (refreshed) => {
+          token = refreshed.access_token
+          onTokensRefreshed?.(refreshed)
+        }
+      )
+    )
+
+    if (!String(executed?.log ?? '').includes('VIYA_CAPTURE=job'))
+      console.log(
+        '  jobs/execute: the job ran but its log did not come back; the step is a submission, not a proof'
+      )
+  }
+
+  // no client deletes a job definition - the adapter offers no such method - so
+  // this is tidying up, not contract
+  if (definition?.id)
+    await runCleanup('jobs/definition-cleanup', () =>
+      requestClient.delete(
+        `/jobDefinitions/definitions/${definition.id}`,
+        token
+      )
+    )
+
+  await removeFolder({
+    client: deployClient,
+    token,
+    folderPath,
+    runStep: (name, action) => runStep(`jobs/${name}`, action)
+  })
+
+  return { folderPath, created: true }
+}
+
 /**
  * The execution family: one script through the compute API, with the log.
  *
@@ -83,6 +196,7 @@ export const executePass = async ({
   requestClient,
   authConfig,
   contextName,
+  onTokensRefreshed,
   runStep,
   runCleanup
 }) => {
@@ -90,6 +204,9 @@ export const executePass = async ({
   // the session is not necessarily the one that closes it
   let token = authConfig?.access_token
 
+  // `printPid` is on because it is the only way the adapter reads a session
+  // variable - `getVariable(sessionId, 'SYSJOBID')` - and that route is in scope
+  // with no other caller. The pid itself is not read here or stored anywhere.
   const result = await runStep('compute/execute-script', () =>
     client.executeScript(
       'capture',
@@ -101,10 +218,11 @@ export const executePass = async ({
       false,
       true,
       undefined,
-      false,
+      true,
       undefined,
       (refreshed) => {
         token = refreshed.access_token
+        onTokensRefreshed?.(refreshed)
       }
     )
   )

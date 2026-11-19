@@ -34,6 +34,19 @@ const version = readFileSync(join(root, 'src/viya/version.ts'), 'utf8').match(
   /VIYA_TARGET_VERSION = '([^']+)'/
 )?.[1]
 
+// The paths the clients build, as `npm run check:scope` extracted them. A route
+// the client states as a template is a call it makes for any value, so the table
+// states it that way too - the capture holds one answer, not the whole route.
+// Read from the committed inventories for the same reason the pin is: this runs
+// before a build and takes no dependency on the installed packages.
+const templates = () =>
+  [
+    join(root, 'spec/viya/adapter-paths.json'),
+    join(root, 'spec/viya/cli-paths.json')
+  ].flatMap((inventory) =>
+    Object.keys(JSON.parse(readFileSync(inventory, 'utf8')).paths)
+  )
+
 if (!version) {
   console.error('src/viya/version.ts states no VIYA_TARGET_VERSION')
   process.exit(2)
@@ -61,7 +74,10 @@ const operations = mergeOperations(
   files
     .sort()
     .map((file) =>
-      operationsOf(JSON.parse(readFileSync(join(captureDir, file), 'utf8')))
+      operationsOf(
+        JSON.parse(readFileSync(join(captureDir, file), 'utf8')),
+        templates()
+      )
     )
 )
 

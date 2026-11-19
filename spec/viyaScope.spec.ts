@@ -36,7 +36,12 @@ const cliInventory = JSON.parse(
 const measured = Object.keys(adapterInventory.paths).sort()
 const measuredCli = Object.keys(cliInventory.paths).sort()
 const both = [...new Set([...measured, ...measuredCli])].sort()
-const declared = SURFACE.map((entry) => entry.path).sort()
+const declared = SURFACE.filter((entry) => !entry.source)
+  .map((entry) => entry.path)
+  .sort()
+const captured = SURFACE.filter((entry) => entry.source === 'capture').map(
+  (entry) => entry.path
+)
 
 describe('the Viya call surface', () => {
   it('declares the adapter version the inventory was measured from', () => {
@@ -76,6 +81,16 @@ describe('the Viya call surface', () => {
     const cliOnly = measuredCli.filter((path) => !measured.includes(path))
 
     expect(cliOnly).toEqual(['/SASLogon/authorize'])
+  })
+
+  it('keeps a captured-only path out of the inventories', () => {
+    // a path a capture observed arrives as data - a link in a response - so no
+    // extractor over source text can see it. It must not be smuggled into an
+    // inventory, and if a client version does build the literal, this fails and
+    // the entry loses its `source` instead of drifting.
+    const literalNow = captured.filter((path) => both.includes(path))
+
+    expect(literalNow).toEqual([])
   })
 
   it('states a decision and a reason for every entry', () => {

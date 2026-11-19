@@ -58,11 +58,55 @@ export const pathOf = (path) =>
 /** The parameter names, sorted - a value in a query is estate data. */
 export const queryOf = (query) => (query ? Object.keys(query).sort() : [])
 
+/** Whether two paths have the same shape, `{}` standing for any one segment. */
+const sameShape = (template, path) => {
+  const declared = template.split('/')
+  const observed = path.split('/')
+
+  if (declared.length !== observed.length) return false
+
+  return declared.every(
+    (segment, index) => segment === '{}' || segment === observed[index]
+  )
+}
+
+/**
+ * The path the client builds, where a client inventory states one.
+ *
+ * A capture records the URL an estate received, so a segment the client
+ * interpolates arrives as the value it happened to send: the adapter reads a
+ * session variable by name, and one run of the recorder asked for `SYSJOBID`, so
+ * the row would say `/compute/sessions/{}/variables/SYSJOBID` while the client
+ * builds `.../variables/{}`. A row narrower than the client's route answers the
+ * one name the capture used and 404s every other, which is a refusal the
+ * overlay never gets the chance to make.
+ *
+ * The templates are the client's own literals, extracted from the installed
+ * package by `npm run check:scope` and committed under `spec/viya/`. A path that
+ * matches one of them segment for segment - including the segment count, so a
+ * template never truncates a longer observed path - is stated as the template,
+ * because that is what the client calls.
+ */
+export const canonicalPath = (path, templates = []) =>
+  templates.find((template) => sameShape(template, pathOf(path))) ??
+  pathOf(path)
+
 const typeOf = (value) => {
   if (value === null) return 'null'
   if (Array.isArray(value)) return 'array'
   return typeof value
 }
+
+/**
+ * A key that carries an identifier is a placeholder, the way a path segment is.
+ *
+ * A job's `results` object is keyed by the file names the estate produced, and
+ * those carry the job's own UUID; leaving the key alone would put an estate's
+ * identifier into the table while every other value was replaced by its type.
+ */
+const ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+const keyOf = (key) => (ID.test(key) ? key.replace(ID, '{}') : key)
 
 /**
  * A body as a type sketch: keys with types, arrays as their first element's
@@ -92,8 +136,10 @@ export const shapeOf = (value, depth = 0) => {
 
   return Object.fromEntries(
     Object.keys(value)
-      .sort()
-      .map((key) => [key, shapeOf(value[key], depth + 1)])
+      // normalise, then sort: sorting the raw keys leaves `{}.log` where the
+      // identifier used to be and the output is no longer in key order
+      .map((key) => [keyOf(key), shapeOf(value[key], depth + 1)])
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
   )
 }
 
@@ -172,8 +218,12 @@ const bodyShape = (entry) => {
  * is keyed by `METHOD /path` and the step only says which scripted pass produced
  * it. A path that arrives with two verbs is two operations, because a route
  * table matches on both.
+ *
+ * `templates` is the client's path inventory, where the caller has one: a path
+ * the inventory states in full is stated that way here too, so the row is the
+ * route the client builds rather than the one value a run happened to send.
  */
-export const operationsOf = (capture) => {
+export const operationsOf = (capture, templates = []) => {
   const operations = new Map()
 
   for (const entry of capture.steps) {
@@ -185,13 +235,13 @@ export const operationsOf = (capture) => {
     // the recorder's own tidying up is not the client's surface
     if (entry.cleanup) continue
 
-    const id = `${method} ${pathOf(path)}`
+    const id = `${method} ${canonicalPath(path, templates)}`
 
     if (!operations.has(id))
       operations.set(id, {
         id,
         method,
-        path: pathOf(path),
+        path: canonicalPath(path, templates),
         steps: new Set(),
         statuses: new Set(),
         queries: new Set(),

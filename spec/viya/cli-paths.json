@@ -1,0 +1,33 @@
+{
+  "cli": "8.0.5",
+  "extractedFrom": "node_modules/@sasjs/cli",
+  "prefixes": [
+    "/SASLogon",
+    "/folders",
+    "/files",
+    "/compute",
+    "/jobExecution",
+    "/jobDefinitions",
+    "/identities",
+    "/types",
+    "/launcher"
+  ],
+  "dropped": 31,
+  "paths": {
+    "/SASLogon/authorize": [
+      "build/utils/auth.js"
+    ],
+    "/SASLogon/login": [
+      "build/utils/auth.js"
+    ],
+    "/SASLogon/oauth/authorize": [
+      "build/utils/auth.js"
+    ],
+    "/SASLogon/oauth/token": [
+      "build/utils/auth.js"
+    ],
+    "/identities/users/@currentUser": [
+      "build/utils/auth.js"
+    ]
+  }
+}

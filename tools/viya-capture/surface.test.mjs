@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { literalsIn, normalise } from './surface.mjs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { extract, extractViya, literalsIn, normalise } from './surface.mjs'
 
 test('a query and a client-side marker are not part of the path', () => {
   assert.equal(
@@ -136,4 +139,91 @@ test('a regex after return or a closing bracket is a regex', () => {
   )
 
   assert.deepEqual(literals.sort(), ['/files/files', '/folders/folders'])
+})
+
+/**
+ * The two clients are measured with one instrument, but not identically.
+ *
+ * The adapter is an HTTP client whose literals are nearly all calls, so it is
+ * read whole. The CLI is not: its build embeds SAS fixtures, documentation
+ * examples and the mock site's vendored bundle, where an unfiltered read returns
+ * several hundred literals of which a handful are calls. These cases pin the
+ * filter and the directory it has to skip, because either mistake makes the
+ * committed inventory meaningless - one by burying four real calls in noise, the
+ * other by omitting a call nobody then has to classify.
+ */
+const withTree = (files, fn) => {
+  const root = mkdtempSync(join(tmpdir(), 'viya-surface-'))
+
+  try {
+    for (const [path, body] of Object.entries(files)) {
+      const full = join(root, path)
+
+      mkdirSync(dirname(full), { recursive: true })
+      writeFileSync(full, body, 'utf8')
+    }
+
+    return fn(root)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('the CLI inventory keeps the Viya prefixes and counts what it set aside', () => {
+  withTree(
+    {
+      'build/utils/auth.js': "const a = '/SASLogon/authorize'",
+      'build/utils/drive.js': "const b = '/files/files/${id}/content'",
+      'build/utils/other.js': "const c = '/SASjsApi/drive/file'"
+    },
+    (root) => {
+      const { kept, dropped } = extractViya(root)
+
+      assert.deepEqual(Object.keys(kept).sort(), [
+        '/SASLogon/authorize',
+        '/files/files/{}/content'
+      ])
+      assert.equal(dropped, 1, 'the SASjs API path is not the Viya surface')
+    }
+  )
+})
+
+test('the mock site bundle is not read as the CLI own calls', () => {
+  withTree(
+    {
+      'build/utils/auth.js': "const a = '/SASLogon/authorize'",
+      'build/commands/build/internal/mockSite/assets/runtime-core.js':
+        "const d = '/folders/folders/{id}/members'"
+    },
+    (root) => {
+      const unfiltered = extractViya(root)
+      const filtered = extractViya(root, { skip: ['assets'] })
+
+      assert.deepEqual(Object.keys(unfiltered.kept).sort(), [
+        '/SASLogon/authorize',
+        '/folders/folders/{id}/members'
+      ])
+      assert.deepEqual(Object.keys(filtered.kept), ['/SASLogon/authorize'])
+      assert.equal(
+        filtered.dropped,
+        0,
+        'the bundle is skipped before it is counted, not filtered as a path'
+      )
+    }
+  )
+})
+
+test('the adapter is read whole, with no prefix filter applied', () => {
+  withTree(
+    {
+      'build/utils/kill.js': "const a = '/SASjsApi/drive/file'",
+      'build/utils/api.js': "const b = '/folders/folders'"
+    },
+    (root) => {
+      assert.deepEqual(Object.keys(extract(root)).sort(), [
+        '/SASjsApi/drive/file',
+        '/folders/folders'
+      ])
+    }
+  )
 })

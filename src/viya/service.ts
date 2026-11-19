@@ -12,8 +12,16 @@
  * the same id on every host and every run. That is the seed rule applied to the
  * one thing the emulator cannot invent per request: a client stores a folder id
  * and asks for it later.
+ *
+ * Authorship is the ASKING caller, not the object's creator. The drive stores
+ * paths and contents, not who wrote them, so `createdBy`, `modifiedBy` and a
+ * session's `owner` name whoever made the request - a second caller reading the
+ * same folder is told it created it. Persisting the creator would mean the drive
+ * carrying an owner, which is a wider change than an emulator should force; the
+ * bodies say the one thing they can say honestly, which is who is asking.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
 import { requireDrive } from './ports.js'
@@ -99,10 +107,6 @@ const recycleBin = (caller: string) => {
   }
 }
 
-/** The caller's id, from the subject the host resolved, else the emulated user. */
-const callerOf = (request: { subject?: unknown }) =>
-  callerId(request.subject as { userId?: string } | undefined)
-
 const pathFromQuery = (request: {
   query?: Record<string, string | undefined>
 }) => {
@@ -167,7 +171,7 @@ export const VIYA_HANDLERS: Record<
       query?: Record<string, string | undefined>
       body?: unknown
       token?: string
-      subject?: unknown
+      subject?: Subject
     }
     params: Record<string, string>
   }) => Promise<ApiResponse>
@@ -222,19 +226,19 @@ export const VIYA_HANDLERS: Record<
     body: await folderBody(
       requireDrive(services),
       pathFromQuery(request),
-      callerOf(request)
+      callerId(request.subject)
     )
   }),
 
   'GET /folders/folders/@myRecycleBin': async ({ request }) => ({
     status: 200,
-    body: recycleBin(callerOf(request))
+    body: recycleBin(callerId(request.subject))
   }),
 
   'GET /folders/folders/{}': async ({ services, params, request }) => {
     // the bin is addressed by id too, and it is not in the drive's tree
     if (params.id === idFor('@myRecycleBin'))
-      return { status: 200, body: recycleBin(callerOf(request)) }
+      return { status: 200, body: recycleBin(callerId(request.subject)) }
 
     const drive = requireDrive(services)
 
@@ -243,7 +247,7 @@ export const VIYA_HANDLERS: Record<
       body: await folderBody(
         drive,
         await pathForId(drive, params.id),
-        callerOf(request)
+        callerId(request.subject)
       )
     }
   },
@@ -273,7 +277,7 @@ export const VIYA_HANDLERS: Record<
 
     const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
-    const caller = callerOf(request)
+    const caller = callerId(request.subject)
 
     /**
      * A member's `uri` is the resource, not its path.
@@ -360,7 +364,7 @@ export const VIYA_HANDLERS: Record<
 
     return {
       status: 201,
-      body: await folderBody(drive, path, callerOf(request))
+      body: await folderBody(drive, path, callerId(request.subject))
     }
   },
 
@@ -379,7 +383,7 @@ export const VIYA_HANDLERS: Record<
     // shape the capture recorded for this verb. Both spellings arrive: the bin's
     // id, and the alias the emulator itself answers with
     if (isRecycleBin(body.parentFolderUri)) {
-      const removed = await folderBody(drive, path, callerOf(request))
+      const removed = await folderBody(drive, path, callerId(request.subject))
 
       await drive.rmdir(path)
 
@@ -411,7 +415,7 @@ export const VIYA_HANDLERS: Record<
 
     return {
       status: 200,
-      body: await folderBody(drive, target, callerOf(request))
+      body: await folderBody(drive, target, callerId(request.subject))
     }
   },
 

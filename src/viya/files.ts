@@ -8,8 +8,13 @@
  *
  * A file id is derived from its path, like a folder id: a client stores the id an
  * upload answered and asks for it later, so the id cannot move between runs.
+ *
+ * `createdBy`, `modifiedBy` and `properties.typeRegistrant` name the asking
+ * caller, not the account that uploaded the bytes - the drive stores contents,
+ * not authorship. See `service.ts` for why that is the honest answer here.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import type { DriveService } from '../drive/service.js'
 import { requireDrive } from './ports.js'
@@ -41,10 +46,6 @@ const contentTypeOf = (name: string): string => {
  * client reads rather than placeholders: the three `content.*` flags say what can
  * be done with the file, and `typeRegistrant` says who registered the type.
  */
-/** The caller's id, from the subject the host resolved, else the emulated user. */
-const callerOf = (subject: unknown) =>
-  callerId(subject as { userId?: string } | undefined)
-
 const fileBody = (file: EmulatedFile, caller: string) => {
   const id = idFor(file.path, 'file')
   const uri = `/files/files/${id}`
@@ -207,7 +208,7 @@ export const FILE_HANDLERS: Record<
       contents?: string | Uint8Array
       file?: { name: string; contents: string | Uint8Array }
       token?: string
-      subject?: unknown
+      subject?: Subject
     }
     params: Record<string, string>
   }) => Promise<ApiResponse>
@@ -226,7 +227,7 @@ export const FILE_HANDLERS: Record<
 
     return {
       status: 201,
-      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
     }
   },
 
@@ -236,7 +237,7 @@ export const FILE_HANDLERS: Record<
 
     return {
       status: 200,
-      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
     }
   },
 
@@ -255,7 +256,7 @@ export const FILE_HANDLERS: Record<
 
     return {
       status: 200,
-      body: fileBody(await bodyOf(drive, target), callerOf(request.subject))
+      body: fileBody(await bodyOf(drive, target), callerId(request.subject))
     }
   },
 
@@ -300,7 +301,7 @@ export const FILE_HANDLERS: Record<
 
     return {
       status: 200,
-      body: fileBody(await bodyOf(drive, path), callerOf(request.subject))
+      body: fileBody(await bodyOf(drive, path), callerId(request.subject))
     }
   }
 }

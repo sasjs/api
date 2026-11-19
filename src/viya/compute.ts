@@ -13,6 +13,7 @@
  * name, so a session can be created for the id the list returned.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
+import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { normaliseServerUrl } from './seed.js'
 import { seedOf } from './seed.js'
@@ -213,7 +214,7 @@ export const COMPUTE_HANDLERS: Record<
       query?: Record<string, string | undefined>
       body?: unknown
       token?: string
-      subject?: unknown
+      subject?: Subject
     }
     params: Record<string, string>
   }) => Promise<ApiResponse>
@@ -233,7 +234,7 @@ export const COMPUTE_HANDLERS: Record<
         items: [
           contextBody(
             contextNameFrom(request.query?.filter),
-            callerId(request.subject as { userId?: string } | undefined)
+            callerId(request.subject)
           )
         ],
         links: linksFor(
@@ -265,7 +266,7 @@ export const COMPUTE_HANDLERS: Record<
         services,
         session,
         body.environment?.autoExecLines ?? [],
-        callerId(request.subject as { userId?: string } | undefined)
+        callerId(request.subject)
       )
     }
   },

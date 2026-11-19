@@ -13,6 +13,8 @@ export const EMULATED_NOW = '2026-01-01T00:00:00.000Z'
 /** The caller the emulated estate reports when a host does not name one. */
 export const EMULATED_USER = { id: 'emulated-user', name: 'Emulated User' }
 
+import type { Subject } from '../identity/types.js'
+
 /**
  * The id the emulated estate reports as the caller.
  *
@@ -23,7 +25,7 @@ export const EMULATED_USER = { id: 'emulated-user', name: 'Emulated User' }
  * use this, so an application that reads its own name back is told the account it
  * signed in with.
  */
-export const callerId = (subject?: { userId?: string }): string =>
+export const callerId = (subject?: Subject): string =>
   subject?.userId ?? EMULATED_USER.id
 
 /**

@@ -7,9 +7,15 @@
  * between them they are the only callers this package emulates for.
  *
  * This file is that statement in a form a check can read, extracted from
- * `@sasjs/adapter` 6.0.2 and `@sasjs/cli` 8.0.5 rather than from memory, and
+ * `@sasjs/adapter` 6.1.2 and `@sasjs/cli` 8.0.5 rather than from memory, and
  * compared with both again by `npm run check:scope` (extraction) and by
  * `spec/viyaScope.spec.ts` (this file against the committed inventories).
+ *
+ * One adapter version serves both: 6.1.2 is what `@sasjs/cli` 8.0.5 itself
+ * resolves, so the inventory describes the copy `sasjs deploy` actually calls
+ * rather than the one that shipped first. The captures in `table.ts` were taken
+ * with 6.0.2, and 6.1.2 builds the same routes - the one addition it brings is
+ * declined below with its reason.
  *
  * The CLI's own literals are on top of the adapter's, not instead of them: every
  * `deploy`, `folder`, `run`, `flow` and `servicepack` command builds its calls
@@ -42,7 +48,7 @@ export interface SurfaceEntry {
 }
 
 /** Pinned to the adapter the inventory was extracted from. */
-export const SURFACE_ADAPTER_VERSION = '6.0.2'
+export const SURFACE_ADAPTER_VERSION = '6.1.2'
 
 /** Pinned to the CLI the inventory was extracted from. */
 export const SURFACE_CLI_VERSION = '8.0.5'
@@ -54,6 +60,13 @@ export const SURFACE: SurfaceEntry[] = [
     family: 'sas9',
     decision: 'declined',
     reason: 'a default config value the client falls back to, not a call'
+  },
+  {
+    path: '/host/boot.js',
+    family: 'sasjs-api',
+    decision: 'declined',
+    reason:
+      "the mock host's own boot script: the adapter reads it off a page's script tag to tell whether the mock service worker is serving, so it is never a request to an estate"
   },
   {
     path: '/SASJobExecution',

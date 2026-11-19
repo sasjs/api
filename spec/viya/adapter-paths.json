@@ -1,5 +1,5 @@
 {
-  "adapter": "6.0.2",
+  "adapter": "6.1.2",
   "extractedFrom": "node_modules/@sasjs/adapter",
   "paths": {
     "/Public/seedapp": [
@@ -114,6 +114,9 @@
     ],
     "/folders/folders/{}/members": [
       "SASViyaApiClient.js"
+    ],
+    "/host/boot.js": [
+      "request/mockReadiness.js"
     ],
     "/identities/users/@currentUser": [
       "auth/AuthManager.js"

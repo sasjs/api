@@ -128,9 +128,11 @@ for (const client of CLIENTS) {
   }
 
   let committed
+  let raw
 
   try {
-    committed = JSON.parse(readFileSync(client.out, 'utf8'))
+    raw = readFileSync(client.out, 'utf8')
+    committed = JSON.parse(raw)
   } catch {
     console.error(
       `No inventory at ${client.out}. Run \`npm run sync:scope\` and commit it.`
@@ -159,6 +161,34 @@ for (const client of CLIENTS) {
     causes.push(
       `the CLI build now carries ${dropped} literals outside the Viya ` +
         `prefixes, where the inventory recorded ${committed.dropped}`
+    )
+
+  // The record of HOW the inventory was read, not only what it found. A prefix
+  // added to `VIYA_PREFIXES` that changes no kept path would otherwise pass while
+  // the inventory still documented the old filter - the same drift the discard
+  // count exists to catch, one field over.
+  if (committed.extractedFrom !== inventory.extractedFrom)
+    causes.push(
+      `the inventory records its source as ${committed.extractedFrom}, ` +
+        `where this read is ${inventory.extractedFrom}`
+    )
+
+  if (
+    JSON.stringify(committed.prefixes ?? []) !==
+    JSON.stringify(inventory.prefixes ?? [])
+  )
+    causes.push(
+      `the inventory records the filter [${(committed.prefixes ?? []).join(', ')}], ` +
+        `where this read applied [${(inventory.prefixes ?? []).join(', ')}]`
+    )
+
+  // Each field is compared above, so a difference none of them named means this
+  // check has a gap. That is a failure, not a match: the previous version reported
+  // "the extracts differ in a way this check cannot name" here, and dropping it
+  // would have turned a blind spot into a green run.
+  if (!causes.length && raw !== rendered)
+    causes.push(
+      'the committed inventory differs in a way this check cannot name'
     )
 
   if (!causes.length) {

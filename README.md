@@ -124,6 +124,12 @@ Refreshing the API surface: regenerate `api/public/swagger.yaml` in `sasjs/serve
 
 Re-vendoring is a two-repository change and the server half merges first: the document is only true once the controllers it is generated from answer what it states, so a copy taken from an unmerged server branch describes a server that does not exist yet. Take the copy from a released tag of `sasjs/server` rather than from its `main`, and the document and the code a host runs cannot disagree.
 
+### Dependency audit
+
+`npm run audit:gate` uses `@sasjs/release` to judge the full tree, including development dependencies, from **info** upwards. This deliberately tightens the old low floor: even an unwaived info finding fails. Whenever a waiver exists the gate also audits production at info; production findings cannot be waived. This preserves the old dev-only rule even if a waived source appears in production at info. CI retains the separate production `npm audit --omit=dev --audit-level=low` and the independent `tools/viya-capture` audit.
+
+`scripts/audit-allowlist.json` is empty because the former picomatch source 1247710 no longer appears. A future exemption must name its GHSA `id`, exact numeric `source`, exact `severity`, `recheckBy` date and a reason; `packages` can restrict its scope. A changed source or severity requires review. Unlike the old gate, a stale exemption fails: remove it when the finding clears. See the [shared gate documentation](https://github.com/sasjs/release#the-audit-gate) for the schema and replay options.
+
 ### The coverage ratchet
 
 `jest.config.js` carries a floor, and a floor only moves when somebody remembers to move it - so it passes a pull request that drops two points as long as it stays above the number. The ratchet is the other half:

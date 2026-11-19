@@ -287,9 +287,9 @@ export const VIYA_TABLE: ViyaOperation[] = [
     shape: undefined
   },
   {
-    id: 'GET /compute/sessions/{}/variables/SYSJOBID',
+    id: 'GET /compute/sessions/{}/variables/{}',
     method: 'GET',
-    path: '/compute/sessions/{}/variables/SYSJOBID',
+    path: '/compute/sessions/{}/variables/{}',
     steps: ['compute/execute-script'],
     statuses: [200],
     queries: [],

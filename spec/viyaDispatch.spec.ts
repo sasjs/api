@@ -92,6 +92,23 @@ describe('the Viya dispatch', () => {
     )
   })
 
+  it('answers a session variable the capture never named, rather than 404', async () => {
+    // the client builds `/compute/sessions/{}/variables/{}` and asks by name;
+    // the capture saw one name, so a row stated at that name would answer it and
+    // report every other as an operation nobody emulates - a 404 where the
+    // overlay's reason is the honest answer
+    const answer = await dispatchViya(
+      services(),
+      'GET',
+      '/compute/sessions/abc-ses0001/variables/AFMACRO'
+    )
+
+    expect(answer.status).toBe(501)
+    expect(String((answer.body as { message: string }).message)).toMatch(
+      /session variables/i
+    )
+  })
+
   it('reports the caller the host resolved', async () => {
     const answer = await dispatchViya(
       services(),

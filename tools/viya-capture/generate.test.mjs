@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  canonicalPath,
   mergeOperations,
   operationsOf,
   pathOf,
@@ -69,6 +70,31 @@ test('an identifier in a path becomes a placeholder, a name does not', () => {
       '/compute/sessions/1234abcd-0000-4000-8000-000000000000-ses0000/state'
     ),
     '/compute/sessions/{}/state'
+  )
+})
+
+test('a route the client builds as a template is stated as the template', () => {
+  const templates = [
+    '/compute/sessions/{}/variables/{}',
+    // a template must not truncate a longer observed path
+    '/files/files/{}'
+  ]
+
+  assert.equal(
+    canonicalPath('/compute/sessions/abc/variables/SYSJOBID', templates),
+    '/compute/sessions/{}/variables/{}'
+  )
+
+  // the client's route for a file, with `/content` appended, stays as observed
+  assert.equal(
+    canonicalPath('/files/files/file-1/content', templates),
+    '/files/files/file-1/content'
+  )
+
+  // a path no template states is left alone
+  assert.equal(
+    canonicalPath('/launcher/contexts', templates),
+    '/launcher/contexts'
   )
 })
 

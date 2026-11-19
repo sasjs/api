@@ -223,7 +223,7 @@ export const VIYA_CORPUS: ViyaCase[] = [
     shape: undefined
   },
   {
-    route: 'GET /compute/sessions/{}/variables/SYSJOBID',
+    route: 'GET /compute/sessions/{}/variables/{}',
     step: 'compute/execute-script',
     queries: [],
     statuses: [200],

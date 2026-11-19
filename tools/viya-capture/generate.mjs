@@ -58,6 +58,39 @@ export const pathOf = (path) =>
 /** The parameter names, sorted - a value in a query is estate data. */
 export const queryOf = (query) => (query ? Object.keys(query).sort() : [])
 
+/** Whether two paths have the same shape, `{}` standing for any one segment. */
+const sameShape = (template, path) => {
+  const declared = template.split('/')
+  const observed = path.split('/')
+
+  if (declared.length !== observed.length) return false
+
+  return declared.every(
+    (segment, index) => segment === '{}' || segment === observed[index]
+  )
+}
+
+/**
+ * The path the client builds, where a client inventory states one.
+ *
+ * A capture records the URL an estate received, so a segment the client
+ * interpolates arrives as the value it happened to send: the adapter reads a
+ * session variable by name, and one run of the recorder asked for `SYSJOBID`, so
+ * the row would say `/compute/sessions/{}/variables/SYSJOBID` while the client
+ * builds `.../variables/{}`. A row narrower than the client's route answers the
+ * one name the capture used and 404s every other, which is a refusal the
+ * overlay never gets the chance to make.
+ *
+ * The templates are the client's own literals, extracted from the installed
+ * package by `npm run check:scope` and committed under `spec/viya/`. A path that
+ * matches one of them segment for segment - including the segment count, so a
+ * template never truncates a longer observed path - is stated as the template,
+ * because that is what the client calls.
+ */
+export const canonicalPath = (path, templates = []) =>
+  templates.find((template) => sameShape(template, pathOf(path))) ??
+  pathOf(path)
+
 const typeOf = (value) => {
   if (value === null) return 'null'
   if (Array.isArray(value)) return 'array'
@@ -185,8 +218,12 @@ const bodyShape = (entry) => {
  * is keyed by `METHOD /path` and the step only says which scripted pass produced
  * it. A path that arrives with two verbs is two operations, because a route
  * table matches on both.
+ *
+ * `templates` is the client's path inventory, where the caller has one: a path
+ * the inventory states in full is stated that way here too, so the row is the
+ * route the client builds rather than the one value a run happened to send.
  */
-export const operationsOf = (capture) => {
+export const operationsOf = (capture, templates = []) => {
   const operations = new Map()
 
   for (const entry of capture.steps) {
@@ -198,13 +235,13 @@ export const operationsOf = (capture) => {
     // the recorder's own tidying up is not the client's surface
     if (entry.cleanup) continue
 
-    const id = `${method} ${pathOf(path)}`
+    const id = `${method} ${canonicalPath(path, templates)}`
 
     if (!operations.has(id))
       operations.set(id, {
         id,
         method,
-        path: pathOf(path),
+        path: canonicalPath(path, templates),
         steps: new Set(),
         statuses: new Set(),
         queries: new Set(),

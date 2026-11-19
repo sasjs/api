@@ -93,10 +93,10 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   },
 
   // declined: session variables are not modelled
-  'GET /compute/sessions/{}/variables/SYSJOBID': {
+  'GET /compute/sessions/{}/variables/{}': {
     implemented: false,
     reason:
-      'The emulator does not model session variables; the client reads this one only to log the pid of a job it is about to submit.'
+      'The emulator does not model session variables; the client reads these only to log the pid of a job it is about to submit (SYSJOBID), and any name it asks for is refused here rather than answered with a value the emulator did not run.'
   },
 
   // declined: the host owns the token port

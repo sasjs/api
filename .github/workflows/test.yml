@@ -129,10 +129,6 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Coverage ratchet's own cases
-        if: matrix.node == 22
-        run: node --test .github/scripts/coverage-ratchet.test.mjs
-
       # Rendered from the summary this run just wrote, so the comment cannot
       # disagree with the gate. One leg posts it: two would race on the same
       # comment, and the numbers are the same either way.
@@ -230,16 +226,16 @@ jobs:
         id: ratchet
         # continue-on-error so the comment below is posted either way; the
         # "Fail on a coverage regression" step turns the outcome into the job's
-        # result. See the script's header for why the comparison is the gate.
+        # result. `sasjs-release --help` says why the comparison is the gate.
         continue-on-error: true
         if: github.event_name == 'pull_request' && matrix.node == 22
         run: >-
-          node .github/scripts/coverage-ratchet.mjs
-          --head coverage/coverage-summary.json
-          --base coverage-base/coverage-summary.json
-          --markdown coverage-ratchet.md
-          --missing-baseline ${{ steps.coverage-baseline.outputs.missing }}
-          --note "Compared against ${{ steps.coverage-baseline.outputs.source }}."
+          npm run release -- --coverage-ratchet
+          --coverage-head coverage/coverage-summary.json
+          --coverage-base coverage-base/coverage-summary.json
+          --coverage-markdown coverage-ratchet.md
+          --coverage-missing-baseline ${{ steps.coverage-baseline.outputs.missing }}
+          --coverage-note "Compared against ${{ steps.coverage-baseline.outputs.source }}."
 
       - name: Add the ratchet to the coverage comment
         # one comment per pull request: the report from the run that just

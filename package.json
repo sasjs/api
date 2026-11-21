@@ -56,7 +56,7 @@
     "prepublishOnly": "node -e \"const v=require('./package.json').version; if (/^0\\.0\\.0/.test(v)) { console.error('refusing to publish ' + v + ': the version is stamped from the tag by @sasjs/release --prepare-publish'); process.exit(1) }\""
   },
   "devDependencies": {
-    "@sasjs/release": "0.17.0",
+    "@sasjs/release": "0.18.0",
     "@types/jest": "30.0.0",
     "@types/node": "22.20.5",
     "deepmerge": "file:./vendor/deepmerge",

@@ -91,6 +91,22 @@ const live = (issued: Issued | undefined, now: number): Subject | undefined =>
     : undefined
 
 /**
+ * The public OAuth client every Viya deployment ships.
+ *
+ * `@sasjs/adapter` falls back to it whenever a target names no client, and
+ * sasjs/server binds its password grant - and the refresh that follows - to this
+ * id with an empty secret, as a rule rather than a stored record, because a
+ * client record carries a secret and a public client has none. The lifetimes are
+ * the ones the server mints with, so a pair bought here expires when it would
+ * there.
+ */
+const PUBLIC_CLIENT: IdentityClient = {
+  clientId: 'sas.cli',
+  accessTokenExpiration: 86400,
+  refreshTokenExpiration: 86400 * 30
+}
+
+/**
  * Whether a token minted for one subject names the same user and client.
  *
  * The fixture can declare a token that outlives the map it is seeded into, so
@@ -229,7 +245,20 @@ export class MemoryIdentityStore implements IdentityStore {
   }
 
   async client(clientId: string): Promise<IdentityClient | undefined> {
-    return this.clientMap.get(clientId)
+    const declared = this.clientMap.get(clientId)
+
+    if (declared) return declared
+
+    // The public client is never a record, because a record carries a secret and
+    // a public client has none. The platform ships it, sasjs/server binds its
+    // password grant to exactly this id with an empty secret, and
+    // `@sasjs/adapter` falls back to it whenever a target names no client.
+    // Resolving it here lets a host answer the sign-in a server answers, while
+    // leaving `clients()` - the administration listing - to the fixture: what a
+    // site reports about its own clients must not depend on a rule of the estate.
+    return clientId === PUBLIC_CLIENT.clientId
+      ? { ...PUBLIC_CLIENT }
+      : undefined
   }
 
   async issue(subject: Subject, client: IdentityClient): Promise<TokenPair> {

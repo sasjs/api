@@ -110,6 +110,32 @@ describe('identity service', () => {
     expect(two.accessToken).not.toEqual(one.accessToken)
   })
 
+  it("resolves the public client without listing it among the site's own", async () => {
+    const store = new MemoryIdentityStore({ ...SIGNED_IN })
+
+    // `sas.cli` is a rule of the estate, not a record a site declares: it holds
+    // no secret, so a fixture cannot carry it faithfully. A sign-in that names it
+    // must still resolve, or a browser host refuses the one client
+    // `@sasjs/adapter` falls back to.
+    const publicClient = await store.client('sas.cli')
+    expect(publicClient).toEqual({
+      clientId: 'sas.cli',
+      accessTokenExpiration: 86400,
+      refreshTokenExpiration: 86400 * 30
+    })
+
+    // the administration listing stays the fixture's own answer: what a site
+    // reports about its clients must not depend on the estate's rule
+    const listed = (await store.clients()).map((client) => client.clientId)
+    expect(listed).not.toContain('sas.cli')
+
+    // a pair bought for it carries the client's own lifetimes
+    const subject = { userId: 'user-restricted', clientId: 'sas.cli' }
+    const pair = await store.issue(subject, publicClient!)
+
+    expect(pair.accessToken).toMatch(/^access-/)
+  })
+
   it('stops authenticating a token once its client lifetime has passed', async () => {
     const store = new MemoryIdentityStore({ ...SIGNED_IN })
     const identity = createIdentityService(store)

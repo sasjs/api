@@ -42,13 +42,33 @@ const assertShape = (shape: unknown, body: unknown, where: string): void => {
     return
   }
 
+  // the corpus records `'array'` as a leaf (`properties` on a job definition) and
+  // `typeof` never yields it, so without this branch a captured array leaf could
+  // not be asserted at all
+  if (shape === 'array') {
+    expect(`${where}: ${Array.isArray(body)}`).toBe(`${where}: true`)
+
+    return
+  }
+
   if (Array.isArray(shape)) {
     expect(`${where}: ${Array.isArray(body)}`).toBe(`${where}: true`)
 
     const first = (body as unknown[])[0]
 
-    if (first !== undefined) assertShape(shape[0], first, `${where}[0]`)
-    else console.log(`${where}: empty, so its element's shape is not shown`)
+    // an empty answer cannot demonstrate its element's shape, and an element
+    // shape recorded as `[]` has none to demonstrate: comparing against
+    // `undefined` would assert the wrong thing rather than nothing
+    if (first === undefined || shape.length === 0) {
+      if (first !== undefined)
+        console.log(
+          `${where}: empty shape, so its element's shape is not shown`
+        )
+
+      return
+    }
+
+    assertShape(shape[0], first, `${where}[0]`)
 
     return
   }
@@ -148,6 +168,31 @@ describe('the answers and the shapes the captures recorded', () => {
     )
 
     assertShape(shapeOfRow('GET /folders/folders/{}'), answer.body, 'byId')
+  })
+
+  it('answers a real folder by id, not only the recycle bin', async () => {
+    // the capture reached the by-id operation through the bin, so a case that only
+    // ever read the bin passed while a folder read was missing `properties` - the
+    // shape the capture recorded. Read a folder the drive really holds.
+    const { shared } = await seeded()
+
+    const item = await dispatchViya(shared, 'GET', '/folders/folders/@item', {
+      query: { path: '/app' }
+    })
+    const id = (item.body as { id: string }).id
+
+    const answer = await dispatchViya(shared, 'GET', `/folders/folders/${id}`)
+
+    assertShape(shapeOfRow('GET /folders/folders/{}'), answer.body, 'folder')
+    expect((answer.body as { properties?: unknown }).properties).toBeDefined()
+  })
+
+  it('answers the type list with the recorded envelope and item keys', async () => {
+    const answer = await dispatchViya(services(), 'GET', '/types/types', {
+      query: { limit: '10' }
+    })
+
+    assertShape(shapeOfRow('GET /types/types'), answer.body, 'types')
   })
 
   it('answers a member list with the recorded envelope and item keys', async () => {

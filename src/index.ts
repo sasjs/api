@@ -90,6 +90,11 @@ export type { ViyaOverlayEntry } from './viya/overlay.js'
 export { VIYA_HANDLERS } from './viya/service.js'
 export { VIYA_CORPUS } from './corpus/viya/operations.js'
 export type { ViyaCase } from './corpus/viya/operations.js'
+export { requestFor, shapeMismatches } from './corpus/viya/replay.js'
+export type {
+  ViyaReplayRequest,
+  ViyaReplayState
+} from './corpus/viya/replay.js'
 export { dispatch, HANDLED_ROUTES } from './host/dispatch.js'
 
 // a host gating its own middleware reads the same decision the inventory reports

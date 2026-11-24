@@ -82,6 +82,10 @@ const folderBody = async (
     modifiedTimeStamp: EMULATED_NOW,
     memberCount: listing.files.length + listing.folders.length,
     parentFolderUri: `/folders/folders/${idFor(parent)}`,
+    // the capture's folder shape carries `properties`, and this body is the one a
+    // real folder is read through: answering only the recycle bin with it left a
+    // client reading `folder.properties` against nothing
+    properties: { allowMove: 'true' },
     links: linksFor(`/folders/folders/${id}`)
   }
 }
@@ -206,20 +210,62 @@ export const VIYA_HANDLERS: Record<
     }
   },
 
-  'GET /types/types': async () => ({
-    status: 200,
-    body: {
-      count: 1,
-      items: [
+  'GET /types/types': async ({ request }) => {
+    const limit = Number(request.query?.limit ?? 0) || 0
+
+    // the estate answers a collection envelope, not a bare list: a client reads
+    // `accept`, `start` and `version` off this answer, and a body carrying only
+    // `count` and `items` is a shape the capture does not have
+    const item = {
+      name: 'file',
+      label: 'File',
+      description: 'A file type',
+      mediaType: 'application/octet-stream',
+      resourceUri: '/types/types/file',
+      iconUri: '/types/types/file/icon',
+      tags: ['file'],
+      version: 1,
+      links: [
         {
-          name: 'file',
-          type: 'typeDef',
-          version: 1,
-          links: [{ href: '/types/types/file', rel: 'self', method: 'GET' }]
+          href: '/types/types/file',
+          uri: '/types/types/file',
+          rel: 'self',
+          method: 'GET',
+          type: 'application/vnd.sas.type.definition'
         }
       ]
     }
-  }),
+
+    return {
+      status: 200,
+      body: {
+        accept: 'application/json',
+        name: 'types',
+        start: 0,
+        limit,
+        count: 1,
+        version: 2,
+        items: [item],
+        links: [
+          {
+            href: '/types/types',
+            uri: '/types/types',
+            rel: 'collection',
+            method: 'GET',
+            type: 'application/vnd.sas.collection',
+            itemType: 'typeDef'
+          },
+          {
+            href: '/types/types',
+            uri: '/types/types',
+            rel: 'self',
+            method: 'GET',
+            type: 'application/vnd.sas.collection'
+          }
+        ]
+      }
+    }
+  },
 
   'GET /folders/folders/@item': async ({ services, request }) => ({
     status: 200,

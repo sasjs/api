@@ -15,9 +15,8 @@
 import type { ApiResponse, Services } from '../host/dispatch.js'
 import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
-import { normaliseServerUrl } from './seed.js'
-import { seedOf } from './seed.js'
-import { estateFor, type EmulatedJob } from './sessions.js'
+import { estateKeyOf, normaliseServerUrl, seedOf } from './seed.js'
+import { estateFor, type EmulatedJob, type SessionOwner } from './sessions.js'
 import { idFor, callerId } from './ids.js'
 
 /**
@@ -78,7 +77,8 @@ const linksFor = (
   }
 ]
 
-const estateOf = (services: Services) => estateFor(seedOf(services.viya))
+const estateOf = (services: Services) =>
+  estateFor(estateKeyOf(services.viya), seedOf(services.viya))
 
 /**
  * The context name a client asked for.
@@ -179,18 +179,43 @@ const jobBody = (job: EmulatedJob) => {
   }
 }
 
-/** The session the request names, or the 404 a client that lost it expects. */
-const sessionOf = (services: Services, id: string) => {
+/** The browser mock has an anonymous principal distinct from every named user. */
+const ownerOf = (subject: Subject | undefined): SessionOwner => {
+  if (subject === undefined) return { kind: 'anonymous' }
+  if (!subject || typeof subject.userId !== 'string' || !subject.userId.trim())
+    throw new ApiError(401, 'A valid caller is required.')
+
+  if (subject.ownerId === undefined)
+    return { kind: 'user', key: subject.userId }
+  if (typeof subject.ownerId !== 'string' || !subject.ownerId.trim())
+    throw new ApiError(401, 'A valid caller is required.')
+
+  return { kind: 'account', key: subject.ownerId }
+}
+
+/** Ownerless records cannot be attributed and are deliberately inaccessible. */
+const sessionOf = (services: Services, id: string, subject?: Subject) => {
+  const owner = ownerOf(subject)
   const session = estateOf(services).session(id)
 
-  if (!session)
+  if (
+    !session ||
+    !session.owner ||
+    session.owner.kind !== owner.kind ||
+    session.owner.key !== owner.key
+  )
     throw new ApiError(404, `Session with ID '${id}' was not found.`)
 
   return session
 }
 
-const jobOf = (services: Services, sessionId: string, jobId: string) => {
-  const job = sessionOf(services, sessionId).jobs.get(jobId)
+const jobOf = (
+  services: Services,
+  sessionId: string,
+  jobId: string,
+  subject?: Subject
+) => {
+  const job = sessionOf(services, sessionId, subject).jobs.get(jobId)
 
   if (!job) throw new ApiError(404, `Job with ID '${jobId}' was not found.`)
 
@@ -258,7 +283,7 @@ export const COMPUTE_HANDLERS: Record<
       environment?: { autoExecLines?: string[] }
     }
 
-    const session = estateOf(services).create()
+    const session = estateOf(services).create(ownerOf(request.subject))
 
     return {
       status: 201,
@@ -271,16 +296,16 @@ export const COMPUTE_HANDLERS: Record<
     }
   },
 
-  'GET /compute/sessions/{}/state': async ({ services, params }) => {
-    sessionOf(services, params.id)
+  'GET /compute/sessions/{}/state': async ({ services, params, request }) => {
+    sessionOf(services, params.id, request.subject)
 
     // a bare enum, not an object: the adapter calls `.trim()` on the answer, and
     // the capture recorded no shape here because there is no JSON body
     return { status: 200, body: 'idle' }
   },
 
-  'DELETE /compute/sessions/{}': async ({ services, params }) => {
-    sessionOf(services, params.id)
+  'DELETE /compute/sessions/{}': async ({ services, params, request }) => {
+    sessionOf(services, params.id, request.subject)
 
     estateOf(services).remove(params.id)
 
@@ -288,7 +313,7 @@ export const COMPUTE_HANDLERS: Record<
   },
 
   'POST /compute/sessions/{}/jobs': async ({ services, params, request }) => {
-    const session = sessionOf(services, params.id)
+    const session = sessionOf(services, params.id, request.subject)
     const body = (request.body ?? {}) as {
       code?: string | string[]
       name?: string
@@ -342,9 +367,10 @@ export const COMPUTE_HANDLERS: Record<
 
   'GET /compute/sessions/{}/filerefs/_webout/content': async ({
     services,
-    params
+    params,
+    request
   }) => {
-    const session = sessionOf(services, params.id)
+    const session = sessionOf(services, params.id, request.subject)
     const last = [...session.jobs.values()].pop()
 
     if (!last)
@@ -373,18 +399,25 @@ export const COMPUTE_HANDLERS: Record<
     }
   },
 
-  'GET /compute/sessions/{}/jobs/{}': async ({ services, params }) => {
-    const [sessionId, jobId] = segmentsOf(params)
-
-    return { status: 200, body: jobBody(jobOf(services, sessionId, jobId)) }
-  },
-
-  'GET /compute/sessions/{}/jobs/{}/state': async ({ services, params }) => {
+  'GET /compute/sessions/{}/jobs/{}': async ({ services, params, request }) => {
     const [sessionId, jobId] = segmentsOf(params)
 
     return {
       status: 200,
-      body: jobOf(services, sessionId, jobId).state
+      body: jobBody(jobOf(services, sessionId, jobId, request.subject))
+    }
+  },
+
+  'GET /compute/sessions/{}/jobs/{}/state': async ({
+    services,
+    params,
+    request
+  }) => {
+    const [sessionId, jobId] = segmentsOf(params)
+
+    return {
+      status: 200,
+      body: jobOf(services, sessionId, jobId, request.subject).state
     }
   },
 
@@ -394,7 +427,7 @@ export const COMPUTE_HANDLERS: Record<
     request
   }) => {
     const [sessionId, jobId] = segmentsOf(params)
-    const job = jobOf(services, sessionId, jobId)
+    const job = jobOf(services, sessionId, jobId, request.subject)
     const start = Number(request.query?.start ?? 0) || 0
     const limit = Number(request.query?.limit ?? 0) || 0
     const lines = job.log.slice(start, limit ? start + limit : undefined)

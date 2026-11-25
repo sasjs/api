@@ -14,6 +14,7 @@
  * it lost, which is what this step exists to catch.
  */
 import { createRequire } from 'node:module'
+import { webcrypto } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,6 +22,25 @@ import vm from 'node:vm'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
+
+const checkWorkerSession = async (api) => {
+  const services = { drive: api.createDriveService(new api.MemoryDriveStore()) }
+  const contexts = await api.dispatchViya(services, 'GET', '/compute/contexts')
+  const { id } = contexts.body.items[0]
+  const path = `/compute/contexts/${id}/sessions`
+  const uuidV4 =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  const created = await api.dispatchViya(services, 'POST', path)
+  if (created.status !== 201 || !uuidV4.test(created.body.id))
+    throw new Error(
+      `compute session did not get a UUID v4: ${JSON.stringify(created.body)}`
+    )
+
+  const state = created.body.links.find(({ rel }) => rel === 'state')
+  const read = await api.dispatchViya(services, 'GET', state.href)
+  if (read.status !== 200 || read.body !== 'idle')
+    throw new Error('compute session state link did not round-trip')
+}
 
 const problems = []
 
@@ -74,12 +94,18 @@ const load = async (name, loader) => {
 const cjs = await load('cjs', () => require(join(root, 'build/cjs/index.js')))
 const esm = await load('esm', () => import(join(root, 'build/esm/index.js')))
 
-const browser = await load('browser', () => {
-  const context = { self: {} }
+const browser = await load('browser', async () => {
+  // Exercise the browser bundle with the crypto exposed by older workers.
+  const context = {
+    self: {},
+    crypto: { getRandomValues: (bytes) => webcrypto.getRandomValues(bytes) }
+  }
   vm.createContext(context)
   vm.runInContext(readFileSync(join(root, 'build/browser.js'), 'utf8'), context)
 
-  return context.self.SASjsApi
+  const api = context.self.SASjsApi
+  await checkWorkerSession(api)
+  return api
 })
 
 /** The first few, with a count, so a fully stale bundle stays readable. */
@@ -121,4 +147,7 @@ if (problems.length) {
 
 console.log(
   `all three builds load, and describe the same ${cjs.length} operations`
+)
+console.log(
+  'the worker build issues UUID v4 compute sessions with getRandomValues'
 )

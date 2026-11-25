@@ -29,6 +29,19 @@ describe('the replay request', () => {
     expect(request.unresolved).toEqual([])
   })
 
+  it.each([
+    '29750292-3B61-4038-97A9-E8595AC73D99-ses0000',
+    'opaque-session-ID'
+  ])('preserves an externally supplied session ID (%s) verbatim', (session) => {
+    const request = requestFor(
+      viyaCase({ route: 'GET /compute/sessions/{}/state' }),
+      { session }
+    )
+
+    expect(request.path).toBe(`/compute/sessions/${session}/state`)
+    expect(request.unresolved).toEqual([])
+  })
+
   it('reports a hole it has no id for rather than filling it', () => {
     const request = requestFor(
       viyaCase({ route: 'GET /compute/sessions/{}/state' }),

@@ -13,6 +13,7 @@
  * that parses for NOTEs still gets a well-formed log, and a person reading it is
  * not misled about what ran.
  */
+import { newUuidV4 } from '../uuid.js'
 import { drawFrom, drawInt, generator, hash } from './seed.js'
 
 /** One submitted job, and what the emulator answered for it. */
@@ -43,8 +44,13 @@ export interface EmulatedJob {
   sessionId: string
 }
 
+export type SessionOwner =
+  { kind: 'account' | 'user'; key: string } | { kind: 'anonymous'; key?: never }
+
 export interface EmulatedSession {
   id: string
+  /** Internal authorization principal, not a wire field. */
+  owner: SessionOwner
   /** When it was created, on the real clock: a client expires sessions by age. */
   createdAt: string
   jobs: Map<string, EmulatedJob>
@@ -103,20 +109,24 @@ export const logFor = (seed: number, program: string | string[]): string[] => {
 /**
  * The sessions one estate holds.
  *
- * Keyed by seed, so two emulated estates in one process - a test that runs two
- * targets - do not share a session namespace.
+ * Keyed by the estate's key - the full normalised address, not the seed it
+ * digests to - so two emulated estates in one process (a test that runs two
+ * targets, or two addresses whose 32-bit seeds collide) do not share a session
+ * namespace. See `estateKeyOf`.
  */
 export class EmulatedEstate {
   private readonly sessions = new Map<string, EmulatedSession>()
 
-  private created = 0
-
   constructor(private readonly seed: number) {}
 
-  /** A new session: deterministic id, no jobs. */
-  create(): EmulatedSession {
+  /** A new session: opaque UUID v4, no jobs. */
+  create(owner: SessionOwner): EmulatedSession {
+    const id = newUuidV4()
+    if (this.sessions.has(id)) throw new Error('Duplicate compute session ID.')
+
     const session: EmulatedSession = {
-      id: `emulated-${this.seed.toString(16)}-ses${String(this.created++).padStart(4, '0')}`,
+      id,
+      owner,
       createdAt: new Date().toISOString(),
       jobs: new Map(),
       submitted: 0
@@ -162,17 +172,25 @@ export class EmulatedEstate {
   }
 }
 
-/** One estate per seed, for the life of the process. */
-const estates = new Map<number, EmulatedEstate>()
+/** One estate per address, for the life of the process. */
+const estates = new Map<string, EmulatedEstate>()
 
-export const estateFor = (seed: number): EmulatedEstate => {
-  const existing = estates.get(seed)
+/**
+ * The estate one address holds, minting it on first use.
+ *
+ * Keyed by the estate's key - the full normalised address - never by the seed:
+ * the seed is a 32-bit digest of the address, two distinct addresses collide on
+ * it, and a collision must not give them one shared session store. The estate
+ * still uses the seed for its generated logs.
+ */
+export const estateFor = (key: string, seed: number): EmulatedEstate => {
+  const existing = estates.get(key)
 
   if (existing) return existing
 
   const estate = new EmulatedEstate(seed)
 
-  estates.set(seed, estate)
+  estates.set(key, estate)
 
   return estate
 }

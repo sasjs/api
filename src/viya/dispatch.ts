@@ -12,7 +12,7 @@
  * evidence about Viya.
  */
 import type { ApiRequest, ApiResponse, Services } from '../host/dispatch.js'
-import { isApiError } from '../types.js'
+import { ApiError, isApiError } from '../types.js'
 import type { ViyaOperation } from './table.js'
 import { VIYA_OPERATIONS } from './declared.js'
 import { VIYA_OVERLAY } from './overlay.js'
@@ -94,6 +94,9 @@ export const findViyaOperation = (
  *
  * `request` is the same shape the SASjs dispatch takes, so a host that already
  * resolves a caller - a session cookie - passes `subject` rather than a token.
+ * For compute sessions a host with credentials must pass the authenticated
+ * subject on every request: a token alone is refused. No subject and no token
+ * is the anonymous browser mock, not an authentication boundary.
  */
 export const dispatchViya = async (
   services: Services,
@@ -149,6 +152,15 @@ export const dispatchViya = async (
     }
 
   try {
+    // A host must resolve credentials before compute dispatch. A missing subject
+    // is the anonymous mock only when no credential was supplied.
+    if (
+      request.subject === undefined &&
+      request.token !== undefined &&
+      (found.operation.id === 'POST /compute/contexts/{}/sessions' ||
+        found.operation.path.startsWith('/compute/sessions/'))
+    )
+      throw new ApiError(401, 'A valid caller is required.')
     const answer = await handler({
       services,
       request,

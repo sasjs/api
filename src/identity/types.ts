@@ -12,6 +12,8 @@
 export interface Subject {
   userId: string
   clientId: string
+  /** Immutable account ID from the trusted host, for Viya compute ownership. */
+  ownerId?: string
 }
 
 export interface IdentityUser {

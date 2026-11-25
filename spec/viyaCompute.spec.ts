@@ -179,6 +179,58 @@ describe('a compute session', () => {
     expect((answer.body as { state: string }).state).toBe('idle')
   })
 
+  it('mints distinct UUID v4 sessions whose IDs round-trip through job links', async () => {
+    const target = services()
+    const first = await sessionOn(target)
+    const second = await sessionOn(target)
+    const uuidV4 =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    expect(first).toMatch(uuidV4)
+    expect(second).toMatch(uuidV4)
+    expect(second).not.toBe(first)
+
+    const submitted = await dispatchViya(
+      target,
+      'POST',
+      `/compute/sessions/${first}/jobs`,
+      {
+        body: { code: PROGRAM }
+      }
+    )
+    expect(submitted.status).toBe(201)
+    const { id: job, links } = submitted.body as {
+      id: string
+      links: Array<{ rel: string; href: string }>
+    }
+    const self = links.find((link) => link.rel === 'self')
+    expect(self?.href).toBe(`/compute/sessions/${first}/jobs/${job}`)
+    const answer = await dispatchViya(target, 'GET', self!.href)
+    expect(answer.status).toBe(200)
+    expect(answer.body).toMatchObject({ id: job, sessionId: first })
+  })
+
+  it('does not overwrite a live session if the UUID source repeats an ID', async () => {
+    const target = services()
+    const uuid = jest.spyOn(globalThis.crypto, 'randomUUID')
+    uuid.mockReturnValue('51f890dd-588b-460b-bca1-6ef7e157da76')
+    try {
+      const id = await sessionOn(target)
+      const duplicate = await dispatchViya(
+        target,
+        'POST',
+        `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+        { subject: { userId: 'other', clientId: 'other' } }
+      )
+      expect(duplicate.status).toBe(500)
+      expect(
+        (await dispatchViya(target, 'GET', `/compute/sessions/${id}/state`))
+          .status
+      ).toBe(200)
+    } finally {
+      uuid.mockRestore()
+    }
+  })
+
   it('refuses a context it did not mint', async () => {
     const answer = await dispatchViya(
       services(),
@@ -400,7 +452,7 @@ describe('the parts of the estate that only a second call reaches', () => {
     expect(job.name).toBe(job.id)
   })
 
-  it('keeps one estate per seed for the life of the process', async () => {
+  it('keeps one estate per address for the life of the process', async () => {
     const first = services('http://localhost:5000')
     const second = services('http://localhost:5000')
 

@@ -33,49 +33,7 @@ export const normaliseAppLoc = (appLoc: string): string => {
   return normalised
 }
 
-/**
- * A new id: a version 4 UUID.
- *
- * `crypto.randomUUID` exists in Node and in a browser worker on https or localhost,
- * which is where the mock drive runs. The fallback builds the same thing from
- * `getRandomValues` rather than from `Math.random`, so a weaker environment does not
- * quietly produce a weaker id.
- */
-export const newAppId = (): string => {
-  const webCrypto = (
-    globalThis as {
-      crypto?: {
-        randomUUID?: () => string
-        getRandomValues?: (bytes: Uint8Array) => Uint8Array
-      }
-    }
-  ).crypto
-
-  if (typeof webCrypto?.randomUUID === 'function') return webCrypto.randomUUID()
-
-  if (typeof webCrypto?.getRandomValues !== 'function')
-    throw new Error('No cryptographic source of randomness is available.')
-
-  const bytes = new Uint8Array(16)
-
-  webCrypto.getRandomValues(bytes)
-
-  // version 4, variant 10xx
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-
-  const hex = Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20)
-  ].join('-')
-}
+export { newUuidV4 as newAppId } from '../uuid.js'
 
 // no `i` flag: `newAppId` mints lower case and every lookup compares exactly, so
 // a guard that accepts upper case would vouch for an id no lookup can find

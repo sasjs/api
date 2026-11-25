@@ -7,12 +7,21 @@
  * true after the next one, and a fixture committed today must match the answer
  * tomorrow.
  *
- * The seed is therefore the identity of the estate, and the identity of an estate
- * is the address clients already use to reach it, normalised so that one estate
- * spelled two ways is one string. There is no override: an address that differs is
- * a different estate with different data, by design. Anything that reads this
- * data - a fixture, a screenshot, a test - has to work whatever the address is,
- * because the address is all the identity there is.
+ * The seed is therefore what the estate's *generated data* draws from, and the
+ * identity of an estate is the address clients already use to reach it,
+ * normalised so that one estate spelled two ways is one string. There is no
+ * override: an address that differs is a different estate with different data,
+ * by design. Anything that reads this data - a fixture, a screenshot, a test -
+ * has to work whatever the address is, because the address is all the identity
+ * there is.
+ *
+ * The seed is a 32-bit digest of that address, which is wide enough to vary the
+ * generated numbers and narrow enough that two distinct addresses collide on it
+ * - by birthday, roughly one pair per few-billion addresses, and a search finds
+ * one in minutes. A collision makes two estates answer with the same numbers,
+ * which is cosmetic; anything that *stores* state per estate - the live session
+ * registry - must therefore key by the full address, never by the seed, and
+ * `estateKeyOf` is that key.
  *
  * An emulator with no address has not said which estate it is, so every such
  * estate shares one seed. That is the only honest default.
@@ -138,12 +147,30 @@ export const hash = (input: string): number => {
  * The number that makes this estate's generated data reproducible.
  *
  * The address is the only input: the same estate answers the same way every time,
- * and a different address is a different estate.
+ * and a different address is a different estate. A 32-bit digest, so it varies
+ * the numbers - it is not the estate's identity for anything that stores state
+ * (see `estateKeyOf`).
  */
 export const seedOf = (settings: ViyaSeedSettings = {}): number => {
   const address = normaliseServerUrl(settings.serverUrl)
 
   return hash(`url:${address || DEFAULT_SEED}`)
+}
+
+/**
+ * The key a per-estate store is held under: the full normalised address.
+ *
+ * The seed is a 32-bit digest of this key, and two distinct addresses collide
+ * on it - a pair exists for any such digest, and a search finds one in
+ * minutes. A registry keyed by the seed would then hand two addresses one
+ * shared store, so state is keyed by the address itself: distinct addresses
+ * are distinct stores even when their seeds are one number, and two spellings
+ * of one address (which normalise to one string) remain one store.
+ */
+export const estateKeyOf = (settings: ViyaSeedSettings = {}): string => {
+  const address = normaliseServerUrl(settings.serverUrl)
+
+  return address || DEFAULT_SEED
 }
 
 /**

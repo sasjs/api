@@ -184,7 +184,7 @@ const jobBody = (job: EmulatedJob) => {
     ...(job.completedTimeStamp
       ? { completedTimeStamp: job.completedTimeStamp }
       : {}),
-    jobConditionCode: 0,
+    jobConditionCode: job.jobConditionCode ?? 0,
     stateElapsedTime: 1,
     listingStatistics: {
       lineCount: job.log.length,
@@ -388,6 +388,7 @@ export const COMPUTE_HANDLERS: Record<
       .then((ran) => {
         job.log = ran.log.split('\n')
         job.state = ran.state ?? 'completed'
+        job.jobConditionCode = ran.jobConditionCode
 
         if (ran.webout !== undefined) job.webout = ran.webout
 

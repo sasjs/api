@@ -74,11 +74,15 @@ const estateOf = (services: Services) =>
  * names are also supported for existing mock clients. Escapes, other operators
  * and compound expressions are refused rather than guessed.
  */
-export const contextNameFrom = (filter: string | undefined): string => {
+export const contextNameFrom = (filter: unknown): string => {
   if (filter === undefined) return DEFAULT_CONTEXT_NAME
 
   const match =
-    /^\s*eq\(\s*name\s*,\s*(?:'([^'\\]*)'|"([^"\\]*)")\s*\)\s*$/.exec(filter)
+    typeof filter === 'string'
+      ? /^\s*eq\(\s*name\s*,\s*(?:'([^'\\]*)'|"([^"\\]*)")\s*\)\s*$/.exec(
+          filter
+        )
+      : null
   if (!match)
     throw new ApiError(
       400,
@@ -265,20 +269,24 @@ export const COMPUTE_HANDLERS: Record<
   'GET /compute/contexts': async ({ request }) => {
     if (request.query?.sortBy !== undefined)
       throw new ApiError(400, 'Unsupported compute context sortBy.')
-    const limitText = request.query?.limit ?? '10'
-    const startText = request.query?.start ?? '0'
-    const limit = Number(limitText)
-    const start = Number(startText)
+    const limitText: unknown = request.query?.limit
+    const startText: unknown = request.query?.start
+    const limitValue = limitText === undefined ? '10' : limitText
+    const startValue = startText === undefined ? '0' : startText
     if (
-      !/^\d+$/.test(startText) ||
-      !/^\d+$/.test(limitText) ||
-      !Number.isSafeInteger(start) ||
-      !Number.isSafeInteger(limit)
+      typeof startValue !== 'string' ||
+      typeof limitValue !== 'string' ||
+      !/^\d+$/.test(startValue) ||
+      !/^\d+$/.test(limitValue) ||
+      !Number.isSafeInteger(Number(startValue)) ||
+      !Number.isSafeInteger(Number(limitValue))
     )
       throw new ApiError(
         400,
         'Unsupported compute context pagination. Use non-negative integers for start and limit.'
       )
+    const start = Number(startValue)
+    const limit = Number(limitValue)
     const matches =
       contextNameFrom(request.query?.filter) === DEFAULT_CONTEXT_NAME
         ? [contextBody(DEFAULT_CONTEXT_NAME, callerId(request.subject))]

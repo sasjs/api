@@ -193,6 +193,48 @@ describe('the compute context', () => {
     )
   })
 
+  it.each([
+    ['filter', ['eq(name', '"SASjs Mock context")']],
+    ['filter', ['eq(name,"SASjs Mock context")']],
+    ['filter', null],
+    ['filter', { toString: () => 'eq(name,"SASjs Mock context")' }],
+    ['filter', Symbol('filter')],
+    ['start', ['0']],
+    [
+      'start',
+      {
+        valueOf: () => {
+          throw new Error('must not coerce')
+        }
+      }
+    ],
+    ['limit', ['10']],
+    ['start', null],
+    ['limit', 10],
+    ['sortBy', ['name']],
+    ['sortBy', null]
+  ])(
+    'rejects non-string %s values %o without coercing them',
+    async (key, value) => {
+      const query = { [key as string]: value } as unknown as Record<
+        string,
+        string | undefined
+      >
+      const answer = await dispatchViya(
+        services(),
+        'GET',
+        '/compute/contexts',
+        {
+          query
+        }
+      )
+      const expected =
+        key === 'filter' ? 'filter' : key === 'sortBy' ? 'sortBy' : 'pagination'
+      expect(answer.status).toBe(400)
+      expect((answer.body as { message: string }).message).toContain(expected)
+    }
+  )
+
   it('rejects unsupported sort criteria rather than ignoring them', async () => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
       query: { sortBy: 'unknown' }

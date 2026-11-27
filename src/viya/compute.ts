@@ -17,7 +17,7 @@ import type { Subject } from '../identity/types.js'
 import { ApiError } from '../types.js'
 import { estateKeyOf, normaliseServerUrl, seedOf } from './seed.js'
 import { estateFor, type EmulatedJob, type SessionOwner } from './sessions.js'
-import { idFor, callerId } from './ids.js'
+import { idFor, callerId, EMULATED_NOW } from './ids.js'
 
 /**
  * The name the emulator answers when a client asks for no particular context.
@@ -105,6 +105,32 @@ const contextBody = (name: string, caller: string) => ({
     `/compute/contexts/${EMULATED_CONTEXT_ID}`,
     'application/vnd.sas.compute.context'
   )
+})
+
+/**
+ * The context in full, for the read a client makes of one it already holds.
+ *
+ * The list view Viya answers is deliberately minimal, so a client that needs a
+ * context's attributes reads the context itself - Data Controller's deploy
+ * screen fetches each one to pick up its batch identity. The attributes are the
+ * ones an emulated estate truthfully has: nothing runs as a batch identity here,
+ * and `reuseServerProcesses` is `false` for the same reason, which is what leaves
+ * a client's batch-id list empty rather than inventing an account to run as.
+ */
+const contextDetailsBody = (caller: string) => ({
+  ...contextBody(DEFAULT_CONTEXT_NAME, caller),
+  description: 'The compute context an emulated estate answers for',
+  creationTimeStamp: EMULATED_NOW,
+  modifiedTimeStamp: EMULATED_NOW,
+  modifiedBy: caller,
+  launchType: 'service',
+  launchContext: { contextId: EMULATED_CONTEXT_ID },
+  environment: { autoExecLines: [] },
+  attributes: {
+    reuseServerProcesses: 'false',
+    allowXCMD: 'false',
+    serverMinAvailable: '1'
+  }
 })
 
 const sessionBody = (
@@ -269,6 +295,19 @@ export const COMPUTE_HANDLERS: Record<
         )
       }
     }
+  },
+
+  'GET /compute/contexts/{}': async ({ request, params }) => {
+    // the estate has one context and its id does not move, so an id it is not is
+    // an id no context here ever had - the same refusal the drive makes for an
+    // unknown folder rather than a body about some other context
+    if (params.id !== EMULATED_CONTEXT_ID)
+      throw new ApiError(
+        404,
+        `No compute context matches the id ${params.id}. The emulated estate answers one context, and this is not its id.`
+      )
+
+    return { status: 200, body: contextDetailsBody(callerId(request.subject)) }
   },
 
   'POST /compute/contexts/{}/sessions': async ({

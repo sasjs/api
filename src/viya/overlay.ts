@@ -49,10 +49,22 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'GET /folders/folders/@item': { implemented: true },
   'GET /folders/folders/@myRecycleBin': { implemented: true },
   'GET /identities/users/@currentUser': { implemented: true },
+
+  // answered here: the application's own identity reads, declared rather than
+  // captured - see src/viya/appSurface.ts for the scope they belong to
+  'GET /identities/groups': { implemented: true },
+  'GET /identities/groups/{}/members': { implemented: true },
+  'GET /identities/users': { implemented: true },
+  'GET /identities/users/{}': { implemented: true },
+  'GET /identities/users/@currentUser/memberships': { implemented: true },
+  'GET /identities/users/{}/memberships': { implemented: true },
+  'GET /identities/users/{}/avatar/content': { implemented: true },
+
   'GET /types/types': { implemented: true },
 
   // answered here: compute
   'GET /compute/contexts': { implemented: true },
+  'GET /compute/contexts/{}': { implemented: true },
   'POST /compute/contexts/{}/sessions': { implemented: true },
   'DELETE /compute/sessions/{}': { implemented: true },
   'POST /compute/sessions/{}/jobs': { implemented: true },

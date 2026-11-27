@@ -20,7 +20,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-const isPathLike = (literal) =>
+export const isPathLike = (literal) =>
   literal.startsWith('/') &&
   // two slashes open a comment (and would open a protocol-relative URL, which is
   // not a route either). Without this, the text of a `//` comment in a build -

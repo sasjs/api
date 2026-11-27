@@ -53,4 +53,33 @@ test('the adapter selects the explicitly configured mock context from an unfilte
     /The context 'SAS Job Execution compute context' was not found/
   )
   assert.deepEqual(requests.slice(2), ['GET /compute/contexts?limit=10000'])
+  const wrongContext = new SASjs({
+    serverUrl,
+    serverType: 'SASVIYA',
+    contextName: 'Other context'
+  })
+  await assert.rejects(
+    wrongContext.sasViyaApiClient.sessionManager.createAndWaitForSession(),
+    /The context 'Other context' was not found/
+  )
+  assert.equal(requests[3], 'GET /compute/contexts?limit=10000')
+
+  const found = await configured.getComputeContextByName('SASjs Mock context')
+  assert.equal(found.id, contexts.body.items[0].id)
+  assert.equal(found.name, contexts.body.items[0].name)
+  const detail = await configured.getComputeContextById(found.id)
+  assert.equal(detail.id, found.id)
+  assert.equal(detail.name, found.name)
+  await assert.rejects(
+    configured.getComputeContextByName('Other context'),
+    /The context 'Other context' was not found/
+  )
+  assert.deepEqual(
+    requests.slice(4).map((r) => decodeURIComponent(r)),
+    [
+      'GET /compute/contexts?filter=eq(name, "SASjs Mock context")',
+      `GET /compute/contexts/${found.id}`,
+      'GET /compute/contexts?filter=eq(name, "Other context")'
+    ]
+  )
 })

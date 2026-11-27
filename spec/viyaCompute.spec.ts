@@ -140,18 +140,38 @@ describe('the compute context', () => {
     expect(contextNameFrom(undefined)).toBe(DEFAULT_CONTEXT_NAME)
   })
 
-  // `SASViyaApiClient.createSession` lists the contexts with no filter and picks
-  // the entry whose name it was given, so the unfiltered answer has to be the
-  // context name a client carries - anything the emulator invents fails a caller
-  // that has nothing wrong with it.
-  it('names the estate default in an unfiltered list', async () => {
-    const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
+  it('lists the mock default and returns the same id and name in its detail', async () => {
+    const target = services()
+    const answer = await dispatchViya(target, 'GET', '/compute/contexts', {
       query: { limit: '10000' }
     })
+    const body = answer.body as {
+      count: number
+      items: Array<{ id: string; name: string }>
+    }
 
-    const body = answer.body as { items: Array<{ name: string }> }
+    expect(answer.status).toBe(200)
+    expect(body.count).toBe(1)
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toEqual(
+      expect.objectContaining({
+        id: EMULATED_CONTEXT_ID,
+        name: 'SASjs Mock context'
+      })
+    )
 
-    expect(body.items[0].name).toBe('SAS Job Execution compute context')
+    const detail = await dispatchViya(
+      target,
+      'GET',
+      `/compute/contexts/${body.items[0].id}`
+    )
+    expect(detail.status).toBe(200)
+    expect(detail.body).toEqual(
+      expect.objectContaining({
+        id: body.items[0].id,
+        name: 'SASjs Mock context'
+      })
+    )
   })
 
   it('keeps one id whatever name it is asked for', async () => {

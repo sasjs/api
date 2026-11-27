@@ -169,6 +169,79 @@ describe('the emulated identity service', () => {
     expect(body.items.map((item) => item.id)).toEqual(['group-data-controller'])
   })
 
+  it('returns the same memberships when a user is addressed by username', async () => {
+    const shared = services()
+    const byId = await get(
+      shared,
+      '/identities/users/user-admin/memberships',
+      caller
+    )
+    const byName = await get(
+      shared,
+      '/identities/users/sasjsadmin/memberships',
+      caller
+    )
+
+    expect(byName.status).toBe(200)
+    expect((byName.body as { items: unknown[] }).items).toEqual(
+      (byId.body as { items: unknown[] }).items
+    )
+    expect((byName.body as { items: unknown[] }).items).toHaveLength(1)
+  })
+
+  it('prefers an exact uid over a different user with that login name', async () => {
+    const fixture = {
+      ...DEFAULT_IDENTITY,
+      users: [
+        ...DEFAULT_IDENTITY.users,
+        {
+          uid: 'collision-user',
+          username: 'user-admin',
+          displayName: 'Collision User',
+          isAdmin: false,
+          isActive: true,
+          needsToUpdatePassword: false
+        }
+      ],
+      groups: [
+        ...DEFAULT_IDENTITY.groups,
+        {
+          uid: 'collision-group',
+          name: 'Collision',
+          description: 'Collision group',
+          isActive: true,
+          users: ['user-admin']
+        }
+      ]
+    }
+    const store = new MemoryIdentityStore(fixture)
+    const shared: Services = {
+      drive: createDriveService(new MemoryDriveStore()),
+      identity: createIdentityService(store),
+      records: createRecordService(store)
+    }
+    const answer = await get(
+      shared,
+      '/identities/users/user-admin/memberships',
+      caller
+    )
+    expect(
+      (answer.body as { items: Array<{ id: string }> }).items.map(
+        (item) => item.id
+      )
+    ).toEqual(['group-admins'])
+  })
+
+  it('returns an empty membership collection for an unknown username', async () => {
+    const answer = await get(
+      services(),
+      '/identities/users/nobody/memberships',
+      caller
+    )
+    expect(answer.status).toBe(200)
+    expect((answer.body as { items: unknown[] }).items).toEqual([])
+  })
+
   it('reads the caller from a bearer token when the host forwards one', async () => {
     // the server's Viya router passes a token rather than a resolved subject, so
     // the identity family reads it the same way `@currentUser` does. The token is

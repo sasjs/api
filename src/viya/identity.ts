@@ -145,13 +145,20 @@ const membershipsOf = async (
   caller: Subject | undefined,
   uid: string
 ) => {
+  const users = await records.listUsers(caller)
+  // Viya clients may address a user by login name; prefer an exact uid when a
+  // login happens to equal another user's uid.
+  const user =
+    users.find((item) => item.uid === uid) ??
+    users.find((item) => item.username === uid)
+  const resolvedUid = user?.uid ?? uid
   const groups = await records.listGroups(caller)
   const found = []
 
   for (const group of groups) {
     const details = await records.getGroup(caller, { uid: group.uid })
 
-    if (details.users.some((user) => user.uid === uid))
+    if (details.users.some((member) => member.uid === resolvedUid))
       found.push(groupBody(group, details.users.length))
   }
 

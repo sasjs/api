@@ -49,23 +49,6 @@ const MEASURED_FROM = 'client/src'
 
 const sourceDir = join(source, MEASURED_FROM)
 
-let branch = 'unknown'
-
-try {
-  branch = execFileSync(
-    'git',
-    ['-C', source, 'rev-parse', '--abbrev-ref', 'HEAD'],
-    {
-      encoding: 'utf8'
-    }
-  ).trim()
-} catch {
-  // a checkout without git is still a tree of sources to measure; the branch is
-  // how a reader lines the inventory up with a version of the product, and its
-  // absence is stated rather than guessed
-  branch = 'unknown'
-}
-
 const inventory = {
   application: 'Data Controller for SAS',
   repository: 'https://git.datacontroller.io/dc/dc',

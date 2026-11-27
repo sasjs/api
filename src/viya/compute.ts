@@ -257,6 +257,13 @@ const jobOf = (
 const segmentsOf = (params: Record<string, string>): string[] =>
   (params as unknown as { segments: string[] }).segments
 
+// Visit every index, including holes in arrays supplied by direct dispatch.
+const validCodeLines = (lines: unknown[]): lines is string[] => {
+  for (let i = 0; i < lines.length; i++)
+    if (typeof lines[i] !== 'string') return false
+  return true
+}
+
 export const COMPUTE_HANDLERS: Record<
   string,
   (context: {
@@ -353,13 +360,29 @@ export const COMPUTE_HANDLERS: Record<
 
   'POST /compute/sessions/{}/jobs': async ({ services, params, request }) => {
     const session = sessionOf(services, params.id, request.subject)
-    const body = (request.body ?? {}) as {
-      code?: string | string[]
+    const input: unknown = request.body === undefined ? {} : request.body
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new ApiError(
+        400,
+        'Compute job code must be a string or an array of strings.'
+      )
+    const body = input as {
+      code?: unknown
       name?: string
       variables?: Record<string, string>
     }
-
-    const job = estateOf(services).submit(session, body)
+    const code = body.code
+    if (
+      code !== undefined &&
+      typeof code !== 'string' &&
+      (!Array.isArray(code) || !validCodeLines(code))
+    )
+      throw new ApiError(
+        400,
+        'Compute job code must be a string or an array of strings.'
+      )
+    const program = (code ?? '') as string | string[]
+    const job = estateOf(services).submit(session, { ...body, code: program })
     const execute = services.viya?.execute
 
     // a host with no engine has nothing to run, so the job is finished at once
@@ -380,7 +403,7 @@ export const COMPUTE_HANDLERS: Record<
     job.log = []
 
     void execute({
-      program: body.code ?? '',
+      program,
       variables: body.variables,
       name: body.name,
       sessionId: session.id

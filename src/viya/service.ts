@@ -27,6 +27,7 @@ import type { DriveService } from '../drive/service.js'
 import { requireDrive } from './ports.js'
 import { COMPUTE_HANDLERS } from './compute.js'
 import { FILE_HANDLERS } from './files.js'
+import { IDENTITY_HANDLERS } from './identity.js'
 
 import {
   idFor,
@@ -467,5 +468,7 @@ export const VIYA_HANDLERS: Record<
 
   ...COMPUTE_HANDLERS,
 
-  ...FILE_HANDLERS
+  ...FILE_HANDLERS,
+
+  ...IDENTITY_HANDLERS
 }

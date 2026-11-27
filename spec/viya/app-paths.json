@@ -1,0 +1,147 @@
+{
+  "application": "Data Controller for SAS",
+  "repository": "https://git.datacontroller.io/dc/dc",
+  "measuredFrom": "client/src",
+  "roots": [
+    "SASLogon",
+    "annotations",
+    "authorization",
+    "businessRules",
+    "compute",
+    "dataMining",
+    "decisionsRuntimeBuilder",
+    "files",
+    "folders",
+    "identities",
+    "insights",
+    "jobDefinitions",
+    "jobExecution",
+    "launchers",
+    "microanalyticScore",
+    "mlPipelineAutomation",
+    "modelManagement",
+    "modelPublish",
+    "modelRepository",
+    "referenceData",
+    "relationships",
+    "reportImages",
+    "reportTransforms",
+    "reports",
+    "subjectContacts",
+    "treatmentDefinitions",
+    "types",
+    "visualAnalytics"
+  ],
+  "paths": {
+    "/SASLogon": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/annotations": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/authorization": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/businessRules": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/compute/contexts": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/compute/contexts/{}": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/dataMining": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/decisionsRuntimeBuilder": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/files": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/folders": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/folders/folders/@item": [
+      "app/services/sas-viya.service.ts",
+      "app/services/sas.service.ts"
+    ],
+    "/folders/folders/{}/members": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/identities": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/identities/groups": [
+      "app/group/group.component.ts",
+      "app/services/sas-viya.service.ts"
+    ],
+    "/identities/groups/{}": [
+      "app/group/group.component.ts"
+    ],
+    "/identities/users": [
+      "app/user/user.component.ts"
+    ],
+    "/identities/users/@currentUser": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/identities/users/@currentUser/memberships": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/identities/users/{}": [
+      "app/user/user.component.ts"
+    ],
+    "/identities/users/{}/avatar/content": [
+      "app/shared/user-nav-dropdown/header-actions.component.ts"
+    ],
+    "/insights": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/jobDefinitions": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/jobExecution": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/microanalyticScore": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/mlPipelineAutomation": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/modelManagement": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/modelPublish": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/modelRepository": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/referenceData": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/relationships": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/reportImages": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/reportTransforms": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/reports": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/subjectContacts": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/treatmentDefinitions": [
+      "app/services/sas-viya.service.ts"
+    ],
+    "/visualAnalytics": [
+      "app/services/sas-viya.service.ts"
+    ]
+  }
+}

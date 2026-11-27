@@ -1,4 +1,5 @@
 import { SURFACE } from '../src/viya/surface.js'
+import { APP_SURFACE } from '../src/viya/appSurface.js'
 import { UNRECORDED } from '../src/viya/unrecorded.js'
 import { VIYA_TABLE } from '../src/viya/table.js'
 import { DECLARED, VIYA_OPERATIONS } from '../src/viya/declared.js'
@@ -52,7 +53,17 @@ const covers = (surfacePath: string, operationPath: string) => {
   )
 }
 
-const inScope = SURFACE.filter((entry) => entry.decision === 'in')
+/**
+ * Every path a host must answer, from both measurements.
+ *
+ * The adapter's surface is one client; an application's own calls are another,
+ * and an operation is in scope when either names it. Keeping the two lists apart
+ * and unioning them here is what lets `surface.ts` stay a mirror of the adapter
+ * while `appSurface.ts` answers for a product this package does not build.
+ */
+const inScope = [...SURFACE, ...APP_SURFACE].filter(
+  (entry) => entry.decision === 'in'
+)
 
 describe('the Viya table', () => {
   it('holds an operation only where the scope says a host must answer it', () => {

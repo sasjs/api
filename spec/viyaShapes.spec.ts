@@ -269,6 +269,17 @@ describe('the answers and the shapes the captures recorded', () => {
       'GET /folders/folders/{}',
       'GET /folders/folders/{}/members',
       'GET /identities/users/@currentUser',
+      // the application's own identity reads and the context detail read are
+      // declared, so no capture supplied a shape to walk: their cases live in
+      // spec/viyaIdentity.spec.ts and spec/viyaCompute.spec.ts
+      'GET /identities/groups',
+      'GET /identities/groups/{}/members',
+      'GET /identities/users',
+      'GET /identities/users/{}',
+      'GET /identities/users/@currentUser/memberships',
+      'GET /identities/users/{}/memberships',
+      'GET /identities/users/{}/avatar/content',
+      'GET /compute/contexts/{}',
       'GET /types/types',
       'PATCH /folders/folders/{}',
       'POST /folders/folders'

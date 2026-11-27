@@ -18,6 +18,7 @@ import { ApiError } from '../types.js'
 import { estateKeyOf, normaliseServerUrl, seedOf } from './seed.js'
 import { estateFor, type EmulatedJob, type SessionOwner } from './sessions.js'
 import { idFor, callerId, EMULATED_NOW } from './ids.js'
+import { SESSION_VARIABLE_REFUSAL } from './overlay.js'
 
 /**
  * The name the emulator answers when a client asks for no particular context.
@@ -339,6 +340,36 @@ export const COMPUTE_HANDLERS: Record<
         body.environment?.autoExecLines ?? [],
         callerId(request.subject)
       )
+    }
+  },
+
+  'GET /compute/sessions/{}/variables/{}': async ({
+    services,
+    params,
+    request
+  }) => {
+    if (services.viya?.mockSysjobid !== true)
+      throw new ApiError(501, SESSION_VARIABLE_REFUSAL, {
+        message: SESSION_VARIABLE_REFUSAL
+      })
+    if (request.subject === undefined && request.token !== undefined)
+      throw new ApiError(401, 'A valid caller is required.')
+    const [sessionId, name] = segmentsOf(params)
+    const session = sessionOf(services, sessionId, request.subject)
+    if (name !== 'SYSJOBID')
+      throw new ApiError(501, SESSION_VARIABLE_REFUSAL, {
+        message: SESSION_VARIABLE_REFUSAL
+      })
+    const uri = `/compute/sessions/${encodeURIComponent(session.id)}/variables/SYSJOBID`
+    return {
+      status: 200,
+      body: {
+        name: 'SYSJOBID',
+        value: `mock-${session.id}`,
+        scope: 'AUTOMATIC',
+        version: 1,
+        links: linksFor(uri, 'application/vnd.sas.compute.session.variable')
+      }
     }
   },
 

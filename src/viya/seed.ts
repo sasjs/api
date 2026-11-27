@@ -74,6 +74,8 @@ export interface ViyaSeedSettings {
   serverUrl?: string
   /** Runs a submitted program, when the host has an engine. */
   execute?: ViyaExecutor['execute']
+  /** Trusted host-only opt-in for a synthetic session SYSJOBID; never set from HTTP. */
+  mockSysjobid?: boolean
 }
 
 /**

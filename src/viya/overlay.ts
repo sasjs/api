@@ -40,6 +40,9 @@ const NEEDS_AUTH =
 const NEEDS_JOBS =
   'The emulator answers the compute and content families; the job definitions a deploy creates and the executions a run submits are not modelled yet.'
 
+export const SESSION_VARIABLE_REFUSAL =
+  'GET /compute/sessions/{}/variables/{} is not emulated. The emulator does not model session variables; the client reads these only to log the pid of a job it is about to submit (SYSJOBID), and any name it asks for is refused here rather than answered with a value the emulator did not run.'
+
 export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   // answered here
   'POST /folders/folders': { implemented: true },
@@ -105,12 +108,8 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
       'The emulator answers compute contexts from its seed; the launcher list a client falls back to is not modelled, and nothing on the emulated path asks for it.'
   },
 
-  // declined: session variables are not modelled
-  'GET /compute/sessions/{}/variables/{}': {
-    implemented: false,
-    reason:
-      'The emulator does not model session variables; the client reads these only to log the pid of a job it is about to submit (SYSJOBID), and any name it asks for is refused here rather than answered with a value the emulator did not run.'
-  },
+  // Default refusal, with an explicit host opt-in for a synthetic SYSJOBID.
+  'GET /compute/sessions/{}/variables/{}': { implemented: true },
 
   // declined: the host owns the token port
   'POST /SASLogon/oauth/token': { implemented: false, reason: NEEDS_AUTH },

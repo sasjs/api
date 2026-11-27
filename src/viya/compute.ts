@@ -461,6 +461,65 @@ export const COMPUTE_HANDLERS: Record<
     }
   },
 
+  // The collection is a separate CLI call from the adapter's /log/content.
+  'GET /compute/sessions/{}/jobs/{}/log': async ({
+    services,
+    params,
+    request
+  }) => {
+    const [sessionId, jobId] = segmentsOf(params)
+    const job = jobOf(services, sessionId, jobId, request.subject)
+    const start: unknown = request.query?.start
+    const limit: unknown = request.query?.limit
+    const startValue = start === undefined ? '0' : start
+    const limitValue = limit === undefined ? '10' : limit
+    if (
+      typeof startValue !== 'string' ||
+      typeof limitValue !== 'string' ||
+      !/^\d+$/.test(startValue) ||
+      !/^\d+$/.test(limitValue) ||
+      !Number.isSafeInteger(Number(startValue)) ||
+      !Number.isSafeInteger(Number(limitValue)) ||
+      Number(limitValue) > 2147483647
+    )
+      throw new ApiError(400, 'Unsupported job log pagination.')
+    if (
+      request.query?.type !== undefined ||
+      request.query?.timeout !== undefined
+    )
+      throw new ApiError(
+        400,
+        'Job log type and timeout are not supported by the emulator.'
+      )
+    const offset = Number(startValue)
+    const pageSize = Number(limitValue)
+    const uri = `/compute/sessions/${job.sessionId}/jobs/${job.id}/log`
+    return {
+      status: 200,
+      body: {
+        accept: 'application/json',
+        name: 'log',
+        start: offset,
+        limit: pageSize,
+        count: job.log.length,
+        version: 2,
+        items: job.log
+          .slice(offset, offset + pageSize)
+          .map((line) => ({ line, type: 'NOTE', version: 2 })),
+        links: [
+          {
+            href: uri,
+            uri,
+            rel: 'self',
+            method: 'GET',
+            type: 'application/vnd.sas.collection',
+            itemType: 'application/vnd.sas.compute.log.line'
+          }
+        ]
+      }
+    }
+  },
+
   'GET /compute/sessions/{}/jobs/{}/log/content': async ({
     services,
     params,

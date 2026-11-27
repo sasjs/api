@@ -259,6 +259,9 @@ describe('the answers and the shapes the captures recorded', () => {
       'PUT /files/files/{}/content',
       'GET /compute/contexts',
       'GET /compute/sessions/{}/jobs/{}',
+      // Declared from the documented CLI call, not captured; its collection and
+      // pagination cases live in spec/viyaJobLogCollection.spec.ts.
+      'GET /compute/sessions/{}/jobs/{}/log',
       'GET /compute/sessions/{}/jobs/{}/log/content',
       'GET /compute/sessions/{}/jobs/{}/state',
       'GET /compute/sessions/{}/state',

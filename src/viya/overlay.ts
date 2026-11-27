@@ -69,6 +69,7 @@ export const VIYA_OVERLAY: Record<string, ViyaOverlayEntry> = {
   'DELETE /compute/sessions/{}': { implemented: true },
   'POST /compute/sessions/{}/jobs': { implemented: true },
   'GET /compute/sessions/{}/jobs/{}': { implemented: true },
+  'GET /compute/sessions/{}/jobs/{}/log': { implemented: true },
   'GET /compute/sessions/{}/jobs/{}/log/content': { implemented: true },
   'GET /compute/sessions/{}/jobs/{}/state': { implemented: true },
   'GET /compute/sessions/{}/state': { implemented: true },

@@ -309,6 +309,9 @@ describe('the answers and the shapes the captures recorded', () => {
       'GET /identities/users/{}/memberships',
       'GET /identities/users/{}/avatar/content',
       'GET /compute/contexts/{}',
+      // Both captured shapes are exercised in viyaJobDefinitions.spec.ts.
+      'GET /jobDefinitions/definitions/{}',
+      'POST /jobDefinitions/definitions',
       'GET /types/types',
       'PATCH /folders/folders/{}',
       'POST /folders/folders'

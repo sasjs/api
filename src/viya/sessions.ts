@@ -32,7 +32,9 @@ export interface EmulatedJob {
    * because the client polls this and a submission that answered `completed`
    * would be a lie about work that had not happened.
    */
-  state: 'running' | 'completed' | 'failed'
+  state: 'running' | 'completed' | 'warning' | 'error' | 'failed'
+  /** Trusted host's condition code, when provided. */
+  jobConditionCode?: number
   creationTimeStamp: string
   /**
    * When the run finished, absent until it does.

@@ -60,11 +60,13 @@ export interface ViyaRun {
   /**
    * How the run ended.
    *
-   * A client decides a service failed from the job's state, not from the log, so
-   * a run that failed has to say so - otherwise the webout it did not produce
-   * reads as data. Absent, the run completed.
+   * The trusted host supplies this explicitly, never inferred from the log.
+   * `warning` and `error` are Compute outcomes; `failed` preserves the existing
+   * host/infrastructure failure state. Absent, the run completed.
    */
-  state?: 'completed' | 'failed'
+  state?: 'completed' | 'warning' | 'error' | 'failed'
+  /** Trusted host's integer SYSCC, when known. Not inferred from the log. */
+  jobConditionCode?: number
 }
 
 export interface ViyaSeedSettings {
@@ -86,6 +88,9 @@ export interface ViyaSeedSettings {
    * provides no locking or transactional guarantees. Never set from a request.
    */
   allowUntransactionalJobDefinitionCreation?: boolean
+
+  /** Trusted host-only opt-in for a synthetic session SYSJOBID; never set from HTTP. */
+  mockSysjobid?: boolean
 }
 
 /**

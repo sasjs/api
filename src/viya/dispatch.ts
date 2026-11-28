@@ -15,7 +15,7 @@ import type { ApiRequest, ApiResponse, Services } from '../host/dispatch.js'
 import { ApiError, isApiError } from '../types.js'
 import type { ViyaOperation } from './table.js'
 import { VIYA_OPERATIONS } from './declared.js'
-import { VIYA_OVERLAY } from './overlay.js'
+import { VIYA_OVERLAY, SESSION_VARIABLE_REFUSAL } from './overlay.js'
 import { VIYA_HANDLERS } from './service.js'
 import { emulatedHeaders } from './version.js'
 
@@ -139,6 +139,12 @@ export const dispatchViya = async (
           `${found.operation.id} is not emulated. ${entry.reason ?? ''}`.trim()
       }
     }
+
+  if (
+    found.operation.id === 'GET /compute/sessions/{}/variables/{}' &&
+    services.viya?.mockSysjobid !== true
+  )
+    return { status: 501, headers, body: { message: SESSION_VARIABLE_REFUSAL } }
 
   const handler = VIYA_HANDLERS[found.operation.id]
 

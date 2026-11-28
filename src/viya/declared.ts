@@ -23,6 +23,18 @@ export interface DeclaredOperation extends ViyaOperation {
 
 export const DECLARED: DeclaredOperation[] = [
   {
+    id: 'GET /compute/sessions/{}/jobs/{}/log',
+    method: 'GET',
+    path: '/compute/sessions/{}/jobs/{}/log',
+    steps: [],
+    statuses: [200, 400, 404],
+    queries: ['start', 'limit'],
+    request: { queries: ['start', 'limit'], body: undefined },
+    shape: undefined,
+    declared:
+      'The CLI follows the job log link directly and pages it; the adapter capture reads the different /log/content operation. SAS Compute documents this as a collection of log line objects.'
+  },
+  {
     id: 'GET /compute/sessions/{}/filerefs/_webout/content',
     method: 'GET',
     path: '/compute/sessions/{}/filerefs/_webout/content',

@@ -18,6 +18,7 @@ import { ApiError } from '../types.js'
 import { estateKeyOf, normaliseServerUrl, seedOf } from './seed.js'
 import { estateFor, type EmulatedJob, type SessionOwner } from './sessions.js'
 import { idFor, callerId, EMULATED_NOW } from './ids.js'
+import { SESSION_VARIABLE_REFUSAL } from './overlay.js'
 
 /**
  * The name the emulator answers when a client asks for no particular context.
@@ -184,7 +185,7 @@ const jobBody = (job: EmulatedJob) => {
     ...(job.completedTimeStamp
       ? { completedTimeStamp: job.completedTimeStamp }
       : {}),
-    jobConditionCode: 0,
+    jobConditionCode: job.jobConditionCode ?? 0,
     stateElapsedTime: 1,
     listingStatistics: {
       lineCount: job.log.length,
@@ -256,6 +257,13 @@ const jobOf = (
  */
 const segmentsOf = (params: Record<string, string>): string[] =>
   (params as unknown as { segments: string[] }).segments
+
+// Visit every index, including holes in arrays supplied by direct dispatch.
+const validCodeLines = (lines: unknown[]): lines is string[] => {
+  for (let i = 0; i < lines.length; i++)
+    if (typeof lines[i] !== 'string') return false
+  return true
+}
 
 export const COMPUTE_HANDLERS: Record<
   string,
@@ -335,6 +343,36 @@ export const COMPUTE_HANDLERS: Record<
     }
   },
 
+  'GET /compute/sessions/{}/variables/{}': async ({
+    services,
+    params,
+    request
+  }) => {
+    if (services.viya?.mockSysjobid !== true)
+      throw new ApiError(501, SESSION_VARIABLE_REFUSAL, {
+        message: SESSION_VARIABLE_REFUSAL
+      })
+    if (request.subject === undefined && request.token !== undefined)
+      throw new ApiError(401, 'A valid caller is required.')
+    const [sessionId, name] = segmentsOf(params)
+    const session = sessionOf(services, sessionId, request.subject)
+    if (name !== 'SYSJOBID')
+      throw new ApiError(501, SESSION_VARIABLE_REFUSAL, {
+        message: SESSION_VARIABLE_REFUSAL
+      })
+    const uri = `/compute/sessions/${encodeURIComponent(session.id)}/variables/SYSJOBID`
+    return {
+      status: 200,
+      body: {
+        name: 'SYSJOBID',
+        value: `mock-${session.id}`,
+        scope: 'AUTOMATIC',
+        version: 1,
+        links: linksFor(uri, 'application/vnd.sas.compute.session.variable')
+      }
+    }
+  },
+
   'GET /compute/sessions/{}/state': async ({ services, params, request }) => {
     sessionOf(services, params.id, request.subject)
 
@@ -353,13 +391,29 @@ export const COMPUTE_HANDLERS: Record<
 
   'POST /compute/sessions/{}/jobs': async ({ services, params, request }) => {
     const session = sessionOf(services, params.id, request.subject)
-    const body = (request.body ?? {}) as {
-      code?: string | string[]
+    const input: unknown = request.body === undefined ? {} : request.body
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new ApiError(
+        400,
+        'Compute job code must be a string or an array of strings.'
+      )
+    const body = input as {
+      code?: unknown
       name?: string
       variables?: Record<string, string>
     }
-
-    const job = estateOf(services).submit(session, body)
+    const code = body.code
+    if (
+      code !== undefined &&
+      typeof code !== 'string' &&
+      (!Array.isArray(code) || !validCodeLines(code))
+    )
+      throw new ApiError(
+        400,
+        'Compute job code must be a string or an array of strings.'
+      )
+    const program = (code ?? '') as string | string[]
+    const job = estateOf(services).submit(session, { ...body, code: program })
     const execute = services.viya?.execute
 
     // a host with no engine has nothing to run, so the job is finished at once
@@ -380,7 +434,7 @@ export const COMPUTE_HANDLERS: Record<
     job.log = []
 
     void execute({
-      program: body.code ?? '',
+      program,
       variables: body.variables,
       name: body.name,
       sessionId: session.id
@@ -388,6 +442,7 @@ export const COMPUTE_HANDLERS: Record<
       .then((ran) => {
         job.log = ran.log.split('\n')
         job.state = ran.state ?? 'completed'
+        job.jobConditionCode = ran.jobConditionCode
 
         if (ran.webout !== undefined) job.webout = ran.webout
 
@@ -457,6 +512,65 @@ export const COMPUTE_HANDLERS: Record<
     return {
       status: 200,
       body: jobOf(services, sessionId, jobId, request.subject).state
+    }
+  },
+
+  // The collection is a separate CLI call from the adapter's /log/content.
+  'GET /compute/sessions/{}/jobs/{}/log': async ({
+    services,
+    params,
+    request
+  }) => {
+    const [sessionId, jobId] = segmentsOf(params)
+    const job = jobOf(services, sessionId, jobId, request.subject)
+    const start: unknown = request.query?.start
+    const limit: unknown = request.query?.limit
+    const startValue = start === undefined ? '0' : start
+    const limitValue = limit === undefined ? '10' : limit
+    if (
+      typeof startValue !== 'string' ||
+      typeof limitValue !== 'string' ||
+      !/^\d+$/.test(startValue) ||
+      !/^\d+$/.test(limitValue) ||
+      !Number.isSafeInteger(Number(startValue)) ||
+      !Number.isSafeInteger(Number(limitValue)) ||
+      Number(limitValue) > 2147483647
+    )
+      throw new ApiError(400, 'Unsupported job log pagination.')
+    if (
+      request.query?.type !== undefined ||
+      request.query?.timeout !== undefined
+    )
+      throw new ApiError(
+        400,
+        'Job log type and timeout are not supported by the emulator.'
+      )
+    const offset = Number(startValue)
+    const pageSize = Number(limitValue)
+    const uri = `/compute/sessions/${job.sessionId}/jobs/${job.id}/log`
+    return {
+      status: 200,
+      body: {
+        accept: 'application/json',
+        name: 'log',
+        start: offset,
+        limit: pageSize,
+        count: job.log.length,
+        version: 2,
+        items: job.log
+          .slice(offset, offset + pageSize)
+          .map((line) => ({ line, type: 'NOTE', version: 2 })),
+        links: [
+          {
+            href: uri,
+            uri,
+            rel: 'self',
+            method: 'GET',
+            type: 'application/vnd.sas.collection',
+            itemType: 'application/vnd.sas.compute.log.line'
+          }
+        ]
+      }
     }
   },
 

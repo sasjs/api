@@ -239,6 +239,31 @@ describe('the answers and the shapes the captures recorded', () => {
     assertShape(shapeOfRow('PATCH /folders/folders/{}'), answer.body, 'patched')
   })
 
+  it('answers an opted-in synthetic variable with the recorded shape', async () => {
+    const shared = services()
+    shared.viya!.mockSysjobid = true
+    const created = await dispatchViya(
+      shared,
+      'POST',
+      `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`
+    )
+    const id = (created.body as { id: string }).id
+    const answer = await dispatchViya(
+      shared,
+      'GET',
+      `/compute/sessions/${id}/variables/SYSJOBID`
+    )
+    expect(answer.status).toBe(200)
+    expect((answer.body as { links: unknown[] }).links.length).toBeGreaterThan(
+      0
+    )
+    assertShape(
+      shapeOfRow('GET /compute/sessions/{}/variables/{}'),
+      answer.body,
+      'variable'
+    )
+  })
+
   it('covers every implemented operation, so no handler escapes the check', () => {
     const implemented = Object.entries(VIYA_OVERLAY)
       .filter(([, entry]) => entry.implemented)
@@ -259,9 +284,13 @@ describe('the answers and the shapes the captures recorded', () => {
       'PUT /files/files/{}/content',
       'GET /compute/contexts',
       'GET /compute/sessions/{}/jobs/{}',
+      // Declared from the documented CLI call, not captured; its collection and
+      // pagination cases live in spec/viyaJobLogCollection.spec.ts.
+      'GET /compute/sessions/{}/jobs/{}/log',
       'GET /compute/sessions/{}/jobs/{}/log/content',
       'GET /compute/sessions/{}/jobs/{}/state',
       'GET /compute/sessions/{}/state',
+      'GET /compute/sessions/{}/variables/{}',
       'POST /compute/contexts/{}/sessions',
       'POST /compute/sessions/{}/jobs',
       'GET /folders/folders/@item',

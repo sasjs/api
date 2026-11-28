@@ -7,10 +7,8 @@
  * because there is no SAS engine to reach for in a browser and no reason to reach
  * for one here.
  *
- * The context is the one place the emulator answers the question it was asked
- * rather than one it chose: a client names the context it wants by filter and the
- * emulated estate has exactly one, under that name. Its id does not move with the
- * name, so a session can be created for the id the list returned.
+ * The emulated estate has one context. Its list, detail and session creation
+ * share its fixed identity; a filter cannot rename it.
  */
 import type { ApiResponse, Services } from '../host/dispatch.js'
 import type { Subject } from '../identity/types.js'
@@ -20,19 +18,10 @@ import { estateFor, type EmulatedJob, type SessionOwner } from './sessions.js'
 import { idFor, callerId, EMULATED_NOW } from './ids.js'
 import { SESSION_VARIABLE_REFUSAL } from './overlay.js'
 
-/**
- * The name the emulator answers when a client asks for no particular context.
- *
- * It is the name of the context a Viya estate ships with, because that is the
- * name a client carries: `SASViyaApiClient.createSession` lists `/compute/contexts`
- * with no filter and picks the entry whose name it was given, so a default of the
- * emulator's own choosing fails every caller with a name that is right everywhere
- * else. A client may still name any context it likes - see `contextNameFrom` - and
- * the estate answers under that name.
- */
-export const DEFAULT_CONTEXT_NAME = 'SAS Job Execution compute context'
+/** The one mock context, selected explicitly by clients. */
+export const DEFAULT_CONTEXT_NAME = 'SASjs Mock context'
 
-/** The one context id this estate mints, whatever name it is asked for. */
+/** The fixed id of the one emulated context. */
 export const EMULATED_CONTEXT_ID = idFor('emulated-context', 'context')
 
 /**
@@ -82,19 +71,26 @@ const estateOf = (services: Services) =>
   estateFor(estateKeyOf(services.viya), seedOf(services.viya))
 
 /**
- * The context name a client asked for.
- *
- * The adapter filters by name (`filter=eq(name,'X')`), so the answer is the one
- * emulated context under the requested name. A second estate is not something an
- * emulator can have, and an empty list would fail a client that has nothing wrong
- * with it.
+ * Read only the simple equality filter used by the adapter. Single-quoted
+ * names are also supported for existing mock clients. Escapes, other operators
+ * and compound expressions are refused rather than guessed.
  */
-export const contextNameFrom = (filter: string | undefined): string => {
-  if (!filter) return DEFAULT_CONTEXT_NAME
+export const contextNameFrom = (filter: unknown): string => {
+  if (filter === undefined) return DEFAULT_CONTEXT_NAME
 
-  const match = /name\s*,\s*'([^']*)'|name\s*,\s*"([^"]*)"/i.exec(filter)
+  const match =
+    typeof filter === 'string'
+      ? /^\s*eq\(\s*name\s*,\s*(?:'([^'\\]*)'|"([^"\\]*)")\s*\)\s*$/.exec(
+          filter
+        )
+      : null
+  if (!match)
+    throw new ApiError(
+      400,
+      'Unsupported compute context filter. Use eq(name, "...").'
+    )
 
-  return match?.[1] ?? match?.[2] ?? DEFAULT_CONTEXT_NAME
+  return match[1] ?? match[2]
 }
 
 const contextBody = (name: string, caller: string) => ({
@@ -279,23 +275,41 @@ export const COMPUTE_HANDLERS: Record<
   }) => Promise<ApiResponse>
 > = {
   'GET /compute/contexts': async ({ request }) => {
-    const limit = Number(request.query?.limit ?? 0) || 0
+    if (request.query?.sortBy !== undefined)
+      throw new ApiError(400, 'Unsupported compute context sortBy.')
+    const limitText: unknown = request.query?.limit
+    const startText: unknown = request.query?.start
+    const limitValue = limitText === undefined ? '10' : limitText
+    const startValue = startText === undefined ? '0' : startText
+    if (
+      typeof startValue !== 'string' ||
+      typeof limitValue !== 'string' ||
+      !/^\d+$/.test(startValue) ||
+      !/^\d+$/.test(limitValue) ||
+      !Number.isSafeInteger(Number(startValue)) ||
+      !Number.isSafeInteger(Number(limitValue))
+    )
+      throw new ApiError(
+        400,
+        'Unsupported compute context pagination. Use non-negative integers for start and limit.'
+      )
+    const start = Number(startValue)
+    const limit = Number(limitValue)
+    const matches =
+      contextNameFrom(request.query?.filter) === DEFAULT_CONTEXT_NAME
+        ? [contextBody(DEFAULT_CONTEXT_NAME, callerId(request.subject))]
+        : []
 
     return {
       status: 200,
       body: {
         accept: 'application/json',
         name: 'contexts',
-        start: 0,
+        start,
         limit,
-        count: 1,
+        count: matches.length,
         version: 2,
-        items: [
-          contextBody(
-            contextNameFrom(request.query?.filter),
-            callerId(request.subject)
-          )
-        ],
+        items: matches.slice(start, start + limit),
         links: linksFor(
           '/compute/contexts',
           'application/vnd.sas.compute.context',

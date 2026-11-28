@@ -340,9 +340,10 @@ describe('the compute answers, against their captured shapes', () => {
 
   it('answers the context list with every recorded key', async () => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
-      query: { filter: "eq(name,'Mine')" }
+      query: { filter: `eq(name,'SASjs Mock context')` }
     })
 
+    expect((answer.body as { items: unknown[] }).items).toHaveLength(1)
     assertShape(shapeOfRow('GET /compute/contexts'), answer.body, 'contexts')
   })
 

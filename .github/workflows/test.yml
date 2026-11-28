@@ -291,6 +291,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Adapter selects the mock compute context
+        run: node --test scripts/viya-mock-context-check.mjs
+
       # The build writes the paths `files` and `exports` name, and npm does not
       # check that they are there: a renamed path publishes a package quietly
       # missing that surface. This reads the archive npm would upload.

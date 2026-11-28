@@ -12,11 +12,7 @@ import { MemoryDriveStore } from '../src/drive/memory-store.js'
 import { createIdentityService } from '../src/identity/service.js'
 import { MemoryIdentityStore } from '../src/identity/memory-store.js'
 import { DEFAULT_IDENTITY } from '../src/identity/fixture.js'
-import {
-  DEFAULT_CONTEXT_NAME,
-  EMULATED_CONTEXT_ID,
-  contextNameFrom
-} from '../src/viya/compute.js'
+import { EMULATED_CONTEXT_ID } from '../src/viya/compute.js'
 import { generator, normaliseServerUrl, seedOf } from '../src/viya/seed.js'
 import type { Services } from '../src/host/dispatch.js'
 
@@ -119,48 +115,182 @@ describe('the seed is the estate', () => {
 })
 
 describe('the compute context', () => {
-  it('answers the name the client filtered for', async () => {
+  it('does not invent a context for a different filtered name', async () => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
       query: { filter: "eq(name,'SAS Studio compute context')" }
     })
 
+    expect(answer.status).toBe(200)
+    expect(answer.body).toEqual(
+      expect.objectContaining({ count: 0, items: [] })
+    )
+  })
+
+  it.each([`eq(name,"SASjs Mock context")`, "eq(name,'SASjs Mock context')"])(
+    'returns the same context for a matching filter %s',
+    async (filter) => {
+      const target = services()
+      const list = await dispatchViya(target, 'GET', '/compute/contexts', {
+        query: { filter }
+      })
+      const body = list.body as {
+        count: number
+        items: Array<{ id: string; name: string }>
+      }
+      expect(body.count).toBe(1)
+      expect(body.items).toHaveLength(1)
+      const detail = await dispatchViya(
+        target,
+        'GET',
+        `/compute/contexts/${body.items[0].id}`
+      )
+      expect(detail.body).toEqual(
+        expect.objectContaining({
+          id: body.items[0].id,
+          name: body.items[0].name
+        })
+      )
+      const session = await dispatchViya(
+        target,
+        'POST',
+        `/compute/contexts/${body.items[0].id}/sessions`
+      )
+      expect(session.status).toBe(201)
+    }
+  )
+
+  it('lists the mock default and returns the same id and name in its detail', async () => {
+    const target = services()
+    const answer = await dispatchViya(target, 'GET', '/compute/contexts', {
+      query: { limit: '10000' }
+    })
     const body = answer.body as {
       count: number
-      items: Array<{ name: string }>
+      items: Array<{ id: string; name: string }>
     }
 
     expect(answer.status).toBe(200)
     expect(body.count).toBe(1)
-    expect(body.items[0].name).toBe('SAS Studio compute context')
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toEqual(
+      expect.objectContaining({
+        id: EMULATED_CONTEXT_ID,
+        name: 'SASjs Mock context'
+      })
+    )
+
+    const detail = await dispatchViya(
+      target,
+      'GET',
+      `/compute/contexts/${body.items[0].id}`
+    )
+    expect(detail.status).toBe(200)
+    expect(detail.body).toEqual(
+      expect.objectContaining({
+        id: body.items[0].id,
+        name: 'SASjs Mock context'
+      })
+    )
   })
 
-  it('reads a double-quoted filter too, and answers a default otherwise', () => {
-    expect(contextNameFrom('eq(name,"Mine")')).toBe('Mine')
-    expect(contextNameFrom('eq(name,"Mine")')).not.toBe('Mine"')
-    expect(contextNameFrom(undefined)).toBe(DEFAULT_CONTEXT_NAME)
-  })
+  it.each([
+    ['filter', ['eq(name', '"SASjs Mock context")']],
+    ['filter', ['eq(name,"SASjs Mock context")']],
+    ['filter', null],
+    ['filter', { toString: () => 'eq(name,"SASjs Mock context")' }],
+    ['filter', Symbol('filter')],
+    ['start', ['0']],
+    [
+      'start',
+      {
+        valueOf: () => {
+          throw new Error('must not coerce')
+        }
+      }
+    ],
+    ['limit', ['10']],
+    ['start', null],
+    ['limit', 10],
+    ['sortBy', ['name']],
+    ['sortBy', null]
+  ])(
+    'rejects non-string %s values %o without coercing them',
+    async (key, value) => {
+      const query = { [key as string]: value } as unknown as Record<
+        string,
+        string | undefined
+      >
+      const answer = await dispatchViya(
+        services(),
+        'GET',
+        '/compute/contexts',
+        {
+          query
+        }
+      )
+      const expected =
+        key === 'filter' ? 'filter' : key === 'sortBy' ? 'sortBy' : 'pagination'
+      expect(answer.status).toBe(400)
+      expect((answer.body as { message: string }).message).toContain(expected)
+    }
+  )
 
-  // `SASViyaApiClient.createSession` lists the contexts with no filter and picks
-  // the entry whose name it was given, so the unfiltered answer has to be the
-  // context name a client carries - anything the emulator invents fails a caller
-  // that has nothing wrong with it.
-  it('names the estate default in an unfiltered list', async () => {
+  it('rejects unsupported sort criteria rather than ignoring them', async () => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
-      query: { limit: '10000' }
+      query: { sortBy: 'unknown' }
     })
-
-    const body = answer.body as { items: Array<{ name: string }> }
-
-    expect(body.items[0].name).toBe('SAS Job Execution compute context')
+    expect(answer.status).toBe(400)
+    expect((answer.body as { message: string }).message).toContain('sortBy')
   })
 
-  it('keeps one id whatever name it is asked for', async () => {
+  it.each([
+    { start: '-1' },
+    { limit: '-1' },
+    { start: '1.5' },
+    { limit: 'abc' },
+    { limit: '' },
+    { start: '9007199254740992' }
+  ])('rejects unsupported pagination %o', async (query) => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
-      query: { filter: "eq(name,'Anything')" }
+      query
     })
+    expect(answer.status).toBe(400)
+    expect((answer.body as { message: string }).message).toContain('pagination')
+  })
 
-    expect((answer.body as { items: Array<{ id: string }> }).items[0].id).toBe(
-      EMULATED_CONTEXT_ID
+  it('honors an empty page and case-sensitive name matching', async () => {
+    const emptyPage = await dispatchViya(
+      services(),
+      'GET',
+      '/compute/contexts',
+      {
+        query: { limit: '0' }
+      }
+    )
+    expect(emptyPage.body).toEqual(
+      expect.objectContaining({ start: 0, limit: 0, count: 1, items: [] })
+    )
+    const wrongCase = await dispatchViya(
+      services(),
+      'GET',
+      '/compute/contexts',
+      {
+        query: { filter: 'eq(name,"sasjs mock context")' }
+      }
+    )
+    expect(wrongCase.body).toEqual(
+      expect.objectContaining({ count: 0, items: [] })
+    )
+  })
+
+  it('paginates the matched collection without changing its total count', async () => {
+    const target = services()
+    const answer = await dispatchViya(target, 'GET', '/compute/contexts', {
+      query: { start: '1', limit: '1', filter: 'eq(name,"SASjs Mock context")' }
+    })
+    expect(answer.status).toBe(200)
+    expect(answer.body).toEqual(
+      expect.objectContaining({ start: 1, limit: 1, count: 1, items: [] })
     )
   })
 })
@@ -469,14 +599,21 @@ describe('the parts of the estate that only a second call reaches', () => {
     expect(answer.status).toBe(200)
   })
 
-  it('answers the default context name for a filter it cannot read', async () => {
+  it.each([
+    '',
+    'unparseable',
+    'ne(name,"SASjs Mock context")',
+    'eq(name,"SASjs Mock context") trailing',
+    'and(eq(name,"SASjs Mock context"),eq(id,"other"))',
+    'eq(id,"SASjs Mock context")'
+  ])('rejects an unsupported filter: %s', async (filter) => {
     const answer = await dispatchViya(services(), 'GET', '/compute/contexts', {
-      query: { filter: 'unparseable' }
+      query: { filter }
     })
-
-    expect(
-      (answer.body as { items: Array<{ name: string }> }).items[0].name
-    ).toBe(DEFAULT_CONTEXT_NAME)
+    expect(answer.status).toBe(400)
+    expect((answer.body as { message: string }).message).toContain(
+      'Unsupported compute context filter'
+    )
   })
 })
 

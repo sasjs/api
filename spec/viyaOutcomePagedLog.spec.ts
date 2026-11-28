@@ -1,7 +1,6 @@
 import { dispatchViya } from '../src/viya/dispatch.js'
 import { createDriveService } from '../src/drive/service.js'
 import { MemoryDriveStore } from '../src/drive/memory-store.js'
-import { EMULATED_CONTEXT_ID } from '../src/viya/compute.js'
 import type { Services } from '../src/host/dispatch.js'
 import type { ViyaRun } from '../src/viya/seed.js'
 
@@ -22,10 +21,27 @@ test('interleaved warning and error outcomes retain their own paged logs and iso
     ...services,
     viya: { ...services.viya!, serverUrl: 'http://other-outcome-pages.invalid' }
   }
+  const contexts = await dispatchViya(services, 'GET', '/compute/contexts', {
+    subject: owner,
+    query: { filter: 'eq(name,"SASjs Mock context")' }
+  })
+  expect(contexts.status).toBe(200)
+  const matching = contexts.body as {
+    count: number
+    items: Array<{ id: string }>
+  }
+  expect(matching.count).toBe(1)
+  expect(matching.items).toHaveLength(1)
+  const missing = await dispatchViya(services, 'GET', '/compute/contexts', {
+    subject: owner,
+    query: { filter: 'eq(name,"not a mock context")' }
+  })
+  expect(missing.status).toBe(200)
+  expect(missing.body).toMatchObject({ count: 0, items: [] })
   const created = await dispatchViya(
     services,
     'POST',
-    `/compute/contexts/${EMULATED_CONTEXT_ID}/sessions`,
+    `/compute/contexts/${matching.items[0].id}/sessions`,
     { subject: owner }
   )
   expect(created.status).toBe(201)

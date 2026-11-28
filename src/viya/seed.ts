@@ -72,6 +72,20 @@ export interface ViyaSeedSettings {
   serverUrl?: string
   /** Runs a submitted program, when the host has an engine. */
   execute?: ViyaExecutor['execute']
+  /**
+   * Trusted host capability for folder member discovery only. Set to false
+   * when the caller lacks permission to read job-definition files. Reserved
+   * definition filenames are hidden without reading them. Omitted preserves
+   * the historical metadata-discovery behaviour. Never populate from a request.
+   */
+  readJobDefinitionMetadata?: boolean
+  /**
+   * Trusted host opt-in for isolated mocks only. The host must ensure that no
+   * other Drive mutations (including folder moves/deletes and definition
+   * creates) overlap a create, across all processes and store users. This flag
+   * provides no locking or transactional guarantees. Never set from a request.
+   */
+  allowUntransactionalJobDefinitionCreation?: boolean
 }
 
 /**

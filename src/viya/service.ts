@@ -28,6 +28,11 @@ import { requireDrive } from './ports.js'
 import { COMPUTE_HANDLERS } from './compute.js'
 import { FILE_HANDLERS } from './files.js'
 import { IDENTITY_HANDLERS } from './identity.js'
+import {
+  JOB_DEFINITION_HANDLERS,
+  definitionFromFile,
+  isJobDefinitionFileName
+} from './job-definitions.js'
 
 import {
   idFor,
@@ -138,25 +143,18 @@ const isRecycleBin = (uri: string | undefined): boolean =>
  * opposite of "a client stores an id and asks for it later".
  */
 const pathForId = async (drive: DriveService, id: string): Promise<string> => {
-  const walk = (node: {
-    isFolder: boolean
-    relativePath: string
-    children: unknown[]
-  }): string | undefined => {
-    if (node.isFolder && idFor(node.relativePath) === id)
-      return node.relativePath
-
-    for (const child of node.children as (typeof node)[]) {
-      const hit = walk(child)
-
-      if (hit) return hit
+  const walk = async (path: string): Promise<string | undefined> => {
+    if (idFor(path) === id) return path
+    const { folders } = await drive.list(path)
+    for (const name of folders) {
+      const child = path === '/' ? `/${name}` : `${path}/${name}`
+      const hit = await walk(child)
+      if (hit !== undefined) return hit
     }
-
     return undefined
   }
 
-  const { tree } = await drive.tree('/')
-  const path = walk(tree as never)
+  const path = await walk('/')
 
   if (!path)
     throw new ApiError(
@@ -302,6 +300,11 @@ export const VIYA_HANDLERS: Record<
   'GET /folders/folders/{}/members': async ({ services, params, request }) => {
     const drive = requireDrive(services)
     const limit = Number(request.query?.limit ?? 0) || 0
+    const requestedStart = Number(request.query?.start ?? 0)
+    const start =
+      Number.isSafeInteger(requestedStart) && requestedStart > 0
+        ? requestedStart
+        : 0
 
     // the bin is not a folder in the drive, and its own body advertises this
     // link - so a client following the answer it just received must not 404
@@ -311,7 +314,7 @@ export const VIYA_HANDLERS: Record<
         body: {
           accept: 'application/json',
           name: 'members',
-          start: 0,
+          start,
           // the query value is echoed as the sibling branch echoes it: a caller
           // that asked for five and is told zero cannot tell what happened
           limit,
@@ -325,6 +328,15 @@ export const VIYA_HANDLERS: Record<
     const path = await pathForId(drive, params.id)
     const listing = await drive.list(path)
     const caller = callerId(request.subject)
+    const canReadMetadata = services.viya?.readJobDefinitionMetadata !== false
+    const definitions = canReadMetadata
+      ? await Promise.all(
+          listing.files.map((name) => definitionFromFile(drive, path, name))
+        )
+      : []
+    const definitionByFile = new Map(
+      listing.files.map((name, index) => [name, definitions[index]])
+    )
 
     /**
      * A member's `uri` is the resource, not its path.
@@ -351,26 +363,63 @@ export const VIYA_HANDLERS: Record<
           `/folders/folders/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'))}`
         )
       })),
-      ...listing.files.map((name) => ({
-        id: idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file'),
-        name,
-        type: 'file',
-        version: 1,
-        contentType: 'text/plain',
-        createdBy: caller,
-        modifiedBy: caller,
-        creationTimeStamp: EMULATED_NOW,
-        modifiedTimeStamp: EMULATED_NOW,
-        parentFolderUri: `/folders/folders/${idFor(path)}`,
-        added: EMULATED_NOW,
-        uri: `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`,
-        links: linksFor(
-          `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`
+      ...listing.files
+        .filter(
+          (name) =>
+            !definitionByFile.get(name) &&
+            (canReadMetadata || !isJobDefinitionFileName(name))
         )
-      }))
+        .map((name) => ({
+          id: idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file'),
+          name,
+          type: 'file',
+          version: 1,
+          contentType: 'text/plain',
+          createdBy: caller,
+          modifiedBy: caller,
+          creationTimeStamp: EMULATED_NOW,
+          modifiedTimeStamp: EMULATED_NOW,
+          parentFolderUri: `/folders/folders/${idFor(path)}`,
+          added: EMULATED_NOW,
+          uri: `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`,
+          links: linksFor(
+            `/files/files/${idFor(`${path}/${name}`.replace(/\/{2,}/g, '/'), 'file')}`
+          )
+        })),
+      ...definitions
+        .filter((definition) => definition !== undefined)
+        .map((definition) => {
+          const uri = `/jobDefinitions/definitions/${definition.id}`
+          return {
+            id: definition.id,
+            name: definition.name,
+            // The captured member identifies its relationship separately from
+            // the resource kind. Other links remain emulated, not estate parity.
+            type: 'child',
+            contentType: 'jobDefinition',
+            version: 1,
+            createdBy: definition.createdBy,
+            modifiedBy: definition.modifiedBy,
+            creationTimeStamp: definition.creationTimeStamp,
+            modifiedTimeStamp: definition.modifiedTimeStamp,
+            parentFolderUri: `/folders/folders/${idFor(path)}`,
+            added: definition.creationTimeStamp,
+            uri,
+            links: [
+              {
+                href: uri,
+                uri,
+                rel: 'getResource',
+                method: 'GET',
+                type: 'application/vnd.sas.summary'
+              }
+            ]
+          }
+        })
     ]
 
-    const page = limit > 0 ? items.slice(0, limit) : items
+    const page =
+      limit > 0 ? items.slice(start, start + limit) : items.slice(start)
 
     // the envelope is what the capture recorded, including the paging fields a
     // client reads to decide whether to ask for more
@@ -379,7 +428,7 @@ export const VIYA_HANDLERS: Record<
       body: {
         accept: 'application/json',
         name: 'members',
-        start: 0,
+        start,
         limit: limit || page.length,
         count: page.length,
         version: 2,
@@ -470,5 +519,6 @@ export const VIYA_HANDLERS: Record<
 
   ...FILE_HANDLERS,
 
-  ...IDENTITY_HANDLERS
+  ...IDENTITY_HANDLERS,
+  ...JOB_DEFINITION_HANDLERS
 }
